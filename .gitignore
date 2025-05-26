@@ -1,0 +1,19 @@
+# Ignore everything at root level
+/*
+
+# But include src directory
+!/src/
+
+# Also include essential config files if needed
+!/.gitignore
+!/package.json
+!/tsconfig.json
+!/README.md
+
+# Standard Node.js ignores
+node_modules/
+*.log
+.env
+dist/
+build/
+*.tsbuildinfo
