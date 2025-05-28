@@ -1,4 +1,4 @@
-import { Transaction, CompensableOperation } from '../types';
+import { Transaction, CompensableOperation } from '../types/index.js';
 
 export class TransactionManager {
   private transactions: Map<string, Transaction> = new Map();

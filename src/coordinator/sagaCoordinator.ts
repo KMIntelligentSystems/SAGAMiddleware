@@ -1,9 +1,9 @@
 import { EventEmitter } from 'events';
-import { AgentDefinition, SagaEvent, AgentResult } from '../types';
-import { GenericAgent } from '../agents/genericAgent';
-import { ContextManager } from '../sublayers/contextManager';
-import { ValidationManager } from '../sublayers/validationManager';
-import { TransactionManager } from '../sublayers/transactionManager';
+import { AgentDefinition, SagaEvent, AgentResult } from '../types/index.js';
+import { GenericAgent } from '../agents/genericAgent.js';
+import { ContextManager } from '../sublayers/contextManager.js';
+import { ValidationManager } from '../sublayers/validationManager.js';
+import { TransactionManager } from '../sublayers/transactionManager.js';
 
 export class SagaCoordinator extends EventEmitter {
   private agents: Map<string, GenericAgent> = new Map();
@@ -194,12 +194,12 @@ export class SagaCoordinator extends EventEmitter {
     const graph = new Map<string, string[]>();
     const inDegree = new Map<string, number>();
 
-    for (const [name, definition] of this.agentDefinitions) {
+    for (const [name, definition] of this.agentDefinitions.entries()) {
       graph.set(name, definition.dependencies.map(d => d.agentName));
       inDegree.set(name, 0);
     }
 
-    for (const [name, deps] of graph) {
+    for (const [name, deps] of graph.entries()) {
       for (const dep of deps) {
         if (this.agentDefinitions.has(dep)) {
           inDegree.set(name, (inDegree.get(name) || 0) + 1);
@@ -210,7 +210,7 @@ export class SagaCoordinator extends EventEmitter {
     const queue: string[] = [];
     const result: string[] = [];
 
-    for (const [name, degree] of inDegree) {
+    for (const [name, degree] of inDegree.entries()) {
       if (degree === 0) {
         queue.push(name);
       }

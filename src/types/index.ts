@@ -3,6 +3,28 @@ export interface AgentDependency {
   required: boolean;
 }
 
+export interface MCPServerConfig {
+  name: string;
+  command?: string;
+  args?: string[];
+  transport: 'stdio' | 'http';
+  url?: string;
+  env?: Record<string, string>;
+  timeout?: number;
+}
+
+export interface MCPToolCall {
+  name: string;
+  arguments: Record<string, any>;
+}
+
+export interface MCPResource {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
 export interface AgentDefinition {
   name: string;
   llmConfig: LLMConfig;
@@ -10,6 +32,9 @@ export interface AgentDefinition {
   context: Record<string, any>;
   dependencies: AgentDependency[];
   task: string;
+  mcpServers?: MCPServerConfig[];
+  mcpTools?: string[];
+  mcpResources?: string[];
 }
 
 export interface LLMConfig {
@@ -17,6 +42,7 @@ export interface LLMConfig {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  apiKey?: string;
 }
 
 export interface SagaEvent {
