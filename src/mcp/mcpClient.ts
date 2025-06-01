@@ -1,6 +1,6 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
-import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index';
+// import { Client } from '@modelcontextprotocol/sdk/client/index';
+//import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
+import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
 
 export interface MCPClientManager {
   connect(serverConfig: MCPServerConfig): Promise<void>;
@@ -13,7 +13,7 @@ export interface MCPClientManager {
 }
 
 export class MCPClientManagerImpl implements MCPClientManager {
-  private clients = new Map<string, Client>();
+  private clients = new Map<string, any>();
   private transports = new Map<string, any>();
   private serverConfigs = new Map<string, MCPServerConfig>();
 
@@ -29,12 +29,12 @@ export class MCPClientManagerImpl implements MCPClientManager {
         if (!serverConfig.command) {
           throw new Error(`stdio transport requires command for server ${serverConfig.name}`);
         }
-        
-        transport = new StdioClientTransport({
+      
+        transport = null;/*new StdioClientTransport({
           command: serverConfig.command,
           args: serverConfig.args || [],
           env: serverConfig.env
-        });
+        });*/
       } else if (serverConfig.transport === 'http') {
         // HTTP transport implementation would go here
         // For now, we'll throw an error as it's not implemented
@@ -43,17 +43,12 @@ export class MCPClientManagerImpl implements MCPClientManager {
         throw new Error(`Unsupported transport type: ${serverConfig.transport}`);
       }
 
-      const client = new Client({
+      const client = {
         name: 'saga-middleware',
         version: '1.0.0'
-      }, {
-        capabilities: {
-          tools: {},
-          resources: {}
-        }
-      });
+      };
 
-      await client.connect(transport);
+    //  await client.connect(transport);
       
       this.clients.set(serverConfig.name, client);
       this.transports.set(serverConfig.name, transport);
@@ -160,7 +155,7 @@ export class MCPClientManagerImpl implements MCPClientManager {
     return this.clients.has(serverName);
   }
 
-  private getClient(serverName: string): Client {
+  private getClient(serverName: string): any {
     const client = this.clients.get(serverName);
     if (!client) {
       throw new Error(`MCP server ${serverName} is not connected`);

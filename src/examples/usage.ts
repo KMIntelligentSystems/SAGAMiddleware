@@ -124,8 +124,11 @@ try {
       keepOpen();
     });
     
-} catch (syncError) {
+} catch (syncError: any) {
   console.error('Synchronous error occurred:', syncError);
-  console.log('Press Ctrl+C to exit or wait 10 seconds...');
-  setTimeout(() => process.exit(1), 10000);
+  console.error('Stack trace:', syncError.stack);
+  console.log('Press any key to exit...');
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.on('data', () => process.exit(1));
 }

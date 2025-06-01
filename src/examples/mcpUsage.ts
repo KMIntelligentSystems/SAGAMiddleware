@@ -12,6 +12,13 @@ async function mcpExampleUsage() {
   console.log('Creating enhanced SAGA middleware with MCP support...');
   
   // Create MCP server configurations
+  const ragServerConfig = createMCPServerConfig({
+    name: "rag-server",
+    transport: "stdio",
+    command: "node",
+    args: ["../rag-mcp-server/dist/server.js", "--stdio"],
+    timeout: 30000
+  });
   const filesystemServerConfig = createMCPServerConfig({
     name: 'filesystem',
     command: 'npx',
@@ -31,7 +38,7 @@ async function mcpExampleUsage() {
 
   // Create enhanced SAGA middleware with auto-connect MCP servers
   const saga = createEnhancedSagaMiddleware({
-    autoConnectMCPServers: [filesystemServerConfig]
+    autoConnectMCPServers: [ragServerConfig]
   });
 
   // Alternatively, connect manually
@@ -60,13 +67,17 @@ async function mcpExampleUsage() {
       analysisType: 'comprehensive'
     },
     // Specify MCP servers this agent can use
-    mcpServers: [filesystemServerConfig, databaseServerConfig],
+    mcpServers: [ragServerConfig],//filesystemServerConfig, databaseServerConfig
     // Optionally specify specific tools (if not specified, all tools are available)
-    mcpTools: ['read_file', 'list_directory', 'query_database'],
+    mcpTools: ['search_documents', 'index_document', 'get_chunks', 'semantic_search', 'index_file'],//'read_file', 'list_directory', 'query_database'
     // Optionally specify specific resources
-    mcpResources: ['file:///data/*.csv', 'db://tables/analytics']
+    mcpResources: ['rag://collections'] //'file:///data/*.csv', 'db://tables/analytics'
   });
-
+/*
+`search_documents` - Vector similarity search
+- `index_document` - Add/update documents
+- `get_chunks` - Retrieve specific chunks
+- `semantic_search*/
   const reportGeneratorAgent = createAgentDefinition({
     name: 'report_generator',
     task: 'Generate a comprehensive report based on analysis data, save it to filesystem',
@@ -83,7 +94,7 @@ async function mcpExampleUsage() {
       { agentName: 'data_analyzer', required: true }
     ],
     // This agent can use filesystem tools to save reports
-    mcpServers: [filesystemServerConfig],
+    mcpServers: [ragServerConfig],//filesystemServerConfig
     mcpTools: ['write_file', 'create_directory']
   });
 

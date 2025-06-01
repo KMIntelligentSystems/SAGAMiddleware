@@ -28,5 +28,8 @@
 		"run": "node ./src/index.js",
 		"dev": "lite-server",
 		"build": "npx tsc"
+	},
+	"devDependencies": {
+		"typescript": "^5.8.3"
 	}
 }

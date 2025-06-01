@@ -84,3 +84,6 @@ export interface AgentResult {
   error?: string;
   timestamp: Date;
 }
+
+// Add a dummy export to ensure JS file is generated
+export const TYPES_VERSION = '1.0.0';
