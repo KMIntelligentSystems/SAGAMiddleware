@@ -16,8 +16,8 @@ async function mcpExampleUsage() {
     name: "rag-server",
     transport: "stdio",
     command: "node",
-    args: ["../rag-mcp-server/dist/server.js", "--stdio"],
-    timeout: 30000
+    args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
+    timeout: 120000
   });
   const filesystemServerConfig = createMCPServerConfig({
     name: 'filesystem',
@@ -42,9 +42,10 @@ async function mcpExampleUsage() {
   });
 
   // Alternatively, connect manually
+  //3. mcpClientManager.connect(serverConfig); singleton in index.js
   try {
-    await connectToMCPServer(databaseServerConfig);
-    console.log('Connected to database MCP server');
+    await connectToMCPServer(ragServerConfig);
+    console.log('Connected to rag server MCP server');
   } catch (error) {
     console.log('Database server not available, continuing without it...');
   }
@@ -52,26 +53,33 @@ async function mcpExampleUsage() {
   // Create an agent with MCP capabilities
   const dataAnalyzerAgent = createAgentDefinition({
     name: 'data_analyzer',
-    task: 'Analyze data files and extract insights using available tools and resources',
+    task: `Index the supply.csv file into ChromaDB for analysis. Use the index_file tool with these exact parameters:
+- filePath: "c:/repos/SAGAMiddleware/data/supply.csv" 
+- collection: "supply_analysis"
+- metadata: {"type": "CSV", "analysisType": "comprehensive"}
+
+After indexing, provide insights about the data structure and content.`,
     provider: 'openai',
     model: 'gpt-4',
     apiKey: process.env["OPENAI_API_KEY"] as string,
     expectedOutput: {
+      indexed: 'boolean',
+      collection: 'string',
       insights: 'string[]',
       confidence: 'number',
       dataSource: 'string',
-      recommendations: 'string[]'
+      chunkCount: 'number'
     },
     context: {
       domain: 'data_analysis',
       analysisType: 'comprehensive'
     },
     // Specify MCP servers this agent can use
-    mcpServers: [ragServerConfig],//filesystemServerConfig, databaseServerConfig
+    mcpServers: [ragServerConfig],
     // Optionally specify specific tools (if not specified, all tools are available)
-    mcpTools: ['search_documents', 'index_document', 'get_chunks', 'semantic_search', 'index_file'],//'read_file', 'list_directory', 'query_database'
+    mcpTools: ['search_documents', 'index_document', 'get_chunks', 'semantic_search', 'index_file'],
     // Optionally specify specific resources
-    mcpResources: ['rag://collections'] //'file:///data/*.csv', 'db://tables/analytics'
+    mcpResources: ['rag://collections', "path:c:/repos/SAGAMiddleware/data/supply.csv"]
   });
 /*
 `search_documents` - Vector similarity search
@@ -80,7 +88,7 @@ async function mcpExampleUsage() {
 - `semantic_search*/
   const reportGeneratorAgent = createAgentDefinition({
     name: 'report_generator',
-    task: 'Generate a comprehensive report based on analysis data, save it to filesystem',
+    task: `Use get_chunks to retrieve all chunks from the "supply_analysis" collection, then generate a comprehensive report analyzing the energy supply data. Create a detailed analysis report and save it as a text file in the ./reports directory.`,
     provider: 'anthropic',
     model: 'claude-3-7-sonnet-20250219',
     apiKey: process.env["ANTHROPIC_API_KEY"] as string,
@@ -93,9 +101,9 @@ async function mcpExampleUsage() {
     dependencies: [
       { agentName: 'data_analyzer', required: true }
     ],
-    // This agent can use filesystem tools to save reports
-    mcpServers: [ragServerConfig],//filesystemServerConfig
-    mcpTools: ['write_file', 'create_directory']
+    // This agent can use RAG tools to get chunks and save reports
+    mcpServers: [ragServerConfig],
+    mcpTools: ['search_documents', 'get_chunks', 'semantic_search']
   });
 
   const qualityCheckerAgent = createAgentDefinition({
@@ -114,8 +122,10 @@ async function mcpExampleUsage() {
       { agentName: 'report_generator', required: true }
     ],
     // This agent can read files to check quality
-    mcpServers: [filesystemServerConfig],
-    mcpTools: ['read_file', 'get_file_info']
+    //Connected to MCP server: filesystem filesystemServerConfig]
+    //Error listing resources from server filesystem: McpError: MCP error -32601: Method not found
+  //  mcpServers: [ragServerConfig],
+  //  mcpTools: ['read_file', 'get_file_info']
   });
 
   console.log('Registering MCP-enabled agents...');
@@ -134,7 +144,7 @@ async function mcpExampleUsage() {
   try {
     console.log('Starting MCP-enhanced workflow execution...');
     const results = await saga.executeWorkflow({
-      inputData: './data/sample-data.csv',
+      inputData: "c:/repos/SAGAMiddleware/data/supply.csv",
       outputDirectory: './reports',
       analysisParameters: {
         includeStatistics: true,
@@ -149,11 +159,11 @@ async function mcpExampleUsage() {
       if (result.success) {
         console.log('  Result:', JSON.stringify(result.result, null, 2));
         
-        // Show MCP-specific results
-        if (result.result.mcpToolResults) {
-          console.log('  MCP Tool Results:');
-          for (const toolResult of result.result.mcpToolResults) {
-            console.log(`    ${toolResult.call.name}: ${toolResult.success ? 'SUCCESS' : 'FAILED'}`);
+        // Show any additional result data
+        if (result.result && typeof result.result === 'object') {
+          const keys = Object.keys(result.result);
+          if (keys.length > 0) {
+            console.log('  Additional data:', keys.join(', '));
           }
         }
       } else {
@@ -173,15 +183,12 @@ async function advancedMCPExample() {
   const saga = createEnhancedSagaMiddleware();
   
   // Create an agent that demonstrates MCP tool calling
-  const mcpToolAgent = createAgentDefinition({
+  /*const mcpToolAgent = createAgentDefinition({
     name: 'mcp_tool_demo',
     task: `Demonstrate MCP tool usage. Use available MCP tools to:
     1. List files in the current directory
     2. Read a specific file if it exists
-    3. Create a summary report
-    
-    Use the mcpToolCall feature in your response like:
-    {"mcpToolCall": {"name": "list_directory", "arguments": {"path": "."}}}`,
+    3. Create a summary report`,
     provider: 'openai',
     model: 'gpt-4',
     apiKey: process.env["OPENAI_API_KEY"] as string,
@@ -200,7 +207,7 @@ async function advancedMCPExample() {
     ]
   });
 
-  saga.registerAgent(mcpToolAgent);
+  saga.registerAgent(mcpToolAgent);*/
 
   try {
     const results = await saga.executeWorkflow({

@@ -1,6 +1,9 @@
-// import { Client } from '@modelcontextprotocol/sdk/client/index';
+//import { Client } from '@modelcontextprotocol/sdk/client/index';
 //import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
 import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
+
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 export interface MCPClientManager {
   connect(serverConfig: MCPServerConfig): Promise<void>;
@@ -30,11 +33,11 @@ export class MCPClientManagerImpl implements MCPClientManager {
           throw new Error(`stdio transport requires command for server ${serverConfig.name}`);
         }
       
-        transport = null;/*new StdioClientTransport({
+        transport = new StdioClientTransport({
           command: serverConfig.command,
           args: serverConfig.args || [],
           env: serverConfig.env
-        });*/
+        });
       } else if (serverConfig.transport === 'http') {
         // HTTP transport implementation would go here
         // For now, we'll throw an error as it's not implemented
@@ -43,18 +46,27 @@ export class MCPClientManagerImpl implements MCPClientManager {
         throw new Error(`Unsupported transport type: ${serverConfig.transport}`);
       }
 
-      const client = {
+      const client = new Client({
         name: 'saga-middleware',
         version: '1.0.0'
-      };
-
-    //  await client.connect(transport);
+      }, {
+        capabilities: {
+          tools: {},
+          resources: {}
+        }
+      });
+/*1. ChromaDB connection established
+RAG MCP Server started in stdio mode
+Connected to MCP server: rag-server
+ChromaDB connection established
+RAG MCP Server started in stdio mode*/ 
+      await client.connect(transport);
       
       this.clients.set(serverConfig.name, client);
       this.transports.set(serverConfig.name, transport);
       this.serverConfigs.set(serverConfig.name, serverConfig);
-
-      console.log(`Connected to MCP server: ${serverConfig.name}`);
+//2.server name = rag
+      console.log(`Connected to MCP server: ${serverConfig.name}`); 
     } catch (error) {
       throw new Error(`Failed to connect to MCP server ${serverConfig.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -80,6 +92,7 @@ export class MCPClientManagerImpl implements MCPClientManager {
   async listTools(serverName?: string): Promise<any[]> {
     if (serverName) {
       const client = this.getClient(serverName);
+
       const response = await client.listTools();
       return response.tools || [];
     }
@@ -103,13 +116,30 @@ export class MCPClientManagerImpl implements MCPClientManager {
 
   async callTool(serverName: string, toolCall: MCPToolCall): Promise<any> {
     const client = this.getClient(serverName);
+    const serverConfig = this.serverConfigs.get(serverName);
+    const timeout = serverConfig?.timeout || 120000;
     
     try {
-      const response = await client.callTool({
-        name: toolCall.name,
-        arguments: toolCall.arguments
+      console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Tool call timed out after ${timeout}ms`)), timeout);
       });
       
+      // Race between the tool call and timeout
+      const response = await Promise.race([
+        client.callTool({
+          name: toolCall.name,
+          arguments: toolCall.arguments
+        }),
+        timeoutPromise
+      ]) as any;
+      
+      // Return the content directly, handling different content types
+      if (Array.isArray(response.content)) {
+        return response.content;
+      }
       return response.content;
     } catch (error) {
       throw new Error(`MCP tool call failed for ${toolCall.name} on server ${serverName}: ${error instanceof Error ? error.message : String(error)}`);
