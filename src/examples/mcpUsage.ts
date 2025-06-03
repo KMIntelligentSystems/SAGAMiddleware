@@ -2,7 +2,8 @@ import {
   createEnhancedSagaMiddleware, 
   createAgentDefinition, 
   createMCPServerConfig,
-  connectToMCPServer 
+  connectToMCPServer,
+  dataPreprocessor
 } from '../index.js';
 import dotenv from 'dotenv';
 
@@ -50,36 +51,38 @@ async function mcpExampleUsage() {
     console.log('Database server not available, continuing without it...');
   }
 
-  // Create an agent with MCP capabilities
+  // Create an agent that analyzes pre-indexed data
   const dataAnalyzerAgent = createAgentDefinition({
     name: 'data_analyzer',
-    task: `Index the supply.csv file into ChromaDB for analysis. Use the index_file tool with these exact parameters:
-- filePath: "c:/repos/SAGAMiddleware/data/supply.csv" 
-- collection: "supply_analysis"
-- metadata: {"type": "CSV", "analysisType": "comprehensive"}
+    task: `Generate a comprehensive report using data from "supply_analysis" collection.
 
-After indexing, provide insights about the data structure and content.`,
+REQUIRED STEPS:
+1. Call get_chunks tool with collection="supply_analysis" and limit=20 to retrieve data
+2. Optionally use semantic_search to explore specific aspects
+3. Create a structured report based on the retrieved data
+
+You MUST use the tools to retrieve actual data before generating the report.`,
     provider: 'openai',
-    model: 'gpt-4',
-    apiKey: process.env["OPENAI_API_KEY"] as string,
+ 
+   model: 'gpt-4o-mini',
+  apiKey: process.env["OPENAI_API_KEY"] as string,
+    maxTokens: 1500,
     expectedOutput: {
-      indexed: 'boolean',
-      collection: 'string',
+      analyzed: 'boolean',
+      dataRetrieved: 'boolean',
+      chunksAnalyzed: 'number',
       insights: 'string[]',
-      confidence: 'number',
-      dataSource: 'string',
-      chunkCount: 'number'
+      patterns: 'string[]'
     },
     context: {
-      domain: 'data_analysis',
-      analysisType: 'comprehensive'
+      collection: 'supply_analysis'
     },
     // Specify MCP servers this agent can use
     mcpServers: [ragServerConfig],
-    // Optionally specify specific tools (if not specified, all tools are available)
-    mcpTools: ['search_documents', 'index_document', 'get_chunks', 'semantic_search', 'index_file'],
+    // Only query/search tools - no indexing tools
+    mcpTools: ['search_documents', 'get_chunks', 'semantic_search'],
     // Optionally specify specific resources
-    mcpResources: ['rag://collections', "path:c:/repos/SAGAMiddleware/data/supply.csv"]
+    mcpResources: ['rag://collections']
   });
 /*
 `search_documents` - Vector similarity search
@@ -88,20 +91,33 @@ After indexing, provide insights about the data structure and content.`,
 - `semantic_search*/
   const reportGeneratorAgent = createAgentDefinition({
     name: 'report_generator',
-    task: `Use get_chunks to retrieve all chunks from the "supply_analysis" collection, then generate a comprehensive report analyzing the energy supply data. Create a detailed analysis report and save it as a text file in the ./reports directory.`,
+    task: `Generate a comprehensive report using data from "supply_analysis" collection.
+
+REQUIRED STEPS:
+1. Call get_chunks tool with collection="supply_analysis" and limit=20 to retrieve data
+2. Optionally use semantic_search to explore specific aspects
+3. Create a structured report based on the retrieved data
+
+You MUST use the tools to retrieve actual data before generating the report.`,
     provider: 'anthropic',
-    model: 'claude-3-7-sonnet-20250219',
+    model: 'claude-3-haiku-20240307',
     apiKey: process.env["ANTHROPIC_API_KEY"] as string,
+    maxTokens: 2000,
     expectedOutput: {
       title: 'string',
-      sections: 'object[]',
-      savedFile: 'string',
-      fileSize: 'number'
+      dataRetrieved: 'boolean',
+      chunksProcessed: 'number',
+      summary: 'string',
+      insights: 'string[]',
+      recommendations: 'string[]'
     },
     dependencies: [
       { agentName: 'data_analyzer', required: true }
     ],
-    // This agent can use RAG tools to get chunks and save reports
+    context: {
+      collection: 'supply_analysis'
+    },
+    // This agent only queries pre-indexed data
     mcpServers: [ragServerConfig],
     mcpTools: ['search_documents', 'get_chunks', 'semantic_search']
   });
@@ -131,7 +147,7 @@ After indexing, provide insights about the data structure and content.`,
   console.log('Registering MCP-enabled agents...');
   saga.registerAgent(dataAnalyzerAgent);
   saga.registerAgent(reportGeneratorAgent);
-  saga.registerAgent(qualityCheckerAgent);
+  //saga.registerAgent(qualityCheckerAgent);
 
   console.log('Setting up event listeners...');
   saga.on('saga_event', (event) => {
@@ -142,14 +158,42 @@ After indexing, provide insights about the data structure and content.`,
   });
 
   try {
+    // Phase 1: Data Preprocessing (outside of agent workflow)
+    console.log('\n🔄 Phase 1: Data Preprocessing');
+    console.log('============================================');
+    
+    const dataSource = await dataPreprocessor.ensureDataIndexed(
+      "c:/repos/SAGAMiddleware/data/supply.csv",
+      "supply_analysis",
+      {
+        type: "CSV",
+        analysisType: "comprehensive",
+        source: "supply.csv",
+        indexedAt: new Date().toISOString()
+      }
+    );
+
+    if (dataSource.status === 'error') {
+      throw new Error(`Data preprocessing failed: ${dataSource.error}`);
+    }
+
+    console.log(`✅ Data preprocessing completed: ${dataSource.chunkCount} chunks indexed\n`);
+
+    // Phase 2: Agent Analysis (data already available)
+    console.log('🤖 Phase 2: Agent Analysis');
+    console.log('============================================');
     console.log('Starting MCP-enhanced workflow execution...');
+    
     const results = await saga.executeWorkflow({
       inputData: "c:/repos/SAGAMiddleware/data/supply.csv",
       outputDirectory: './reports',
+      collection: dataSource.collection,
+      chunkCount: dataSource.chunkCount,
       analysisParameters: {
         includeStatistics: true,
         generateCharts: true,
-        confidenceThreshold: 0.8
+        confidenceThreshold: 0.8,
+        dataPreprocessed: true
       }
     });
 
@@ -227,7 +271,7 @@ async function mcpContextSharingExample() {
   const saga = createEnhancedSagaMiddleware();
 
   // Agent that fetches data using MCP
-  const dataFetcherAgent = createAgentDefinition({
+ /* const dataFetcherAgent = createAgentDefinition({
     name: 'data_fetcher',
     task: 'Fetch and process data from available resources',
     provider: 'openai',
@@ -246,7 +290,7 @@ async function mcpContextSharingExample() {
         transport: 'stdio'
       })
     ]
-  });
+  });*/
 
   // Agent that processes shared MCP context
   const dataProcessorAgent = createAgentDefinition({
@@ -264,14 +308,14 @@ async function mcpContextSharingExample() {
     ]
   });
 
-  saga.registerAgent(dataFetcherAgent);
+  //saga.registerAgent(dataFetcherAgent);
   saga.registerAgent(dataProcessorAgent);
 
   // Demonstrate context manager MCP features
   const contextManager = saga.getContextManager();
   
   // Set MCP context for the first agent
-  await contextManager.setMCPContext('data_fetcher', 'filesystem', ['file://./package.json']);
+ // await contextManager.setMCPContext('data_fetcher', 'filesystem', ['file://./package.json']);
 
   try {
     const results = await saga.executeWorkflow({

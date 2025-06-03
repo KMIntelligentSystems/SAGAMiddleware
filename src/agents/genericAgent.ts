@@ -65,8 +65,18 @@ export class GenericAgent {
       prompt += '\n';
     }
 
-    // Note: MCP tools are provided directly to the LLM via native tool calling
-    // No need to include tool descriptions in prompt as they're handled by the LLM provider
+    // Add MCP tools information to prompt so LLM knows what tools are available
+    if (this.availableTools.length > 0) {
+      prompt += `Available Tools:\n`;
+      for (const tool of this.availableTools) {
+        prompt += `- ${tool.name}: ${tool.description || 'No description'}\n`;
+        if (tool.inputSchema && tool.inputSchema.properties) {
+          const params = Object.keys(tool.inputSchema.properties).join(', ');
+          prompt += `  Parameters: ${params}\n`;
+        }
+      }
+      prompt += '\nYou MUST use these tools to complete your task. Call the appropriate tools to retrieve and analyze data.\n\n';
+    }
 
     // Add MCP resources information
     if (this.availableResources.length > 0) {
@@ -82,6 +92,10 @@ export class GenericAgent {
     }
 
     prompt += `Please complete the task and provide the response in the expected format.`;
+    
+    console.log('=== FULL PROMPT ===');
+    console.log(prompt);
+    console.log('===================');
     
     return prompt;
   }
@@ -101,7 +115,6 @@ export class GenericAgent {
 
   private async invokeOpenAI(prompt: string, config: LLMConfig): Promise<string> {
     const { OpenAI } = await import('openai');
-    console.log("key", config.apiKey);
     
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
@@ -110,34 +123,27 @@ export class GenericAgent {
     // If MCP tools are available, use native tool calling with MCP integration
     if (this.availableTools.length > 0) {
       const tools = this.availableTools.map(tool => {
-        // Fix schema for index_file tool to use correct parameter names
-        if (tool.name === 'index_file') {
+        // Fix schema for get_chunks tool
+        if (tool.name === 'get_chunks') {
           return {
             type: "function" as const,
             function: {
               name: tool.name,
-              description: tool.description || 'Add or update a file in the vector store',
+              description: "Retrieve chunks from a collection",
               parameters: {
                 type: "object",
                 properties: {
-                  filePath: { 
-                    type: "string", 
-                    description: "Path to document to be embedded" 
-                  },
                   collection: { 
                     type: "string", 
-                    description: "Collection name" 
+                    description: "Collection name to retrieve chunks from" 
                   },
-                  metadata: { 
-                    type: "object", 
-                    description: "Document metadata" 
-                  },
-                  id: { 
-                    type: "string", 
-                    description: "Document ID (optional)" 
+                  limit: { 
+                    type: "integer", 
+                    description: "Maximum number of chunks to retrieve",
+                    default: 10
                   }
                 },
-                required: ["filePath", "collection"]
+                required: ["collection"]
               }
             }
           };
@@ -157,7 +163,7 @@ export class GenericAgent {
         };
       });
       
-   //   console.log('Tools being sent to OpenAI:', JSON.stringify(tools, null, 2));
+     // console.log('Tools being sent to OpenAI:', JSON.stringify(tools, null, 2));
       
       return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai');
     }
@@ -183,32 +189,25 @@ export class GenericAgent {
     // If MCP tools are available, use native tool calling with MCP integration
     if (this.availableTools.length > 0) {
       const tools = this.availableTools.map(tool => {
-        // Fix schema for index_file tool to use correct parameter names
-        if (tool.name === 'index_file') {
+        // Fix schema for get_chunks tool
+        if (tool.name === 'get_chunks') {
           return {
             name: tool.name,
-            description: tool.description || 'Add or update a file in the vector store',
+            description: "Retrieve chunks from a collection",
             input_schema: {
               type: "object",
               properties: {
-                filePath: { 
-                  type: "string", 
-                  description: "Path to document to be embedded" 
-                },
                 collection: { 
                   type: "string", 
-                  description: "Collection name" 
+                  description: "Collection name to retrieve chunks from" 
                 },
-                metadata: { 
-                  type: "object", 
-                  description: "Document metadata" 
-                },
-                id: { 
-                  type: "string", 
-                  description: "Document ID (optional)" 
+                limit: { 
+                  type: "integer", 
+                  description: "Maximum number of chunks to retrieve",
+                  default: 10
                 }
               },
-              required: ["filePath", "collection"]
+              required: ["collection"]
             }
           };
         }
@@ -224,7 +223,7 @@ export class GenericAgent {
         };
       });
       
-     // console.log('Tools being sent to Anthropic:', JSON.stringify(tools, null, 2));
+    //  console.log('Tools being sent to Anthropic:', JSON.stringify(tools, null, 2));
       
       return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic');
     }
@@ -246,9 +245,10 @@ export class GenericAgent {
   private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic'): Promise<string> {
     // Create conversation loop to handle multiple tool calls
     let conversationHistory: any[] = [{ role: "user", content: prompt }];
-    let maxIterations = 5; // Prevent infinite loops
+    let maxIterations = 2; // Limit to 2 iterations to prevent loops
     
     while (maxIterations > 0) {
+    //  console.log("TOOLS ", tools);
       let response;
       
       if (provider === 'openai') {
@@ -256,7 +256,7 @@ export class GenericAgent {
           model: config.model,
           messages: conversationHistory,
           tools: tools,
-          tool_choice: "auto",
+          tool_choice: maxIterations === 2 ? "required" : "auto", // Force tool on first call, then auto
           temperature: config.temperature || 0.7,
           max_tokens: config.maxTokens || 1000
         });
@@ -264,25 +264,37 @@ export class GenericAgent {
         const message = response.choices[0].message;
         conversationHistory.push(message);
         
-        // If no tool calls, return the content
+        // If no tool calls, return the content (conversation complete)
         if (!message.tool_calls || message.tool_calls.length === 0) {
+          console.log('No tool calls made by OpenAI. Analysis complete. Message content:', message.content?.substring(0, 200) + '...');
           return message.content || "";
         }
         
+     //   console.log('OpenAI made tool calls:', message.tool_calls.length);
+        
         // Execute tool calls via MCP
-        for (const toolCall of message.tool_calls) {
+       for (const toolCall of message.tool_calls) {
           try {
             const parsedArgs = JSON.parse(toolCall.function.arguments);
-            console.log(`Executing tool ${toolCall.function.name} with arguments:`, parsedArgs);
+         //   console.log(`Executing tool ${toolCall.function.name} with arguments:`, parsedArgs);
             const toolResult = await this.executeMCPToolCall({
               name: toolCall.function.name,
               arguments: parsedArgs
             });
             
+            const resultContent = JSON.stringify(toolResult);
+            console.log(`Tool result length: ${resultContent.length} characters`);
+            
+            // Truncate large results to prevent context overflow
+            const maxResultLength = 10000; // Limit to ~10k chars
+            const truncatedContent = resultContent.length > maxResultLength 
+              ? resultContent.substring(0, maxResultLength) + `\n\n[TRUNCATED - Original length: ${resultContent.length} chars]`
+              : resultContent;
+            
             conversationHistory.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: JSON.stringify(toolResult)
+              content: truncatedContent
             });
           } catch (error) {
             conversationHistory.push({
@@ -306,11 +318,15 @@ export class GenericAgent {
         const toolUseContent = response.content.find((content: any) => content.type === 'tool_use');
         if (!toolUseContent) {
           // No tool calls, return text content
-          return response.content
+          const textContent = response.content
             .filter((content: any) => content.type === 'text')
             .map((content: any) => content.text)
             .join('');
+          console.log('No tool calls made by Anthropic. Text content:', textContent);
+          return textContent;
         }
+        
+        console.log('Anthropic made tool call:', toolUseContent.name);
         
         // Add assistant message to history
         conversationHistory.push({
@@ -326,12 +342,19 @@ export class GenericAgent {
             arguments: toolUseContent.input
           });
           
+          const resultContent = JSON.stringify(toolResult);
+          // Truncate large results to prevent context overflow
+          const maxResultLength = 10000; // Limit to ~10k chars
+          const truncatedContent = resultContent.length > maxResultLength 
+            ? resultContent.substring(0, maxResultLength) + `\n\n[TRUNCATED - Original length: ${resultContent.length} chars]`
+            : resultContent;
+          
           conversationHistory.push({
             role: "user",
             content: [{
               type: "tool_result",
               tool_use_id: toolUseContent.id,
-              content: JSON.stringify(toolResult)
+              content: truncatedContent
             }]
           });
         } catch (error) {
@@ -349,7 +372,14 @@ export class GenericAgent {
       maxIterations--;
     }
     
-    throw new Error("Maximum tool call iterations reached");
+    console.log("Reached maximum iterations, returning last conversation state");
+    // If we reach here, return the last response instead of throwing error
+    const lastMessage = conversationHistory[conversationHistory.length - 1];
+    if (lastMessage && lastMessage.content) {
+      return typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
+    }
+    
+    throw new Error("Maximum tool call iterations reached and no valid response found");
   }
 
   // MCP-related methods
@@ -385,15 +415,15 @@ export class GenericAgent {
       });*/
       
       // Filter tools if specific tools are requested
-      if (this.definition.mcpTools && this.definition.mcpTools.length > 0) {
-        this.availableTools = this.availableTools.filter(tool => 
+    //  if (this.definition.mcpTools && this.definition.mcpTools.length > 0) {
+      /*  this.availableTools = this.availableTools.filter(tool => 
           this.definition.mcpTools!.includes(tool.name)
-        );
+        );*/
       /*  console.log('Filtered MCP tools:');
         this.availableTools.forEach(tool => {
           console.log(`- ${tool.name}:`, JSON.stringify(tool.inputSchema, null, 2));
         });*/
-      }
+     // }
 
       // Get available resources
       this.availableResources = await mcpClientManager.listResources();
@@ -418,11 +448,11 @@ export class GenericAgent {
     for (const serverName of connectedServers) {
       try {
         const tools = await mcpClientManager.listTools(serverName);
-        console.log(`Tools on server ${serverName}:`, tools.map(t => t.name));
+      //  console.log(`Tools on server ${serverName}:`, tools.map(t => t.name));
         const tool = tools.find(t => t.name === toolCall.name);
         
         if (tool) {
-          console.log(`Found tool ${toolCall.name} on server ${serverName}`);
+       //   console.log(`Found tool ${toolCall.name} on server ${serverName}`);
           try {
             return await mcpClientManager.callTool(serverName, toolCall);
           } catch (error) {

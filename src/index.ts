@@ -4,6 +4,7 @@ export { ContextManager } from './sublayers/contextManager.js';
 export { ValidationManager, SchemaValidator } from './sublayers/validationManager.js';
 export { TransactionManager } from './sublayers/transactionManager.js';
 export { MCPClientManagerImpl, mcpClientManager } from './mcp/mcpClient.js';
+export { DataPreprocessor, dataPreprocessor } from './preprocessing/dataPreprocessor.js';
 export * from './types/index.js';
 
 import { SagaCoordinator } from './coordinator/sagaCoordinator.js';

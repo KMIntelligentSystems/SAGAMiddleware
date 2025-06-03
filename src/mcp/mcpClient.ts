@@ -4,6 +4,10 @@ import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  CallToolResultSchema,
+  ListToolsResultSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 
 export interface MCPClientManager {
   connect(serverConfig: MCPServerConfig): Promise<void>;
@@ -92,14 +96,25 @@ RAG MCP Server started in stdio mode*/
   async listTools(serverName?: string): Promise<any[]> {
     if (serverName) {
       const client = this.getClient(serverName);
-
+      const toolsResponse = await client.request(
+      { method: "tools/list" },
+      ListToolsResultSchema
+    );
+    const availableTools = toolsResponse.tools.map((tool: any) => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema,
+    }));
+ //   console.log("AVAILABLE TOOLS ", availableTools)
       const response = await client.listTools();
       return response.tools || [];
     }
 
+   
     // List tools from all connected servers
     const allTools: any[] = [];
     for (const [name, client] of this.clients.entries()) {
+   
       try {
         const response = await client.listTools();
         const tools = (response.tools || []).map((tool: any) => ({
@@ -120,7 +135,7 @@ RAG MCP Server started in stdio mode*/
     const timeout = serverConfig?.timeout || 120000;
     
     try {
-      console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
+  //    console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
       
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
