@@ -152,6 +152,8 @@ RAG MCP Server started in stdio mode*/
       ]) as any;
       
       // Return the content directly, handling different content types
+      console.log(`MCP tool ${toolCall.name} raw response:`, JSON.stringify(response, null, 2));
+      
       if (Array.isArray(response.content)) {
         return response.content;
       }

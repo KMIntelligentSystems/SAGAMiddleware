@@ -32,6 +32,8 @@ export class DataPreprocessor {
     try {
       // First check if data is already indexed
       const status = await this.checkCollectionStatus(collection);
+      console.log(`Collection status check result:`, status);
+      
       if (status.chunkCount > 0) {
         console.log(`✅ Data already indexed: ${status.chunkCount} chunks in collection '${collection}'`);
         return {
@@ -89,12 +91,21 @@ export class DataPreprocessor {
         limit: 1
       });
 
+      console.log(`Collection status check for '${collection}':`, JSON.stringify(result, null, 2));
+      
+      // Check if we're getting mock data even in status check
+      if (result && Array.isArray(result) && result.length > 0 && result[0].id?.includes('mock')) {
+        console.log(`⚠️  WARNING: Collection status check is returning MOCK data!`);
+      }
+
       if (result && Array.isArray(result)) {
         // Check total count by trying to get more chunks
         const fullResult = await this.callMCPTool('get_chunks', {
           collection,
           limit: 1000 // Get many to count
         });
+        
+        console.log(`Full collection data for '${collection}':`, JSON.stringify(fullResult, null, 2));
         
         const chunkCount = Array.isArray(fullResult) ? fullResult.length : 0;
         return { exists: true, chunkCount };
@@ -103,6 +114,7 @@ export class DataPreprocessor {
       return { exists: false, chunkCount: 0 };
     } catch (error) {
       // Collection doesn't exist or is empty
+      console.log(`Collection status check error for '${collection}':`, error);
       return { exists: false, chunkCount: 0 };
     }
   }
@@ -124,6 +136,7 @@ export class DataPreprocessor {
 
     try {
       console.log(`🚀 Starting indexing job ${jobId}...`);
+      console.log(`Indexing parameters:`, { filePath, collection, metadata: metadata || { type: 'CSV', source: filePath, indexedAt: new Date().toISOString() } });
       
       // Call the index_file tool directly
       const result = await this.callMCPTool('index_file', {
@@ -132,7 +145,7 @@ export class DataPreprocessor {
         metadata: metadata || { type: 'CSV', source: filePath, indexedAt: new Date().toISOString() }
       });
 
-      console.log(`📋 Indexing call completed, processing result...`);
+      console.log(`📋 Indexing call completed, result:`, JSON.stringify(result, null, 2));
       
       // The tool may return success info or we need to check the collection
       job.status = 'completed';

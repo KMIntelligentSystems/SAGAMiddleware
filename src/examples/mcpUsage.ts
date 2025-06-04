@@ -5,7 +5,15 @@ import {
   connectToMCPServer,
   dataPreprocessor
 } from '../index.js';
+import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
+import { 
+  createChunkRequesterAgent,
+  createChunkAnalyzerAgent,
+  createAccumulatorAgent,
+  createReportGeneratorAgent
+} from '../agents/index.js';
 import dotenv from 'dotenv';
+import * as readline from 'readline';
 
 dotenv.config();
 
@@ -344,19 +352,167 @@ const keepOpen = () => {
   }
 };
 
-// Execute all examples
-async function runAllExamples() {
+// New SAGA Chunk Processing Workflow
+async function runSAGAChunkProcessing() {
+  console.log('\\n🚀 Starting SAGA Chunk Processing Workflow...');
+  
+  const ragServerConfig = createMCPServerConfig({
+    name: "rag-server",
+    transport: "stdio",
+    command: "node",
+    args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
+    timeout: 120000
+  });
+
   try {
-    await mcpExampleUsage();
-    await advancedMCPExample();
-    await mcpContextSharingExample();
+    await connectToMCPServer(ragServerConfig);
+    console.log('✅ Connected to RAG MCP server');
+
+    // Ensure data is indexed
+    console.log('📊 Ensuring data is indexed...');
+    const dataSource = await dataPreprocessor.ensureDataIndexed(
+      "c:/repos/SAGAMiddleware/data/supply.csv",
+      "supply_analysis",
+      {
+        type: "CSV",
+        analysisType: "comprehensive",
+        source: "supply.csv",
+        indexedAt: new Date().toISOString()
+      }
+    );
+
+    if (dataSource.status === 'error') {
+      throw new Error(`Data preprocessing failed: ${dataSource.error}`);
+    }
+
+    console.log(`✅ Data indexed: ${dataSource.chunkCount} chunks available\\n`);
+
+    // Create SAGA Coordinator with chunk processing agents
+    const coordinator = new SagaCoordinator();
     
-    console.log('\\nAll MCP examples completed successfully!');
+    const chunkRequester = createChunkRequesterAgent([ragServerConfig]);
+    const chunkAnalyzer = createChunkAnalyzerAgent();
+    const accumulator = createAccumulatorAgent();
+    const reportGenerator = createReportGeneratorAgent();
+
+    coordinator.registerAgent(chunkRequester);
+    coordinator.registerAgent(chunkAnalyzer);
+    coordinator.registerAgent(accumulator);
+    coordinator.registerAgent(reportGenerator);
+
+    // Set up event listeners
+    coordinator.on('workflow_status_changed', (state) => {
+      console.log(`📍 Status: ${state.status} (Batch: ${state.currentChunkBatch})`);
+    });
+
+    coordinator.on('data_accumulated', (event) => {
+      console.log(`📈 Accumulated chunk ${event.chunkId} (Total: ${event.totalProcessed})`);
+    });
+
+    coordinator.on('processing_decision', (event) => {
+      console.log(`🤔 Decision: ${event.decision} - ${event.reason}`);
+    });
+
+    // Execute chunk processing workflow
+    console.log('🔄 Starting chunk processing...\\n');
+    const result = await coordinator.executeChunkProcessingWorkflow(
+      dataSource.collection,
+      5 // Process 5 chunks at a time
+    );
+
+    if (result.success) {
+      console.log('\\n✅ SAGA Chunk Processing completed successfully!');
+      const summary = result.result.summary;
+      console.log(`📊 Processed ${summary.totalChunksProcessed} chunks`);
+      console.log(`💡 Discovered ${summary.totalInsights} insights`);
+      console.log(`🔍 Identified ${summary.totalPatterns} patterns`);
+      console.log(`⏱️ Processing time: ${Math.round(summary.processingTime / 1000)}s`);
+    } else {
+      console.log('❌ SAGA Chunk Processing failed:', result.error);
+    }
+
+  } catch (error) {
+    console.error('SAGA Chunk Processing failed:', error);
+  }
+}
+
+// Interactive menu system
+function createMenu(): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    console.log('\\n🚀 SAGAMiddleware - MCP Integration Examples');
+    console.log('=============================================');
+    console.log('');
+    console.log('Choose an option:');
+    console.log('1. Traditional MCP Workflow (Original)');
+    console.log('2. SAGA Chunk Processing Workflow (New)');
+    console.log('3. Advanced MCP Examples');
+    console.log('4. MCP Context Sharing Example');
+    console.log('5. Run All Examples');
+    console.log('0. Exit');
+    console.log('');
+
+    rl.question('Enter your choice (0-5): ', (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+// Main execution function with menu
+async function main() {
+  try {
+    const choice = await createMenu();
+
+    switch (choice) {
+      case '1':
+        console.log('\\n🔄 Running Traditional MCP Workflow...');
+        await mcpExampleUsage();
+        break;
+      
+      case '2':
+        await runSAGAChunkProcessing();
+        break;
+      
+      case '3':
+        console.log('\\n🔬 Running Advanced MCP Examples...');
+        await advancedMCPExample();
+        break;
+      
+      case '4':
+        console.log('\\n🔗 Running MCP Context Sharing Example...');
+        await mcpContextSharingExample();
+        break;
+      
+      case '5':
+        console.log('\\n🔄 Running All Examples...');
+        await mcpExampleUsage();
+        await runSAGAChunkProcessing();
+        await advancedMCPExample();
+        await mcpContextSharingExample();
+        console.log('\\n🎉 All examples completed!');
+        break;
+      
+      case '0':
+        console.log('👋 Goodbye!');
+        process.exit(0);
+        break;
+      
+      default:
+        console.log('❌ Invalid choice. Please run again and select 0-5.');
+        process.exit(1);
+    }
+
     keepOpen();
   } catch (error) {
-    console.error('Examples failed:', error);
+    console.error('Application failed:', error);
     keepOpen();
   }
 }
 
-runAllExamples();
+// Execute main with menu
+main();

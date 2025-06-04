@@ -95,6 +95,11 @@ export function createMCPServerConfig(config: {
 }
 
 export async function connectToMCPServer(serverConfig: MCPServerConfig): Promise<void> {
+  // Check if already connected before attempting to connect
+  if (mcpClientManager.isConnected(serverConfig.name)) {
+    console.log(`MCP server ${serverConfig.name} is already connected, skipping connection`);
+    return;
+  }
   return await mcpClientManager.connect(serverConfig);
 }
 

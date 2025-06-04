@@ -75,7 +75,7 @@ export class GenericAgent {
           prompt += `  Parameters: ${params}\n`;
         }
       }
-      prompt += '\nYou MUST use these tools to complete your task. Call the appropriate tools to retrieve and analyze data.\n\n';
+      prompt += '\nYou MUST use these tools to complete your task. Do not provide any analysis or response without first calling the required tools. Always start by calling the appropriate tool to retrieve data.\n\n';
     }
 
     // Add MCP resources information
@@ -141,6 +141,11 @@ export class GenericAgent {
                     type: "integer", 
                     description: "Maximum number of chunks to retrieve",
                     default: 10
+                  },
+                  ids: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Optional array of specific chunk IDs to retrieve"
                   }
                 },
                 required: ["collection"]
@@ -163,9 +168,11 @@ export class GenericAgent {
         };
       });
       
-     // console.log('Tools being sent to OpenAI:', JSON.stringify(tools, null, 2));
+      // For chunk_requester agent, ALWAYS force tool calls
+      const isChunkRequester = this.definition.name === 'chunk_requester';
+      console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
       
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai');
+      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', isChunkRequester);
     }
 
     // No tools available, use regular completion
@@ -205,6 +212,11 @@ export class GenericAgent {
                   type: "integer", 
                   description: "Maximum number of chunks to retrieve",
                   default: 10
+                },
+                ids: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Optional array of specific chunk IDs to retrieve"
                 }
               },
               required: ["collection"]
@@ -225,7 +237,10 @@ export class GenericAgent {
       
     //  console.log('Tools being sent to Anthropic:', JSON.stringify(tools, null, 2));
       
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic');
+      // For chunk_requester agent, ALWAYS force tool calls
+      const isChunkRequester = this.definition.name === 'chunk_requester';
+      
+      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic', isChunkRequester);
     }
 
     // No tools available, use regular completion
@@ -242,21 +257,24 @@ export class GenericAgent {
       .join('');
   }
 
-  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic'): Promise<string> {
+  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = false): Promise<string> {
     // Create conversation loop to handle multiple tool calls
     let conversationHistory: any[] = [{ role: "user", content: prompt }];
-    let maxIterations = 2; // Limit to 2 iterations to prevent loops
+    let maxIterations = 5; // Allow more iterations for finding data
     
     while (maxIterations > 0) {
     //  console.log("TOOLS ", tools);
       let response;
       
       if (provider === 'openai') {
+        const toolChoice = forceToolUse ? "required" : "auto";
+        console.log(`Making OpenAI call with tool_choice=${toolChoice}, forceToolUse=${forceToolUse}`);
+        
         response = await client.chat.completions.create({
           model: config.model,
           messages: conversationHistory,
           tools: tools,
-          tool_choice: maxIterations === 2 ? "required" : "auto", // Force tool on first call, then auto
+          tool_choice: toolChoice,
           temperature: config.temperature || 0.7,
           max_tokens: config.maxTokens || 1000
         });
@@ -267,6 +285,13 @@ export class GenericAgent {
         // If no tool calls, return the content (conversation complete)
         if (!message.tool_calls || message.tool_calls.length === 0) {
           console.log('No tool calls made by OpenAI. Analysis complete. Message content:', message.content?.substring(0, 200) + '...');
+          
+          // For chunk_requester, reject responses without tool calls
+          if (forceToolUse) {
+            console.log('ERROR: chunk_requester failed to call required tools - this should not happen with tool_choice=required');
+            throw new Error('Required tool call was not made by the LLM');
+          }
+          
           return message.content || "";
         }
         
@@ -311,7 +336,7 @@ export class GenericAgent {
           temperature: config.temperature || 0.7,
           messages: conversationHistory,
           tools: tools,
-          tool_choice: { type: "auto" }
+          tool_choice: forceToolUse ? { type: "any" } : { type: "auto" }
         });
         
         // Check for tool use
@@ -323,6 +348,13 @@ export class GenericAgent {
             .map((content: any) => content.text)
             .join('');
           console.log('No tool calls made by Anthropic. Text content:', textContent);
+          
+          // For chunk_requester, reject responses without tool calls
+          if (forceToolUse) {
+            console.log('ERROR: chunk_requester failed to call required tools - this should not happen with tool_choice=required');
+            throw new Error('Required tool call was not made by the LLM');
+          }
+          
           return textContent;
         }
         
@@ -489,5 +521,9 @@ export class GenericAgent {
     };
     
     return await this.executeMCPToolCall(toolCall);
+  }
+
+  async refreshCapabilities(): Promise<void> {
+    await this.refreshMCPCapabilities();
   }
 }

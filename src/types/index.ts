@@ -85,5 +85,58 @@ export interface AgentResult {
   timestamp: Date;
 }
 
+// SAGA Pattern Chunk Processing Interfaces
+export interface ChunkState {
+  chunkId: string;
+  collection: string;
+  processed: boolean;
+  processingStarted: Date | null;
+  processingCompleted: Date | null;
+  error?: string;
+  retryCount: number;
+  data?: any;
+}
+
+export interface AccumulatedData {
+  insights: string[];
+  patterns: string[];
+  statistics: Record<string, number>;
+  metadata: {
+    totalChunksProcessed: number;
+    processingStartTime: Date;
+    lastUpdated: Date;
+    collection: string;
+  };
+  rawData: any[];
+}
+
+export interface SAGAWorkflowState {
+  id: string;
+  status: 'initializing' | 'requesting_chunks' | 'analyzing' | 'accumulating' | 'reporting' | 'completed' | 'failed';
+  currentChunkBatch: number;
+  totalChunks: number;
+  accumulatedData: AccumulatedData;
+  chunkStates: Map<string, ChunkState>;
+  errors: string[];
+  startTime: Date;
+  endTime?: Date;
+}
+
+export interface ChunkRequest {
+  collection: string;
+  limit: number;
+  offset?: number;
+  filters?: Record<string, any>;
+}
+
+export interface ChunkAnalysisResult {
+  chunkId: string;
+  insights: string[];
+  patterns: string[];
+  statistics: Record<string, number>;
+  confidence: number;
+  metadata: Record<string, any>;
+}
+
 // Add a dummy export to ensure JS file is generated
 export const TYPES_VERSION = '1.0.0';
