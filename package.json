@@ -20,7 +20,8 @@
 		"openai": "^4.91.1",
 		"sqlite": "^5.1.1",
 		"sqlite3": "^5.1.7",
-		"ts-node": "^10.9.2"
+		"ts-node": "^10.9.2",
+		"socket.io-client": "^4.8.1"
 	},
 	"name": "main",
 	"version": "1.0.0",
@@ -37,7 +38,8 @@
 		"chunks": "npx ts-node --esm ./src/examples/chunkProcessingMain.ts",
 		"saga": "npx ts-node --esm ./src/examples/sagaChunkProcessing.ts",
 		"viz": "npx ts-node --esm ./src/examples/visualizationSagaProcessing.ts",
-		"viz-saga": "node ./visualization-saga-main.js"
+		"viz-saga": "node ./visualization-saga-main.js",
+		"event-bus": "npx ts-node --esm ./src/eventBus/index.ts"
 	},
 	"devDependencies": {
 		"typescript": "^5.8.3"

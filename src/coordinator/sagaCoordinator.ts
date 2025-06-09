@@ -653,6 +653,10 @@ export class SagaCoordinator extends EventEmitter {
     this.emit('visualization_saga_initialized', this.visualizationSagaState);
   }
 
+sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
   async executeVisualizationSAGA(
     request: VisualizationWorkflowRequest,
     workflowId: string = `viz_saga_${Date.now()}`
@@ -674,7 +678,11 @@ export class SagaCoordinator extends EventEmitter {
           name: transaction.name,
           sagaState: this.visualizationSagaState 
         });
-
+        console.log("NAME  ", transaction.name)
+if(transaction.name == 'Initialize Requirements Gathering'){
+  console.log("HEREEEEEEEEEEEEEEEEEEEE  ")
+this.sleep(12000)
+}
         const result = await this.executeVisualizationTransaction(transaction, request);
         
         if (!result.success) {

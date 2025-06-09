@@ -130,8 +130,8 @@ export class VisualizationSAGAProcessor {
         filters: {
           energyTypes: ['coal'],
           timeRange: {
-            start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            end: new Date().toISOString()
+            start: "2023-11-02T04:00:00.000Z",
+            end: "2023-11-05T23:55:00.000Z"
           },
           aggregation: 'hourly'
         },
@@ -196,8 +196,8 @@ export class VisualizationSAGAProcessor {
         filters: {
           energyTypes: ['invalid_energy_type' as any],
           timeRange: {
-            start: "2030-01-01", // Future date
-            end: "2030-12-31"
+            start: "2023-11-02T04:00:00.000Z",
+            end: "2023-11-05T23:55:00.000Z"
           }
         }
       },
@@ -398,6 +398,6 @@ export async function runVisualizationSAGAExample(): Promise<void> {
 }
 
 // Execute if run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1].endsWith('visualizationSagaProcessing.js') || process.argv[1].endsWith('visualizationSagaProcessing.ts')) {
   runVisualizationSAGAExample();
 }
