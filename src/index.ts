@@ -7,6 +7,38 @@ export { MCPClientManagerImpl, mcpClientManager } from './mcp/mcpClient.js';
 export { DataPreprocessor, dataPreprocessor } from './preprocessing/dataPreprocessor.js';
 export * from './types/index.js';
 
+// Visualization workflow exports
+export { 
+  ReactIntegratedVisualizationWorkflow, 
+  createReactVisualizationAPI,
+  REACT_INTEGRATION_EXAMPLES 
+} from './workflows/reactIntegratedVisualizationWorkflow.js';
+export { 
+  OpenAIAssistantManager,
+  createOpenAIAssistantManager
+} from './agents/openaiAssistantManager.js';
+export { 
+  createConversationAgent, 
+  conversationManager,
+  ConversationManager 
+} from './agents/conversationAgent.js';
+export { 
+  createDataFilteringAgent, 
+  createChartSpecificationAgent 
+} from './agents/dataFilteringAgent.js';
+export { createVisualizationReportAgent } from './agents/visualizationReportAgent.js';
+export { 
+  createRequirementsInitializerAgent,
+  createConversationManagerAgent,
+  createRequirementsValidatorAgent
+} from './agents/visualizationSagaAgents.js';
+export { 
+  VisualizationSAGAProcessor,
+  runVisualizationSAGAExample 
+} from './examples/visualizationSagaProcessing.js';
+export * from './types/visualization.js';
+export * from './types/visualizationSaga.js';
+
 import { SagaCoordinator } from './coordinator/sagaCoordinator.js';
 import { AgentDefinition, MCPServerConfig } from './types/index.js';
 import { mcpClientManager } from './mcp/mcpClient.js';

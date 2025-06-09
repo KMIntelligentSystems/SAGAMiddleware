@@ -155,6 +155,19 @@ RAG MCP Server started in stdio mode*/
       console.log(`MCP tool ${toolCall.name} raw response:`, JSON.stringify(response, null, 2));
       
       if (Array.isArray(response.content)) {
+        // Handle MCP response format: content is array of objects with type and text
+        if (response.content.length > 0 && response.content[0].type === 'text') {
+          try {
+            // Try to parse the text content as JSON
+            const textContent = response.content[0].text;
+            const parsedContent = JSON.parse(textContent);
+            console.log(`Parsed ${toolCall.name} content:`, Array.isArray(parsedContent) ? `Array with ${parsedContent.length} items` : typeof parsedContent);
+            return parsedContent;
+          } catch (parseError) {
+            console.log(`Could not parse text content as JSON, returning as string:`, response.content[0].text);
+            return response.content[0].text;
+          }
+        }
         return response.content;
       }
       return response.content;

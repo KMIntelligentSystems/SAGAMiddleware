@@ -9,6 +9,13 @@ import {
   ChunkRequest,
   ChunkAnalysisResult
 } from '../types/index.js';
+import { 
+  VisualizationSAGAState, 
+  VisualizationTransaction,
+  VISUALIZATION_TRANSACTIONS,
+  VisualizationWorkflowRequest,
+  CompensationAction
+} from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { ValidationManager } from '../sublayers/validationManager.js';
@@ -23,6 +30,7 @@ export class SagaCoordinator extends EventEmitter {
   private transactionManager: TransactionManager;
   private activeExecutions: Set<string> = new Set();
   private chunkWorkflowState: SAGAWorkflowState | null = null;
+  private visualizationSagaState: VisualizationSAGAState | null = null;
 
   constructor() {
     super();
@@ -596,5 +604,336 @@ export class SagaCoordinator extends EventEmitter {
 
   getAccumulatedData(): AccumulatedData | null {
     return this.chunkWorkflowState ? { ...this.chunkWorkflowState.accumulatedData } : null;
+  }
+
+  // ========================================
+  // VISUALIZATION SAGA METHODS
+  // ========================================
+
+  initializeVisualizationSAGA(workflowId: string, request: VisualizationWorkflowRequest): void {
+    this.visualizationSagaState = {
+      id: workflowId,
+      status: 'initializing',
+      currentTransaction: 0,
+      totalTransactions: VISUALIZATION_TRANSACTIONS.length,
+      
+      requirementsState: {
+        threadId: request.threadId,
+        conversationComplete: false,
+        requirementsExtracted: false,
+        validationComplete: false,
+        extractedRequirements: request.visualizationRequest
+      },
+      
+      dataFilteringState: {
+        queryStarted: false,
+        queryComplete: false,
+        filteringComplete: false,
+        dataValidated: false
+      },
+      
+      chartSpecState: {
+        analysisComplete: false,
+        specificationGenerated: false,
+        specificationValidated: false
+      },
+      
+      reportState: {
+        narrativeGenerated: false,
+        dataEnhanced: false,
+        outputValidated: false
+      },
+      
+      errors: [],
+      startTime: new Date(),
+      compensations: []
+    };
+
+    console.log(`🎯 Initialized Visualization SAGA: ${workflowId}`);
+    this.emit('visualization_saga_initialized', this.visualizationSagaState);
+  }
+
+  async executeVisualizationSAGA(
+    request: VisualizationWorkflowRequest,
+    workflowId: string = `viz_saga_${Date.now()}`
+  ): Promise<AgentResult> {
+    console.log(`🚀 Starting Visualization SAGA: ${workflowId}`);
+    
+    this.initializeVisualizationSAGA(workflowId, request);
+    
+    const transactionId = await this.transactionManager.startTransaction('visualization_saga');
+    
+    try {
+      // Execute transactions in order with compensation capability
+      for (const transaction of VISUALIZATION_TRANSACTIONS) {
+        this.visualizationSagaState!.currentTransaction++;
+        
+        console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
+        this.emit('visualization_transaction_started', { 
+          transaction: transaction.id, 
+          name: transaction.name,
+          sagaState: this.visualizationSagaState 
+        });
+
+        const result = await this.executeVisualizationTransaction(transaction, request);
+        
+        if (!result.success) {
+          console.log(`❌ Transaction failed: ${transaction.name} - ${result.error}`);
+          this.visualizationSagaState!.errors.push(`${transaction.name}: ${result.error}`);
+          
+          // Execute compensations for completed transactions
+          await this.executeCompensations();
+          
+          throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
+        }
+
+        // Update context with transaction result
+        this.contextManager.updateContext(transaction.agentName, {
+          lastTransactionResult: result.result,
+          transactionId: transaction.id,
+          timestamp: new Date()
+        });
+
+        console.log(`✅ Transaction completed: ${transaction.name}`);
+        this.emit('visualization_transaction_completed', { 
+          transaction: transaction.id,
+          name: transaction.name, 
+          result: result.result,
+          sagaState: this.visualizationSagaState
+        });
+      }
+
+      // All transactions completed successfully
+      this.visualizationSagaState!.status = 'completed';
+      this.visualizationSagaState!.endTime = new Date();
+      
+      await this.transactionManager.commitTransaction(transactionId);
+      
+      console.log(`🎉 Visualization SAGA completed successfully: ${workflowId}`);
+      this.emit('visualization_saga_completed', this.visualizationSagaState);
+
+      return {
+        agentName: 'visualization_saga_coordinator',
+        result: {
+          sagaState: this.visualizationSagaState,
+          finalOutput: this.visualizationSagaState?.reportState.finalOutput,
+          summary: {
+            totalTransactions: this.visualizationSagaState?.totalTransactions || 0,
+            processingTime: this.visualizationSagaState?.endTime 
+              ? this.visualizationSagaState.endTime.getTime() - this.visualizationSagaState.startTime.getTime()
+              : 0,
+            requirementsGathered: this.visualizationSagaState?.requirementsState.conversationComplete || false,
+            dataFiltered: this.visualizationSagaState?.dataFilteringState.filteringComplete || false,
+            chartSpecGenerated: this.visualizationSagaState?.chartSpecState.specificationGenerated || false
+          }
+        },
+        success: true,
+        timestamp: new Date()
+      };
+
+    } catch (error) {
+      await this.transactionManager.rollbackTransaction(transactionId);
+      
+      this.visualizationSagaState!.status = 'failed';
+      this.visualizationSagaState!.endTime = new Date();
+      
+      console.log(`💥 Visualization SAGA failed: ${workflowId} - ${error}`);
+      this.emit('visualization_saga_failed', { 
+        sagaState: this.visualizationSagaState, 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+
+      return {
+        agentName: 'visualization_saga_coordinator',
+        result: null,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date()
+      };
+    }
+  }
+
+  private async executeVisualizationTransaction(
+    transaction: VisualizationTransaction, 
+    request: VisualizationWorkflowRequest
+  ): Promise<AgentResult> {
+    const agent = this.agents.get(transaction.agentName);
+    if (!agent) {
+      throw new Error(`Agent ${transaction.agentName} not registered for transaction ${transaction.id}`);
+    }
+
+    // Check dependencies are satisfied
+    for (const depId of transaction.dependencies) {
+      const depTransaction = VISUALIZATION_TRANSACTIONS.find(t => t.id === depId);
+      if (depTransaction) {
+        const depContext = this.contextManager.getContext(depTransaction.agentName);
+        if (!depContext?.lastTransactionResult) {
+          throw new Error(`Dependency ${depId} not satisfied for transaction ${transaction.id}`);
+        }
+      }
+    }
+
+    // Build context for this transaction
+    const context = await this.buildVisualizationTransactionContext(transaction, request);
+    
+    // Execute the transaction
+    const result = await agent.execute(context);
+    
+    // Update SAGA state based on transaction
+    this.updateVisualizationSAGAState(transaction.id, result);
+    
+    // Record compensation action if transaction succeeded
+    if (result.success && transaction.compensationAction) {
+      this.visualizationSagaState!.compensations.push({
+        transactionId: transaction.id,
+        agentName: transaction.agentName,
+        action: transaction.compensationAction as any,
+        executed: false,
+        timestamp: new Date()
+      });
+    }
+
+    return result;
+  }
+
+  private async buildVisualizationTransactionContext(
+    transaction: VisualizationTransaction, 
+    request: VisualizationWorkflowRequest
+  ): Promise<Record<string, any>> {
+    const baseContext = {
+      transactionId: transaction.id,
+      transactionName: transaction.name,
+      sagaState: this.visualizationSagaState,
+      workflowRequest: request
+    };
+
+    // Add dependency results
+    const dependencyContext: Record<string, any> = {};
+    for (const depId of transaction.dependencies) {
+      const depTransaction = VISUALIZATION_TRANSACTIONS.find(t => t.id === depId);
+      if (depTransaction) {
+        const depContext = this.contextManager.getContext(depTransaction.agentName);
+        if (depContext?.lastTransactionResult) {
+          dependencyContext[depId] = depContext.lastTransactionResult;
+          dependencyContext[depTransaction.agentName] = depContext.lastTransactionResult;
+        }
+      }
+    }
+
+    return { ...baseContext, ...dependencyContext };
+  }
+
+  private updateVisualizationSAGAState(transactionId: string, result: AgentResult): void {
+    if (!this.visualizationSagaState) return;
+
+    switch (transactionId) {
+      case 'req_init':
+        this.visualizationSagaState.requirementsState.conversationComplete = result.success;
+        break;
+      case 'req_extract':
+        this.visualizationSagaState.requirementsState.requirementsExtracted = result.success;
+        if (result.success) {
+          this.visualizationSagaState.requirementsState.extractedRequirements = result.result;
+        }
+        break;
+      case 'req_validate':
+        this.visualizationSagaState.requirementsState.validationComplete = result.success;
+        break;
+      case 'data_query':
+        this.visualizationSagaState.dataFilteringState.queryStarted = true;
+        this.visualizationSagaState.dataFilteringState.queryComplete = result.success;
+        break;
+      case 'data_filter':
+        this.visualizationSagaState.dataFilteringState.filteringComplete = result.success;
+        if (result.success) {
+          this.visualizationSagaState.dataFilteringState.filteredData = result.result;
+        }
+        break;
+      case 'chart_spec':
+        this.visualizationSagaState.chartSpecState.specificationGenerated = result.success;
+        if (result.success) {
+          this.visualizationSagaState.chartSpecState.chartSpec = result.result;
+        }
+        break;
+      case 'viz_report':
+        this.visualizationSagaState.reportState.narrativeGenerated = result.success;
+        this.visualizationSagaState.reportState.outputValidated = result.success;
+        if (result.success) {
+          this.visualizationSagaState.reportState.finalOutput = result.result;
+        }
+        break;
+    }
+
+    // Update overall status
+    if (result.success) {
+      if (transactionId === 'req_validate') {
+        this.visualizationSagaState.status = 'filtering_data';
+      } else if (transactionId === 'data_filter') {
+        this.visualizationSagaState.status = 'specifying_chart';
+      } else if (transactionId === 'chart_spec') {
+        this.visualizationSagaState.status = 'generating_report';
+      }
+    }
+  }
+
+  private async executeCompensations(): Promise<void> {
+    console.log(`🔄 Executing compensations for failed Visualization SAGA`);
+    
+    // Execute compensations in reverse order
+    const compensations = [...this.visualizationSagaState!.compensations].reverse();
+    
+    for (const compensation of compensations) {
+      if (!compensation.executed) {
+        try {
+          console.log(`↪️ Executing compensation: ${compensation.action} for ${compensation.agentName}`);
+          await this.executeCompensationAction(compensation);
+          compensation.executed = true;
+        } catch (error) {
+          console.error(`❌ Compensation failed: ${compensation.action} - ${error}`);
+        }
+      }
+    }
+  }
+
+  private async executeCompensationAction(compensation: CompensationAction): Promise<void> {
+    switch (compensation.action) {
+      case 'cleanup_thread':
+        // Clean up OpenAI thread if it was created
+        if (this.visualizationSagaState?.requirementsState.threadId) {
+          console.log(`🧹 Cleaning up thread: ${this.visualizationSagaState.requirementsState.threadId}`);
+          // Could notify React app to clean up thread
+        }
+        break;
+      case 'release_data':
+        // Release any cached data
+        if (this.visualizationSagaState?.dataFilteringState.filteredData) {
+          console.log(`🧹 Releasing filtered data`);
+          this.visualizationSagaState.dataFilteringState.filteredData = undefined;
+        }
+        break;
+      case 'reset_state':
+        // Reset agent state
+        this.contextManager.clearContext(compensation.agentName);
+        break;
+      case 'notify_failure':
+        // Emit failure notification
+        this.emit('compensation_executed', { 
+          action: compensation.action, 
+          agentName: compensation.agentName 
+        });
+        break;
+    }
+  }
+
+  getVisualizationSAGAState(): VisualizationSAGAState | null {
+    return this.visualizationSagaState ? { ...this.visualizationSagaState } : null;
+  }
+
+  getVisualizationRequirements(): any {
+    return this.visualizationSagaState?.requirementsState.extractedRequirements || null;
+  }
+
+  getVisualizationOutput(): any {
+    return this.visualizationSagaState?.reportState.finalOutput || null;
   }
 }

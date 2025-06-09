@@ -29,13 +29,15 @@
 	"main": "./src/examples/usage.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"start": "node ./src/examples/usage.js",
+		"start": "node ./visualization-saga-main.js",
 		"run": "node ./src/index.js",
 		"dev": "lite-server",
 		"build": "npx tsc",
 		"mcp": "npx ts-node --esm ./src/examples/mcpUsage.ts",
 		"chunks": "npx ts-node --esm ./src/examples/chunkProcessingMain.ts",
-		"saga": "npx ts-node --esm ./src/examples/sagaChunkProcessing.ts"
+		"saga": "npx ts-node --esm ./src/examples/sagaChunkProcessing.ts",
+		"viz": "npx ts-node --esm ./src/examples/visualizationSagaProcessing.ts",
+		"viz-saga": "node ./visualization-saga-main.js"
 	},
 	"devDependencies": {
 		"typescript": "^5.8.3"
