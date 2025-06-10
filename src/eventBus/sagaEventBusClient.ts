@@ -1,20 +1,20 @@
 import { io as SocketIOClient } from 'socket.io-client';
-import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
+import { VisualizationSAGAProcessor } from '../examples/visualizationSagaProcessing.js';
 import { VisualizationWorkflowRequest, VisualizationSAGAState } from '../types/visualizationSaga.js';
 import { EventMessage, ServiceRegistration, SAGAEventType, SAGAEventData } from './types.js';
 
 export class SAGAEventBusClient {
   private socket: any;
-  private sagaCoordinator: SagaCoordinator;
+  private visualizationProcessor: VisualizationSAGAProcessor;
   private isConnected: boolean = false;
   private messageQueue: EventMessage[] = [];
   private eventBusUrl: string;
+  private isInitialized: boolean = false;
 
   constructor(eventBusUrl: string = 'http://localhost:3003') {
     this.eventBusUrl = eventBusUrl;
-    this.sagaCoordinator = new SagaCoordinator();
+    this.visualizationProcessor = new VisualizationSAGAProcessor();
     this.initializeConnection();
-    this.setupSagaEventForwarding();
   }
 
   private initializeConnection(): void {
@@ -40,17 +40,22 @@ export class SAGAEventBusClient {
       // Register this service with the Event Bus
       const registration: ServiceRegistration = {
         serviceType: 'saga-middleware',
-        serviceName: 'visualization-saga-coordinator',
+        serviceName: 'visualization-saga-processor',
         version: '1.0.0',
         capabilities: [
           'executeVisualizationSAGA',
-          'getVisualizationState', 
-          'getChunkWorkflowState',
-          'executeChunkProcessing'
+          'getVisualizationState',
+          'executeSimpleVisualizationSAGA',
+          'executeComplexVisualizationSAGA',
+          'executeConversationBasedSAGA',
+          'executeBatchProcessingSAGA'
         ]
       };
       this.socket.emit('register_service', registration);
 
+      // Initialize the processor and setup event forwarding
+      this.initializeProcessor();
+      
       // Process any queued messages
       this.processMessageQueue();
     });
@@ -92,14 +97,6 @@ export class SAGAEventBusClient {
           await this.handleGetVisualizationState(message);
           break;
           
-        case 'start_chunk_processing':
-          await this.handleStartChunkProcessing(message);
-          break;
-          
-        case 'get_chunk_workflow_state':
-          await this.handleGetChunkWorkflowState(message);
-          break;
-          
         case 'cancel_workflow':
           await this.handleCancelWorkflow(message);
           break;
@@ -132,7 +129,15 @@ export class SAGAEventBusClient {
     };
 
     try {
-      const result = await this.sagaCoordinator.executeVisualizationSAGA(workflowRequest);
+      // Ensure processor is initialized
+      if (!this.isInitialized) {
+        await this.visualizationProcessor.initialize();
+        this.isInitialized = true;
+        this.setupSagaEventForwarding();
+      }
+      
+      const coordinator = this.visualizationProcessor['coordinator']; // Access private coordinator
+      const result = await coordinator.executeVisualizationSAGA(workflowRequest);
       
       this.publishEvent('saga_result', {
         result,
@@ -153,55 +158,32 @@ export class SAGAEventBusClient {
   }
 
   private async handleGetVisualizationState(message: EventMessage): Promise<void> {
-    const state = this.sagaCoordinator.getVisualizationSAGAState();
-    
-    this.publishEvent('visualization_state_response', {
-      state,
-      workflowId: message.data.workflowId,
-      threadId: message.data.threadId,
-      requestId: message.messageId
-    }, message.source);
-  }
-
-  private async handleStartChunkProcessing(message: EventMessage): Promise<void> {
-    const { collection, initialChunkLimit, workflowId } = message.data;
-    console.log(`🔄 Starting Chunk Processing for collection: ${collection}`);
-    
     try {
-      const result = await this.sagaCoordinator.executeChunkProcessingWorkflow(
-        collection, 
-        initialChunkLimit, 
-        workflowId
-      );
+      if (!this.isInitialized) {
+        await this.visualizationProcessor.initialize();
+        this.isInitialized = true;
+        this.setupSagaEventForwarding();
+      }
       
-      this.publishEvent('chunk_processing_result', {
-        result,
-        workflowId,
-        collection,
-        success: result.success
-      }, 'broadcast');
+      const coordinator = this.visualizationProcessor['coordinator'];
+      const state = coordinator.getVisualizationSAGAState();
       
+      this.publishEvent('visualization_state_response', {
+        state,
+        workflowId: message.data.workflowId,
+        threadId: message.data.threadId,
+        requestId: message.messageId
+      }, message.source);
     } catch (error) {
-      this.publishEvent('chunk_processing_error', {
+      this.publishEvent('saga_error', {
         error: error instanceof Error ? error.message : String(error),
-        workflowId,
-        collection,
-        success: false
-      }, 'broadcast');
+        workflowId: message.data.workflowId,
+        threadId: message.data.threadId,
+        requestId: message.messageId
+      }, message.source);
     }
   }
 
-  private async handleGetChunkWorkflowState(message: EventMessage): Promise<void> {
-    const state = this.sagaCoordinator.getChunkWorkflowState();
-    const accumulatedData = this.sagaCoordinator.getAccumulatedData();
-    
-    this.publishEvent('chunk_workflow_state_response', {
-      workflowState: state,
-      accumulatedData,
-      workflowId: message.data.workflowId,
-      requestId: message.messageId
-    }, message.source);
-  }
 
   private async handleCancelWorkflow(message: EventMessage): Promise<void> {
     const { workflowId, workflowType } = message.data;
@@ -216,11 +198,29 @@ export class SAGAEventBusClient {
     }, 'broadcast');
   }
 
+  private async initializeProcessor(): Promise<void> {
+    if (!this.isInitialized) {
+      console.log('🔧 Initializing Visualization SAGA Processor...');
+      try {
+        await this.visualizationProcessor.initialize();
+        this.isInitialized = true;
+        this.setupSagaEventForwarding();
+        console.log('✅ Visualization SAGA Processor initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize processor:', error);
+        throw error;
+      }
+    }
+  }
+
   private setupSagaEventForwarding(): void {
+    if (!this.isInitialized) return;
+    
     console.log('🔧 Setting up SAGA event forwarding to Event Bus');
+    const coordinator = this.visualizationProcessor['coordinator'];
 
     // Visualization SAGA events
-    this.sagaCoordinator.on('visualization_saga_initialized', (state: VisualizationSAGAState) => {
+    coordinator.on('visualization_saga_initialized', (state: VisualizationSAGAState) => {
       this.publishEvent('saga_state_update', { 
         type: 'visualization_saga_initialized', 
         state,
@@ -229,7 +229,7 @@ export class SAGAEventBusClient {
       }, 'broadcast');
     });
 
-    this.sagaCoordinator.on('visualization_transaction_started', (event: any) => {
+    coordinator.on('visualization_transaction_started', (event: any) => {
       this.publishEvent('saga_state_update', { 
         type: 'visualization_transaction_started', 
         event,
@@ -239,7 +239,7 @@ export class SAGAEventBusClient {
       }, 'broadcast');
     });
 
-    this.sagaCoordinator.on('visualization_transaction_completed', (event: any) => {
+    coordinator.on('visualization_transaction_completed', (event: any) => {
       this.publishEvent('saga_state_update', { 
         type: 'visualization_transaction_completed', 
         event,
@@ -249,7 +249,7 @@ export class SAGAEventBusClient {
       }, 'broadcast');
     });
 
-    this.sagaCoordinator.on('visualization_saga_completed', (state: VisualizationSAGAState) => {
+    coordinator.on('visualization_saga_completed', (state: VisualizationSAGAState) => {
       this.publishEvent('saga_state_update', { 
         type: 'visualization_saga_completed', 
         state,
@@ -259,7 +259,7 @@ export class SAGAEventBusClient {
       }, 'broadcast');
     });
 
-    this.sagaCoordinator.on('visualization_saga_failed', (event: any) => {
+    coordinator.on('visualization_saga_failed', (event: any) => {
       this.publishEvent('saga_state_update', { 
         type: 'visualization_saga_failed', 
         event,
@@ -269,36 +269,8 @@ export class SAGAEventBusClient {
       }, 'broadcast');
     });
 
-    // Chunk processing events
-    this.sagaCoordinator.on('workflow_status_changed', (state: any) => {
-      this.publishEvent('saga_state_update', {
-        type: 'chunk_workflow_status_changed',
-        state,
-        workflowId: state.id,
-        status: state.status
-      }, 'broadcast');
-    });
-
-    this.sagaCoordinator.on('data_accumulated', (event: any) => {
-      this.publishEvent('saga_state_update', {
-        type: 'chunk_data_accumulated',
-        event,
-        chunkId: event.chunkId,
-        totalProcessed: event.totalProcessed
-      }, 'broadcast');
-    });
-
-    this.sagaCoordinator.on('processing_decision', (event: any) => {
-      this.publishEvent('saga_state_update', {
-        type: 'chunk_processing_decision',
-        event,
-        decision: event.decision,
-        reason: event.reason
-      }, 'broadcast');
-    });
-
     // Compensation events
-    this.sagaCoordinator.on('compensation_executed', (event: any) => {
+    coordinator.on('compensation_executed', (event: any) => {
       this.publishEvent('saga_state_update', {
         type: 'compensation_executed',
         event,
@@ -348,7 +320,7 @@ export class SAGAEventBusClient {
     console.log('🔄 Shutting down SAGA Event Bus Client...');
     
     this.publishEvent('saga_service_shutdown', {
-      serviceName: 'visualization-saga-coordinator',
+      serviceName: 'visualization-saga-processor',
       shutdownTime: new Date()
     }, 'broadcast');
     
@@ -367,7 +339,13 @@ export class SAGAEventBusClient {
     return this.messageQueue.length;
   }
 
-  public getSagaCoordinator(): SagaCoordinator {
-    return this.sagaCoordinator;
+  public getVisualizationProcessor(): VisualizationSAGAProcessor {
+    return this.visualizationProcessor;
+  }
+
+  public async ensureInitialized(): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initializeProcessor();
+    }
   }
 }

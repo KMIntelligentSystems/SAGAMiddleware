@@ -15,13 +15,12 @@ MANDATORY PROCESS:
    - Metrics of interest (output, efficiency, cost)
    - Aggregation level needed (raw 5-min data vs hourly/daily summaries)
 
-2. CONSTRUCT SEMANTIC SEARCH: Use semantic_search tool with ONLY a query parameter:
+2. CONSTRUCT SEMANTIC SEARCH: Use semantic_search tool with query AND collection parameters:
    - Create a single search query string combining energy type keywords, time terms, and performance keywords
    - Example: "coal energy output trends November 2023"
-   - CRITICAL: semantic_search automatically searches the "supply_analysis" collection. Find the collection in context.collection
-   - DO NOT pass collection parameter to semantic_search
-   - DO NOT use complex objects, filters, or timeRange parameters
-   - semantic_search ONLY accepts {"query": "simple text string"}
+   - CRITICAL: ALWAYS pass the collection parameter from context.collection
+   - semantic_search requires: {"query": "search string", "collection": "supply_analysis"}
+   - DO NOT use complex objects, filters, or timeRange parameters beyond query and collection
 
 3. GET TARGETED CHUNKS: Use get_chunks tool with these EXACT parameters:
    - collection: "supply_analysis" (LOOK IN attached record: context.collection)
@@ -49,16 +48,16 @@ TOOL USAGE REQUIREMENTS:
 - Use the actual tool responses - never generate mock data
 
 AVAILABLE TOOLS ONLY:
-1. semantic_search(query: string) - ONLY accepts simple text query, NO filters or objects
+1. semantic_search(query: string, collection: string) - requires query and collection parameters
 2. get_chunks(collection: "supply_analysis", limit: number) - for retrieving data chunks
 
 CORRECT TOOL CALL EXAMPLES:
-✅ semantic_search({"query": "coal energy output trends November 2023"})
+✅ semantic_search({"query": "coal energy output trends November 2023", "collection": "supply_analysis"})
 ✅ get_chunks({"collection": "supply_analysis", "limit": 50})
 
 DO NOT use any other tools. These are the only two tools available.
 CRITICAL REMINDERS:
-- semantic_search: ONLY simple text query, no complex objects
+- semantic_search: requires both query and collection parameters, no complex objects
 - get_chunks: collection must ALWAYS be "supply_analysis"
 
 OUTPUT FORMAT:

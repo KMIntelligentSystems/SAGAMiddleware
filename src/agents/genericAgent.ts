@@ -436,11 +436,15 @@ export class GenericAgent {
   private validateToolArguments(toolName: string, args: any): void {
     if (toolName === 'semantic_search') {
       if (!args.query || typeof args.query !== 'string') {
-        throw new Error(`semantic_search requires a simple "query" string parameter, got: ${JSON.stringify(args)}`);
+        throw new Error(`semantic_search requires a "query" string parameter, got: ${JSON.stringify(args)}`);
       }
-      if (Object.keys(args).length > 1) {
-        const extraParams = Object.keys(args).filter(key => key !== 'query');
-        throw new Error(`semantic_search only accepts "query" parameter. Do NOT pass collection, timeRange, or filter parameters. Found extra parameters: ${extraParams.join(', ')}`);
+      if (!args.collection || typeof args.collection !== 'string') {
+        throw new Error(`semantic_search requires a "collection" string parameter, got: ${JSON.stringify(args)}`);
+      }
+      const allowedParams = ['query', 'collection'];
+      const extraParams = Object.keys(args).filter(key => !allowedParams.includes(key));
+      if (extraParams.length > 0) {
+        throw new Error(`semantic_search only accepts "query" and "collection" parameters. Found extra parameters: ${extraParams.join(', ')}`);
       }
     }
     

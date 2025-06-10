@@ -32,15 +32,11 @@ export interface EventBusConfig {
 export type SAGAEventType = 
   | 'start_visualization_saga'
   | 'get_visualization_state'
-  | 'start_chunk_processing'
-  | 'get_chunk_workflow_state'
   | 'cancel_workflow'
   | 'saga_state_update'
   | 'saga_result'
   | 'saga_error'
   | 'visualization_state_response'
-  | 'chunk_processing_result'
-  | 'chunk_workflow_state_response'
   | 'workflow_cancelled'
   | 'saga_service_shutdown';
 
@@ -49,10 +45,10 @@ export interface SAGAEventData {
   workflowId?: string;
   userQuery?: string;
   visualizationRequest?: any;
-  collection?: string;
-  initialChunkLimit?: number;
   state?: any;
   result?: any;
   error?: string;
   success?: boolean;
+  correlationId?: string;
+  processingTime?: number;
 }
