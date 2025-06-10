@@ -4,6 +4,7 @@ import { AgentDefinition, MCPServerConfig } from '../types/index.js';
 export function createAccumulatorAgent(mcpServers?: MCPServerConfig[]): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'accumulator',
+    agentType: 'processing',
     task: `Accumulate and synthesize insights from multiple chunk analyses.
 
 Your role is to:

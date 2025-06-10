@@ -135,7 +135,7 @@ RAG MCP Server started in stdio mode*/
     const timeout = serverConfig?.timeout || 120000;
     
     try {
-  //    console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
+      console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
       
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
@@ -152,7 +152,7 @@ RAG MCP Server started in stdio mode*/
       ]) as any;
       
       // Return the content directly, handling different content types
-   //   console.log(`MCP tool ${toolCall.name} raw response:`, JSON.stringify(response, null, 2));
+     console.log(`MCP tool ${toolCall.name} raw response:`, JSON.stringify(response, null, 2));
       
       if (Array.isArray(response.content)) {
         // Handle MCP response format: content is array of objects with type and text

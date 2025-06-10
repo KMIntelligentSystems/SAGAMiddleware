@@ -4,6 +4,7 @@ import { VisualizationOutput } from '../types/visualization.js';
 export function createVisualizationReportAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'visualization_report',
+    agentType: 'processing',
     task: `You are a visualization report generator that combines data analysis with chart specifications to create comprehensive visualization outputs.
 
 MANDATORY PROCESS:

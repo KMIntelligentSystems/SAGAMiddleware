@@ -62,6 +62,7 @@ async function mcpExampleUsage() {
   // Create an agent that analyzes pre-indexed data
   const dataAnalyzerAgent = createAgentDefinition({
     name: 'data_analyzer',
+    agentType: 'tool',
     task: `Generate a comprehensive report using data from "supply_analysis" collection.
 
 REQUIRED STEPS:
@@ -99,6 +100,7 @@ You MUST use the tools to retrieve actual data before generating the report.`,
 - `semantic_search*/
   const reportGeneratorAgent = createAgentDefinition({
     name: 'report_generator',
+    agentType: 'tool',
     task: `Generate a comprehensive report using data from "supply_analysis" collection.
 
 REQUIRED STEPS:
@@ -132,6 +134,7 @@ You MUST use the tools to retrieve actual data before generating the report.`,
 
   const qualityCheckerAgent = createAgentDefinition({
     name: 'quality_checker',
+    agentType: 'processing',
     task: 'Review the generated report file and assess its quality',
     provider: 'openai',
     model: 'gpt-4',
@@ -303,6 +306,7 @@ async function mcpContextSharingExample() {
   // Agent that processes shared MCP context
   const dataProcessorAgent = createAgentDefinition({
     name: 'data_processor',
+    agentType: 'processing',
     task: 'Process the data that was fetched by the previous agent',
     provider: 'anthropic',
     model: 'claude-3-7-sonnet-20250219',

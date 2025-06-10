@@ -4,6 +4,7 @@ import { AgentDefinition, MCPServerConfig } from '../types/index.js';
 export function createChunkAnalyzerAgent(mcpServers?: MCPServerConfig[]): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'chunk_analyzer',
+    agentType: 'processing',
     task: `Analyze individual chunks of data and extract insights.
 
 Your role is to:

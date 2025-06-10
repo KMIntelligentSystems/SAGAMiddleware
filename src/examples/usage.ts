@@ -9,6 +9,7 @@ async function exampleUsage() {
 
   const analyzerAgent = createAgentDefinition({
     name: 'analyzer',
+    agentType: 'processing',
     task: 'Analyze the provided data and extract key insights',
     provider: 'openai',
     model: 'gpt-4',
@@ -25,6 +26,7 @@ async function exampleUsage() {
                             
   const generatorAgent = createAgentDefinition({
     name: 'generator',
+    agentType: 'processing',
     task: 'Generate a report based on the analysis',
     provider: 'anthropic',
     model: 'claude-3-7-sonnet-20250219',
@@ -42,6 +44,7 @@ async function exampleUsage() {
 
   const reflectorAgent = createAgentDefinition({
     name: 'reflector',
+    agentType: 'processing',
     task: 'Review the generated report and suggest improvements',
     provider: 'openai',
     model: 'gpt-4',

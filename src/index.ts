@@ -73,6 +73,7 @@ export function createAgentDefinition(config: {
   provider: 'openai' | 'anthropic' | 'deepseek' | 'ollama';
   model: string;
   apiKey: string;
+  agentType: 'tool' | 'processing';
   expectedOutput?: any;
   context?: Record<string, any>;
   dependencies?: Array<{ agentName: string; required?: boolean }>;
@@ -86,6 +87,7 @@ export function createAgentDefinition(config: {
   return {
     name: config.name,
     task: config.task,
+    agentType: config.agentType,
     llmConfig: {
       provider: config.provider,
       model: config.model,

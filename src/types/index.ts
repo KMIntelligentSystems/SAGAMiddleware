@@ -32,6 +32,7 @@ export interface AgentDefinition {
   context: Record<string, any>;
   dependencies: AgentDependency[];
   task: string;
+  agentType: 'tool' | 'processing';
   mcpServers?: MCPServerConfig[];
   mcpTools?: string[];
   mcpResources?: string[];

@@ -4,6 +4,7 @@ import { AgentDefinition, MCPServerConfig } from '../types/index.js';
 export function createChunkRequesterAgent(mcpServers: MCPServerConfig[]): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'chunk_requester',
+    agentType: 'tool',
     task: `You MUST use the get_chunks tool to retrieve actual data. Do not generate any content without calling tools first.
 
 MANDATORY TOOL USAGE:

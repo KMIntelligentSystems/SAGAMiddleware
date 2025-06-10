@@ -58,15 +58,15 @@ export class GenericAgent {
     let prompt = `Task: ${this.definition.task}\n\n`;
     
     if (Object.keys(baseContext).length > 0) {
-      prompt += `Context:\n`;
+      prompt += `IMPORTANT CONTEXT - USE THESE VALUES EXACTLY:\n`;
       for (const [key, value] of Object.entries(baseContext)) {
         prompt += `${key}: ${JSON.stringify(value)}\n`;
       }
-      prompt += '\n';
+      prompt += '\nYou MUST use the context values above. Do not substitute or change them.\n\n';
     }
 
-    // Add MCP tools information to prompt so LLM knows what tools are available
-    if (this.availableTools.length > 0) {
+    // Add tools information based on agent type
+    if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
       prompt += `Available Tools:\n`;
       for (const tool of this.availableTools) {
         prompt += `- ${tool.name}: ${tool.description || 'No description'}\n`;
@@ -76,6 +76,11 @@ export class GenericAgent {
         }
       }
       prompt += '\nYou MUST use these tools to complete your task. Do not provide any analysis or response without first calling the required tools. Always start by calling the appropriate tool to retrieve data.\n\n';
+    } else if (this.definition.agentType === 'processing') {
+      prompt += `AGENT TYPE: PROCESSING AGENT\n`;
+      prompt += `You are a text processing agent. NO external tools or data access are available.\n`;
+      prompt += `Work ONLY with the context and data provided above. Do not attempt to call any tools or access external data.\n`;
+      prompt += `Focus on analyzing, transforming, and structuring the provided information.\n\n`;
     }
 
     // Add MCP resources information
@@ -120,8 +125,8 @@ export class GenericAgent {
       apiKey: process.env.OPENAI_API_KEY
     });
 
-    // If MCP tools are available, use native tool calling with MCP integration
-    if (this.availableTools.length > 0) {
+    // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
+    if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
       const tools = this.availableTools.map(tool => {
         // Fix schema for get_chunks tool
         if (tool.name === 'get_chunks') {
@@ -193,8 +198,8 @@ export class GenericAgent {
       apiKey: config.apiKey
     });
 
-    // If MCP tools are available, use native tool calling with MCP integration
-    if (this.availableTools.length > 0) {
+    // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
+    if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
       const tools = this.availableTools.map(tool => {
         // Fix schema for get_chunks tool
         if (tool.name === 'get_chunks') {
@@ -280,27 +285,41 @@ export class GenericAgent {
         });
         
         const message = response.choices[0].message;
+        
+        // Check if we've already made tool calls in previous iterations (before adding current message)
+        const hasPreviousToolCalls = conversationHistory.some(msg => msg.role === 'tool');
+        
         conversationHistory.push(message);
         
-        // If no tool calls, return the content (conversation complete)
+        // If no tool calls in current message, check if this is final analysis or first iteration
         if (!message.tool_calls || message.tool_calls.length === 0) {
-          console.log('No tool calls made by OpenAI. Analysis complete. Message content:', message.content?.substring(0, 200) + '...');
-          
-          // For chunk_requester, reject responses without tool calls
-          if (forceToolUse) {
-            console.log('ERROR: chunk_requester failed to call required tools - this should not happen with tool_choice=required');
-            throw new Error('Required tool call was not made by the LLM');
+          if (hasPreviousToolCalls) {
+            console.log('✅ Analysis complete - OpenAI processed tool results and provided final answer');
+            console.log('Final analysis content length:', message.content?.length || 0);
+            return message.content || "";
+          } else {
+            console.log('⚠️ No tool calls made in first iteration. Message content:', message.content?.substring(0, 200) + '...');
+            
+            // For chunk_requester, reject responses without tool calls ONLY on first iteration
+            if (forceToolUse) {
+              console.log('ERROR: chunk_requester failed to call required tools - this should not happen with tool_choice=required');
+              throw new Error('Required tool call was not made by the LLM');
+            }
+            
+            return message.content || "";
           }
-          
-          return message.content || "";
         }
         
-     //   console.log('OpenAI made tool calls:', message.tool_calls.length);
+        console.log('OpenAI made tool calls:', message.tool_calls[0].function);
         
         // Execute tool calls via MCP
        for (const toolCall of message.tool_calls) {
           try {
             const parsedArgs = JSON.parse(toolCall.function.arguments);
+            
+            // Validate tool arguments before execution
+            this.validateToolArguments(toolCall.function.name, parsedArgs);
+            
          //   console.log(`Executing tool ${toolCall.function.name} with arguments:`, parsedArgs);
             const toolResult = await this.executeMCPToolCall({
               name: toolCall.function.name,
@@ -338,7 +357,6 @@ export class GenericAgent {
           tools: tools,
           tool_choice: forceToolUse ? { type: "any" } : { type: "auto" }
         });
-        
         // Check for tool use
         const toolUseContent = response.content.find((content: any) => content.type === 'tool_use');
         if (!toolUseContent) {
@@ -414,6 +432,28 @@ export class GenericAgent {
     throw new Error("Maximum tool call iterations reached and no valid response found");
   }
 
+  // Tool argument validation
+  private validateToolArguments(toolName: string, args: any): void {
+    if (toolName === 'semantic_search') {
+      if (!args.query || typeof args.query !== 'string') {
+        throw new Error(`semantic_search requires a simple "query" string parameter, got: ${JSON.stringify(args)}`);
+      }
+      if (Object.keys(args).length > 1) {
+        const extraParams = Object.keys(args).filter(key => key !== 'query');
+        throw new Error(`semantic_search only accepts "query" parameter. Do NOT pass collection, timeRange, or filter parameters. Found extra parameters: ${extraParams.join(', ')}`);
+      }
+    }
+    
+    if (toolName === 'get_chunks') {
+      if (!args.collection || args.collection !== 'supply_analysis') {
+        throw new Error(`get_chunks collection must be "supply_analysis", got: ${args.collection || 'undefined'}`);
+      }
+      if (!args.limit || typeof args.limit !== 'number') {
+        throw new Error(`get_chunks requires a numeric "limit" parameter, got: ${JSON.stringify(args)}`);
+      }
+    }
+  }
+
   // MCP-related methods
   private async initializeMCPConnections(): Promise<void> {
     if (!this.definition.mcpServers) {
@@ -480,11 +520,11 @@ export class GenericAgent {
     for (const serverName of connectedServers) {
       try {
         const tools = await mcpClientManager.listTools(serverName);
-      //  console.log(`Tools on server ${serverName}:`, tools.map(t => t.name));
+        console.log(`Tools on server ${serverName}:`, tools.map(t => t.name));
         const tool = tools.find(t => t.name === toolCall.name);
         
         if (tool) {
-       //   console.log(`Found tool ${toolCall.name} on server ${serverName}`);
+          console.log(`Found tool ${toolCall.name} on server ${serverName}`);
           try {
             return await mcpClientManager.callTool(serverName, toolCall);
           } catch (error) {
@@ -513,7 +553,7 @@ export class GenericAgent {
   getAvailableResources(): any[] {
     return [...this.availableResources];
   }
-
+//REDUNDANT
   async callTool(toolName: string, args: Record<string, any>): Promise<any> {
     const toolCall: MCPToolCall = {
       name: toolName,

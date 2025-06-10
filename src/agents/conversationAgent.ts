@@ -43,6 +43,7 @@ export interface ConversationResult {
 export function createConversationAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'conversation_manager',
+    agentType: 'processing',
     task: `You are a conversation manager that uses AI SDK with OpenAI threads to gather visualization requirements from users.
 
 CORE RESPONSIBILITIES:

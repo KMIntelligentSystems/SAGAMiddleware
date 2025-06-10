@@ -4,6 +4,7 @@ import { AgentDefinition, MCPServerConfig } from '../types/index.js';
 export function createReportGeneratorAgent(mcpServers?: MCPServerConfig[]): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'report_generator',
+    agentType: 'processing',
     task: `Generate a comprehensive final report from accumulated data analysis.
 
 Your role is to:

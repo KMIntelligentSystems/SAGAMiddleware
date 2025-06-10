@@ -3,6 +3,7 @@ import { AgentDefinition, MCPServerConfig } from '../types/index.js';
 export function createRequirementsInitializerAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'requirements_initializer',
+    agentType: 'processing',
     task: `You are a requirements initialization agent in a SAGA transaction. Parse the initial user request and prepare requirements for processing.
 
 TRANSACTION RESPONSIBILITY:
@@ -45,7 +46,7 @@ OUTPUT FORMAT:
 - conversationReady: Boolean (true if enough info, false if clarification needed)
 - nextAction: String describing what conversation_manager should focus on
 
-CRITICAL: Process the provided context only - do not attempt external data access.`,
+CRITICAL: This is a PROCESSING AGENT - you analyze text and return structured data. NO external data access or tools are available. Work only with the provided context.`,
     
     llmConfig: {
       provider: 'openai',
@@ -74,6 +75,7 @@ CRITICAL: Process the provided context only - do not attempt external data acces
 export function createConversationManagerAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'conversation_manager',
+    agentType: 'processing',
     task: `You are a conversation management agent in a SAGA transaction. Process the output from the requirements_initializer and extract structured requirements.
 
 TRANSACTION RESPONSIBILITY:
@@ -156,6 +158,7 @@ CRITICAL: This agent processes SAGA transaction dependencies, not external data 
 export function createRequirementsValidatorAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'requirements_validator',
+    agentType: 'processing',
     task: `You are a requirements validation agent in a SAGA transaction. Your role is to validate and finalize the extracted requirements.
 
 TRANSACTION RESPONSIBILITY:
