@@ -1,9 +1,20 @@
 // SAGA state management for visualization workflow
+import { HumanInLoopSAGAState, HumanApprovalStage, HumanDecision } from './humanInLoopSaga.js';
+
 export interface VisualizationSAGAState {
   id: string;
-  status: 'initializing' | 'gathering_requirements' | 'filtering_data' | 'specifying_chart' | 'generating_report' | 'coding_visualization' | 'completed' | 'failed';
+  status: 'initializing' | 'gathering_requirements' | 'filtering_data' | 'specifying_chart' | 'generating_report' | 'coding_visualization' | 'awaiting_human_approval' | 'completed' | 'failed';
   currentTransaction: number;
   totalTransactions: number;
+  
+  // Human-in-the-loop extensions
+  humanInLoop?: {
+    enabled: boolean;
+    currentStage?: HumanApprovalStage['stage'];
+    pendingApproval?: HumanApprovalStage;
+    decisions: HumanDecision[];
+    totalHumanTime?: number; // milliseconds spent in human interaction
+  };
   
   // Requirements gathering state
   requirementsState: {

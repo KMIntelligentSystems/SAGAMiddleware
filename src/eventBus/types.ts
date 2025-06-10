@@ -38,7 +38,16 @@ export type SAGAEventType =
   | 'saga_error'
   | 'visualization_state_response'
   | 'workflow_cancelled'
-  | 'saga_service_shutdown';
+  | 'saga_service_shutdown'
+  // Human-in-the-loop events
+  | 'human_approval_requested'
+  | 'human_decision_received'
+  | 'human_approval_timeout'
+  | 'human_interaction_resumed'
+  | 'service_checkpoint'
+  | 'service_compensation'
+  | 'transaction_timeout'
+  | 'transaction_archived';
 
 export interface SAGAEventData {
   threadId?: string;
@@ -51,4 +60,20 @@ export interface SAGAEventData {
   success?: boolean;
   correlationId?: string;
   processingTime?: number;
+  
+  // Human-in-the-loop data
+  interactionToken?: string;
+  humanStage?: 'specification_review' | 'code_review' | 'final_approval';
+  approvalUrl?: string;
+  artifacts?: any;
+  decision?: {
+    decision: 'approve' | 'reject' | 'modify';
+    feedback?: string;
+    modifications?: any;
+    decidedBy?: string;
+  };
+  timeoutAt?: Date;
+  serviceId?: string;
+  checkpoint?: any;
+  compensation?: any[];
 }

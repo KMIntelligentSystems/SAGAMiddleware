@@ -100,6 +100,19 @@ export class SAGAEventBusClient {
         case 'cancel_workflow':
           await this.handleCancelWorkflow(message);
           break;
+
+        // Human-in-the-loop event handlers
+        case 'human_decision_received':
+          await this.handleHumanDecisionReceived(message);
+          break;
+
+        case 'human_approval_timeout':
+          await this.handleHumanApprovalTimeout(message);
+          break;
+
+        case 'human_interaction_resumed':
+          await this.handleHumanInteractionResumed(message);
+          break;
           
         default:
           console.log(`⚠️ Unhandled event type: ${message.type}`);
@@ -196,6 +209,123 @@ export class SAGAEventBusClient {
       cancelled: true,
       timestamp: new Date()
     }, 'broadcast');
+  }
+
+  // Human-in-the-loop event handlers
+  private async handleHumanDecisionReceived(message: EventMessage): Promise<void> {
+    const { interactionToken, decision, workflowId } = message.data;
+    console.log(`🤝 Human decision received: ${decision?.decision} for token ${interactionToken}`);
+    
+    try {
+      if (!this.isInitialized) {
+        await this.visualizationProcessor.initialize();
+        this.isInitialized = true;
+        this.setupSagaEventForwarding();
+      }
+      
+      // Forward decision to coordinator for processing
+      const coordinator = this.visualizationProcessor['coordinator'];
+      
+      // Emit event to resume SAGA processing
+      coordinator.emit('human_decision_received', {
+        interactionToken,
+        decision,
+        workflowId,
+        timestamp: new Date()
+      });
+
+      this.publishEvent('saga_state_update', {
+        type: 'human_decision_processed',
+        workflowId,
+        interactionToken,
+        decision: decision?.decision,
+        feedback: decision?.feedback
+      }, 'broadcast');
+
+    } catch (error) {
+      this.publishEvent('saga_error', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId,
+        interactionToken,
+        eventType: 'human_decision_processing'
+      }, 'broadcast');
+    }
+  }
+
+  private async handleHumanApprovalTimeout(message: EventMessage): Promise<void> {
+    const { interactionToken, workflowId, humanStage, timeoutAt } = message.data;
+    console.log(`⏰ Human approval timeout for ${humanStage} (Token: ${interactionToken})`);
+    
+    try {
+      if (!this.isInitialized) {
+        await this.visualizationProcessor.initialize();
+        this.isInitialized = true;
+        this.setupSagaEventForwarding();
+      }
+
+      const coordinator = this.visualizationProcessor['coordinator'];
+      
+      // Emit timeout event to trigger compensation
+      coordinator.emit('human_approval_timeout', {
+        interactionToken,
+        workflowId,
+        humanStage,
+        timeoutAt
+      });
+
+      this.publishEvent('saga_state_update', {
+        type: 'human_approval_timeout_processed',
+        workflowId,
+        interactionToken,
+        humanStage,
+        timeoutAt
+      }, 'broadcast');
+
+    } catch (error) {
+      this.publishEvent('saga_error', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId,
+        interactionToken,
+        eventType: 'human_timeout_processing'
+      }, 'broadcast');
+    }
+  }
+
+  private async handleHumanInteractionResumed(message: EventMessage): Promise<void> {
+    const { workflowId, interactionToken, artifacts } = message.data;
+    console.log(`🔄 Human interaction resumed for workflow ${workflowId}`);
+    
+    try {
+      if (!this.isInitialized) {
+        await this.visualizationProcessor.initialize();
+        this.isInitialized = true;
+        this.setupSagaEventForwarding();
+      }
+
+      const coordinator = this.visualizationProcessor['coordinator'];
+      
+      // Resume SAGA processing from where it left off
+      coordinator.emit('human_interaction_resumed', {
+        workflowId,
+        interactionToken,
+        artifacts,
+        resumedAt: new Date()
+      });
+
+      this.publishEvent('saga_state_update', {
+        type: 'human_interaction_resumed_processed',
+        workflowId,
+        interactionToken
+      }, 'broadcast');
+
+    } catch (error) {
+      this.publishEvent('saga_error', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId,
+        interactionToken,
+        eventType: 'human_resume_processing'
+      }, 'broadcast');
+    }
   }
 
   private async initializeProcessor(): Promise<void> {
