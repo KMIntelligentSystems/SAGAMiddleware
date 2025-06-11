@@ -1,7 +1,6 @@
 import { HumanInteractionService } from '../services/humanInteractionService.js';
 import { SAGAPersistenceManager } from '../services/sagaPersistenceManager.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
-import { VisualizationSAGAProcessor } from './visualizationSagaProcessing.js';
 import {
   HumanInLoopConfig,
   HumanInLoopSAGAState,
@@ -14,10 +13,9 @@ import {
 import { VisualizationWorkflowRequest } from '../types/visualizationSaga.js';
 
 /**
- * Extended SAGA Coordinator that supports human-in-the-loop workflows
+ * Human-in-the-loop coordinator focused on browser interaction via event bus
  */
-export class HumanInLoopVisualizationCoordinator {
-  private visualizationProcessor: VisualizationSAGAProcessor;
+export class HumanInLoopBrowserCoordinator {
   private humanInteractionService: HumanInteractionService;
   private persistenceManager: SAGAPersistenceManager;
   private eventBusClient: SAGAEventBusClient;
@@ -25,25 +23,24 @@ export class HumanInLoopVisualizationCoordinator {
 
   constructor(config: HumanInLoopConfig) {
     this.config = config;
-    this.visualizationProcessor = new VisualizationSAGAProcessor();
     this.humanInteractionService = new HumanInteractionService(config);
     this.persistenceManager = new SAGAPersistenceManager(config);
     this.eventBusClient = new SAGAEventBusClient(config.eventBus.url);
     
-    this.setupEventHandlers();
+    this.setupEventBusListener(); // Listen for browser requests
   }
 
   /**
    * Execute a complete human-in-the-loop visualization SAGA
    */
-  async executeHumanInLoopVisualizationSAGA(
+  async executeHumanInLoopBrowserSAGA(
     workflowRequest: VisualizationWorkflowRequest,
     enableHumanLoop: boolean = true
   ): Promise<HumanApprovedResult> {
     const transactionId = workflowRequest.workflowId || `human_saga_${Date.now()}`;
     const startTime = new Date();
 
-    console.log(`🚀 Starting Human-in-the-Loop Visualization SAGA: ${transactionId}`);
+    console.log(`🚀 Starting Human-in-the-Loop Browser SAGA: ${transactionId}`);
     
     // Initialize SAGA state
     const sagaState: HumanInLoopSAGAState = {
@@ -54,11 +51,11 @@ export class HumanInLoopVisualizationCoordinator {
       lastActivity: startTime,
       humanDecisions: [], // Add missing property
       services: new Map([
-        ['rag-service', { name: 'rag-service', status: 'pending', compensationActions: [] }],
+        ['browser-request-service', { name: 'browser-request-service', status: 'pending', compensationActions: [] }],
         ['coding-service', { name: 'coding-service', status: 'pending', compensationActions: [] }],
         ['user-interaction-service', { name: 'user-interaction-service', status: 'pending', compensationActions: [] }]
       ]),
-      pendingServices: ['rag-service'],
+      pendingServices: ['browser-request-service'],
       completedServices: [],
       failedServices: [],
       persistenceKey: '',
@@ -74,19 +71,22 @@ export class HumanInLoopVisualizationCoordinator {
       // Save initial state
       await this.persistenceManager.saveTransactionState(transactionId, sagaState);
 
-      // Phase 1: Generate Chart Specification via RAG Service
+      // Phase 1: Generate Chart Specification from browser request
       console.log(`📊 Phase 1: Generating chart specification...`);
       sagaState.status = 'specification_pending';
       
-      const specification = await this.executeSpecificationGeneration(workflowRequest, sagaState);
+      const specification = await this.generateChartSpecification(
+        workflowRequest.userQuery || 'Browser visualization request',
+        workflowRequest.visualizationRequest?.filters
+      );
       sagaState.artifacts.specification = specification;
-      sagaState.services.get('rag-service')!.status = 'completed';
-      sagaState.completedServices.push('rag-service');
+      sagaState.services.get('browser-request-service')!.status = 'completed';
+      sagaState.completedServices.push('browser-request-service');
 
       // Create checkpoint after specification generation
       await this.persistenceManager.createCheckpoint(
         transactionId,
-        'rag-service',
+        'browser-request-service',
         { specification, workflowRequest },
         true
       );
@@ -221,7 +221,7 @@ export class HumanInLoopVisualizationCoordinator {
         servicesUsed: sagaState.completedServices
       };
 
-      console.log(`🎉 Human-in-the-Loop SAGA completed successfully: ${transactionId}`);
+      console.log(`🎉 Human-in-the-Loop Browser SAGA completed successfully: ${transactionId}`);
       console.log(`⏱️  Total time: ${Math.round(result.processingTime / 1000)}s`);
       console.log(`🤝 Human interaction time: ${Math.round(result.humanInteractionTime / 1000)}s`);
 
@@ -234,36 +234,28 @@ export class HumanInLoopVisualizationCoordinator {
   }
 
   /**
-   * Execute specification generation using RAG service
+   * Generate simple chart specification from browser request
    */
-  private async executeSpecificationGeneration(
-    workflowRequest: VisualizationWorkflowRequest,
-    sagaState: HumanInLoopSAGAState
+  private async generateChartSpecification(
+    userQuery: string,
+    filters: any
   ): Promise<ChartSpecification> {
-    console.log(`🔍 Executing RAG service for data filtering and specification...`);
+    console.log(`🔍 Generating chart specification from browser request...`);
     
-    // Initialize visualization processor and execute
-    await this.visualizationProcessor.initialize();
-    const coordinator = this.visualizationProcessor['coordinator'];
-    
-    // Execute the visualization SAGA to get specification
-    const result = await coordinator.executeVisualizationSAGA(workflowRequest);
-    
-    if (!result.success) {
-      throw new Error(`RAG service failed: ${result.error}`);
-    }
-
-    // Extract chart specification from result
+    // Create a simple chart specification based on the request
     const chartSpec: ChartSpecification = {
-      chartType: result.result?.finalOutput?.chartSpec?.chartType || 'line',
-      title: result.result?.finalOutput?.chartSpec?.title || 'Energy Visualization',
-      dataMapping: result.result?.finalOutput?.chartSpec?.dataMapping || {
-        xAxis: 'timestamp',
-        yAxis: 'output'
+      chartType: filters?.chartType || 'line',
+      title: filters?.title || 'Browser Data Visualization',
+      dataMapping: {
+        xAxis: filters?.xAxis || 'timestamp',
+        yAxis: filters?.yAxis || 'value'
       },
-      filters: workflowRequest.visualizationRequest?.filters || {},
-      aggregation: workflowRequest.visualizationRequest?.filters?.aggregation || 'hourly',
-      visualizationConfig: result.result?.finalOutput?.chartSpec || {}
+      filters: filters || {},
+      aggregation: filters?.aggregation || 'hourly',
+      visualizationConfig: {
+        userQuery,
+        requestSource: 'browser'
+      }
     };
 
     console.log(`✅ Chart specification generated: ${chartSpec.chartType} chart`);
@@ -538,6 +530,113 @@ Generated at: ${new Date().toISOString()}
 `;
   }
 
+  
+  /**
+   * Setup event bus listener for start-graph-request events from browser
+   */
+  private async setupEventBusListener(): Promise<void> {
+    console.log('🔧 Setting up Event Bus listener for browser requests...');
+    
+    // Wait for event bus connection
+    let attempts = 0;
+    while (!this.eventBusClient.isEventBusConnected() && attempts < 30) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+    
+    if (!this.eventBusClient.isEventBusConnected()) {
+      console.error('❌ Failed to connect to Event Bus after 30 seconds');
+      return;
+    }
+    
+    console.log('✅ Event Bus connected, setting up message listener...');
+    
+    // Access the socket directly to listen for events
+    const socket = this.eventBusClient['socket'];
+    
+    socket.on('event_received', async (message: any) => {
+      if (message.type === 'start-graph-request' && message.source === 'react-app') {
+        console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
+        await this.handleBrowserGraphRequest(message);
+      } else if (message.type === 'human_loop_graph_request') {
+        console.log(`📊 Received routed graph request: ${JSON.stringify(message.data)}`);
+        await this.handleBrowserGraphRequest(message.data.originalMessage);
+      }
+    });
+    
+    console.log('🎧 Listening for browser graph requests via service bus...');
+  }
+
+  /**
+   * Handle graph request from browser via Event Bus
+   */
+  private async handleBrowserGraphRequest(message: any): Promise<void> {
+    try {
+      console.log(`📊 Processing graph request from browser...`);
+      
+      // Extract data from the message
+      const { data } = message;
+      const threadId = data.threadId || `browser_${Date.now()}`;
+      const userQuery = data.userQuery || data.query || 'Graph visualization request from browser';
+      
+      // Create workflow request from browser data
+      const workflowRequest: VisualizationWorkflowRequest = {
+        userQuery,
+        visualizationRequest: {
+          userQuery,
+          filters: data.filters || {
+            timeRange: {
+              start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // Last 7 days
+              end: new Date().toISOString()
+            },
+            aggregation: data.aggregation || 'daily'
+          },
+          chartPreferences: {
+            type: data.chartType || 'line'
+          }
+        },
+        workflowId: data.workflowId || `browser_graph_${Date.now()}`,
+        threadId,
+        correlationId: message.messageId
+      };
+      
+      console.log(`🚀 Starting Human-in-Loop Browser SAGA for request: ${workflowRequest.workflowId}`);
+      
+      // Execute the human-in-the-loop SAGA
+      const result = await this.executeHumanInLoopBrowserSAGA(workflowRequest, true);
+      
+      // Publish result back to event bus for the browser
+      this.eventBusClient['publishEvent']('saga_result', {
+        result,
+        workflowId: workflowRequest.workflowId,
+        threadId: workflowRequest.threadId,
+        success: result.success,
+        correlationId: message.messageId,
+        processingTime: result.processingTime,
+        source: 'human-in-loop-saga'
+      }, 'broadcast');
+      
+      if (result.success) {
+        console.log(`✅ Browser graph request completed successfully: ${workflowRequest.workflowId}`);
+      } else {
+        console.log(`❌ Browser graph request failed: ${result.reason}`);
+      }
+      
+    } catch (error) {
+      console.error(`💥 Error handling browser graph request:`, error);
+      
+      // Publish error back to event bus
+      this.eventBusClient['publishEvent']('saga_error', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId: message.data?.workflowId || `browser_error_${Date.now()}`,
+        threadId: message.data?.threadId,
+        correlationId: message.messageId,
+        source: 'human-in-loop-saga'
+      }, 'broadcast');
+    }
+  }
+
+
   /**
    * Setup event handlers for various services
    */
@@ -581,8 +680,8 @@ Generated at: ${new Date().toISOString()}
   }
 }
 
-// Example usage and demo
-export async function runHumanInLoopExample(): Promise<void> {
+// Example usage and demo for browser interaction
+export async function runHumanInLoopBrowserExample(): Promise<void> {
   const config: HumanInLoopConfig = {
     timeouts: {
       specificationReviewTimeout: 24 * 60 * 60 * 1000, // 24 hours
@@ -620,47 +719,51 @@ export async function runHumanInLoopExample(): Promise<void> {
     }
   };
 
-  const coordinator = new HumanInLoopVisualizationCoordinator(config);
+  const coordinator = new HumanInLoopBrowserCoordinator(config);
 
   try {
-    console.log('🚀 Starting Human-in-the-Loop SAGA Example...');
+    console.log('🚀 Starting Human-in-the-Loop Browser Listener...');
+    
+    // Wait a bit for the event bus connection to be established
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    console.log('📡 Coordinator is now listening for browser requests via event bus...');
+    console.log('💡 Send start-graph-request messages from react-app to trigger processing');
+    console.log('');
+    console.log('Press Ctrl+C to exit...');
 
-    const workflowRequest: VisualizationWorkflowRequest = {
-      userQuery: "Show me coal energy output trends over the last 3 days with human approval workflow",
-      visualizationRequest: {
-        userQuery: "Show me coal energy output trends over the last 3 days",
-        filters: {
-          energyTypes: ['coal'],
-          timeRange: {
-            start: "2023-11-02T04:00:00.000Z",
-            end: "2023-11-05T23:55:00.000Z"
-          },
-          aggregation: 'hourly'
-        },
-        chartPreferences: {
-          type: 'line'
-        }
-      },
-      workflowId: `human_loop_demo_${Date.now()}`
-    };
+    // Keep the process alive to listen for browser messages
+    process.on('SIGINT', async () => {
+      console.log('\n🔄 Shutting down Human-in-the-Loop Browser Coordinator...');
+      await coordinator.shutdown();
+      process.exit(0);
+    });
 
-    const result = await coordinator.executeHumanInLoopVisualizationSAGA(workflowRequest, true);
+    process.on('SIGTERM', async () => {
+      console.log('\n🔄 Shutting down Human-in-the-Loop Browser Coordinator...');
+      await coordinator.shutdown();
+      process.exit(0);
+    });
 
-    if (result.success) {
-      console.log('🎉 Human-in-the-Loop SAGA completed successfully!');
-      console.log(`📊 Final artifacts ready: Version ${result.artifacts?.version}`);
-    } else {
-      console.log(`❌ SAGA failed: ${result.reason}`);
-    }
+    // Keep the event loop alive
+    setInterval(() => {
+      // Just keep alive, don't log anything
+    }, 30000);
 
   } catch (error) {
     console.error('💥 Human-in-the-Loop example failed:', error);
-  } finally {
     await coordinator.shutdown();
+    process.exit(1);
   }
+
+  
 }
 
 // Execute if run directly
-if (import.meta.url === `file:///${process.argv[1].replace(/\\\\/g, '/')}`) {
-  runHumanInLoopExample();
+/*if (import.meta.url === `file:///${process.argv[1].replace(/\\\\/g, '/')}`) {
+  runHumanInLoopBrowserExample();
+}*/
+
+if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1].endsWith('humanInteractionService.js') || process.argv[1].endsWith('humanInteractionService.ts')) {
+   runHumanInLoopBrowserExample();
 }

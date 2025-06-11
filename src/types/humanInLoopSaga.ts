@@ -75,7 +75,7 @@ export interface HumanApprovalToken {
 }
 
 export interface SAGAService {
-  name: 'rag-service' | 'coding-service' | 'user-interaction-service' | 'persistence-service';
+  name: 'rag-service' | 'coding-service' | 'user-interaction-service' | 'persistence-service' | 'browser-request-service';
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'awaiting_human' | 'timeout';
   checkpoint?: SAGACheckpoint;
   compensationActions: ServiceCompensationAction[];

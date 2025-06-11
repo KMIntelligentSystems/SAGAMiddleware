@@ -1,5 +1,5 @@
 import { VisualizationSAGAProcessor } from './visualizationSagaProcessing.js';
-import { HumanInLoopVisualizationCoordinator } from './humanInLoopSagaExample.js';
+import { HumanInLoopBrowserCoordinator } from './humanInLoopSagaExample.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { VisualizationWorkflowRequest } from '../types/visualizationSaga.js';
 import { HumanInLoopConfig } from '../types/humanInLoopSaga.js';
@@ -10,7 +10,7 @@ import * as readline from 'readline';
  */
 export class HybridSagaWorkflow {
   private visualizationProcessor: VisualizationSAGAProcessor;
-  private humanLoopCoordinator?: HumanInLoopVisualizationCoordinator;
+  private humanLoopCoordinator?: HumanInLoopBrowserCoordinator;
   private eventBusClient?: SAGAEventBusClient;
   private mode: 'local' | 'event-bus' | 'human-loop';
 
@@ -71,7 +71,7 @@ export class HybridSagaWorkflow {
         }
       };
 
-      this.humanLoopCoordinator = new HumanInLoopVisualizationCoordinator(config);
+      this.humanLoopCoordinator = new HumanInLoopBrowserCoordinator(config);
     }
   }
 
@@ -168,7 +168,7 @@ export class HybridSagaWorkflow {
     console.log('💡 Demo mode: Human approvals will be simulated');
     console.log('🔗 In production, users would receive approval URLs');
     
-    const result = await this.humanLoopCoordinator.executeHumanInLoopVisualizationSAGA(
+    const result = await this.humanLoopCoordinator.executeHumanInLoopBrowserSAGA(
       request,
       true // Enable human loop
     );

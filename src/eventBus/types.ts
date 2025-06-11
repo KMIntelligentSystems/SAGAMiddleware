@@ -31,6 +31,7 @@ export interface EventBusConfig {
 // Event type definitions for better type safety
 export type SAGAEventType = 
   | 'start_visualization_saga'
+  | 'start-graph-request'
   | 'get_visualization_state'
   | 'cancel_workflow'
   | 'saga_state_update'

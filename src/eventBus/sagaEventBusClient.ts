@@ -93,6 +93,10 @@ export class SAGAEventBusClient {
           await this.handleStartVisualizationSaga(message);
           break;
           
+        case 'start-graph-request':
+          await this.handleStartGraphRequest(message);
+          break;
+          
         case 'get_visualization_state':
           await this.handleGetVisualizationState(message);
           break;
@@ -168,6 +172,22 @@ export class SAGAEventBusClient {
         success: false
       }, 'broadcast');
     }
+  }
+
+  private async handleStartGraphRequest(message: EventMessage): Promise<void> {
+    const { data } = message;
+    console.log(`📊 Routing start-graph-request from ${message.source} to human-in-loop handler`);
+    
+    // Route this message to the human-in-loop coordinator
+    // The actual processing will be handled by HumanInLoopBrowserCoordinator
+    this.publishEvent('human_loop_graph_request', {
+      originalMessage: message,
+      data: data,
+      routedFrom: 'saga-middleware',
+      routedAt: new Date()
+    }, 'broadcast');
+    
+    console.log(`✅ start-graph-request routed to human-in-loop processor`);
   }
 
   private async handleGetVisualizationState(message: EventMessage): Promise<void> {
@@ -423,7 +443,8 @@ export class SAGAEventBusClient {
       correlationId: data.correlationId
     };
 
-    if (this.isConnected) {
+    // Check actual socket connection state instead of relying on isConnected flag
+    if (this.socket && this.socket.connected) {
       console.log(`📤 Publishing event: ${type} to ${target || 'broadcast'}`);
       this.socket.emit('publish_event', message);
     } else {
