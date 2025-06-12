@@ -1,7 +1,7 @@
 // Human-in-the-Loop SAGA Architecture Types
 
 export interface HumanApprovalStage {
-  stage: 'specification_review' | 'code_review' | 'final_approval';
+  stage: 'specification_review' | 'code_review' | 'final_approval' | 'requirements_review' | 'data_analysis_review' | 'visualization_review';
   startTime: Date;
   timeoutAt: Date;
   artifacts: ApprovalArtifacts;
@@ -75,7 +75,7 @@ export interface HumanApprovalToken {
 }
 
 export interface SAGAService {
-  name: 'rag-service' | 'coding-service' | 'user-interaction-service' | 'persistence-service' | 'browser-request-service';
+  name: 'requirements-service' | 'data-analysis-service' | 'coding-service' | 'user-interaction-service' | 'persistence-service' | 'browser-request-service';
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'awaiting_human' | 'timeout';
   checkpoint?: SAGACheckpoint;
   compensationActions: ServiceCompensationAction[];
@@ -119,8 +119,8 @@ export interface HumanInLoopSAGAState {
   // Base SAGA information
   id: string;
   transactionId: string;
-  status: 'initializing' | 'specification_pending' | 'code_pending' | 'final_approval_pending' | 
-          'completed' | 'failed' | 'timeout' | 'compensated';
+  status: 'initializing' | 'specification_pending' | 'requirements_pending' | 'data_analysis_pending' | 
+          'code_pending' | 'final_approval_pending' | 'completed' | 'failed' | 'timeout' | 'compensated';
   
   // Temporal tracking
   startTime: Date;
@@ -161,6 +161,140 @@ export interface HumanInLoopSAGAState {
   compensations: ServiceCompensationAction[];
 }
 
+export interface RequirementsArtifact {
+  processedQuery: string;
+  extractedEntities: any[];
+  analysisScope: string;
+  validationResults: ValidationResult[];
+  refinedRequirements?: string;
+}
+
+export interface ValidationResult {
+  field: string;
+  status: 'valid' | 'warning' | 'error';
+  message: string;
+  suggestion?: string;
+}
+
+export interface DataAnalysisArtifact {
+  queryPlan: DatabaseQuery;
+  dataSchema: DataSchema;
+  sampleData: any[];
+  dataQualityMetrics: QualityMetrics;
+  recommendedVisualization: VisualizationRecommendation;
+}
+
+export interface DatabaseQuery {
+  collection: string;
+  filters: Record<string, any>;
+  aggregation: any[];
+  projections: string[];
+  estimatedResultSize: number;
+}
+
+export interface DataSchema {
+  fields: FieldDefinition[];
+  totalRecords: number;
+  dateRange: { min: Date; max: Date };
+  uniqueValues: Record<string, any[]>;
+}
+
+export interface FieldDefinition {
+  name: string;
+  type: 'string' | 'number' | 'date' | 'boolean';
+  nullable: boolean;
+  description?: string;
+}
+
+export interface QualityMetrics {
+  completeness: number; // 0-1
+  accuracy: number; // 0-1
+  consistency: number; // 0-1
+  issues: QualityIssue[];
+}
+
+export interface QualityIssue {
+  type: 'missing_data' | 'outlier' | 'inconsistent_format';
+  severity: 'low' | 'medium' | 'high';
+  affectedRecords: number;
+  description: string;
+}
+
+export interface VisualizationRecommendation {
+  recommendedType: 'line' | 'bar' | 'pie' | 'scatter';
+  confidence: number;
+  reasoning: string;
+  alternatives: Array<{
+    type: string;
+    confidence: number;
+    pros: string[];
+    cons: string[];
+  }>;
+}
+
+export interface EnhancedSAGAState extends HumanInLoopSAGAState {
+  // Enhanced artifacts
+  artifacts: {
+    requirements?: RequirementsArtifact;
+    dataAnalysis?: DataAnalysisArtifact;
+    code?: CodeArtifacts;
+    final?: FinalDeliverable;
+  };
+  
+  // Browser context
+  browserContext: {
+    originalRequest: any; // BrowserGraphRequest from eventBus types
+    refinementCycle: number;
+    userFeedback: HumanFeedback[];
+  };
+}
+
+export interface HumanFeedback {
+  stage: 'requirements_review' | 'data_analysis_review' | 'visualization_review' | 'final_approval';
+  decision: 'approve' | 'reject' | 'modify' | 'refine';
+  feedback: string;
+  refinementType?: 'requirements_change' | 'data_scope_change' | 'visualization_change';
+  modifications?: any;
+  timestamp: Date;
+  userId?: string;
+}
+
+export interface InteractiveDemo {
+  previewUrl: string;
+  interactiveControls: ControlDefinition[];
+  exportOptions: string[];
+  embedCode: string;
+}
+
+export interface ControlDefinition {
+  type: 'slider' | 'dropdown' | 'checkbox' | 'date-picker';
+  name: string;
+  label: string;
+  options?: any[];
+  defaultValue?: any;
+}
+
+export interface EnhancedApprovalStage {
+  stage: 'requirements_review' | 'data_analysis_review' | 'visualization_review' | 'final_approval';
+  artifacts: {
+    preview?: string; // Base64 image or live URL
+    interactiveDemo?: InteractiveDemo;
+    dataQuality?: QualityMetrics;
+    recommendations?: string[];
+    sampleData?: any[];
+  };
+  allowedActions: ('approve' | 'reject' | 'modify' | 'refine')[];
+}
+
+export interface EnhancedHumanDecision {
+  decision: 'approve' | 'reject' | 'modify' | 'refine';
+  feedback?: string;
+  modifications?: any;
+  refinementType?: 'requirements_change' | 'data_scope_change' | 'visualization_change';
+  decidedBy?: string;
+  decidedAt: Date;
+}
+
 export interface HumanApprovedResult {
   success: boolean;
   transactionId: string;
@@ -169,6 +303,7 @@ export interface HumanApprovedResult {
   processingTime: number;
   humanInteractionTime: number;
   servicesUsed: string[];
+  refinementCycles?: number;
 }
 
 export interface DistributedSAGAEvent {

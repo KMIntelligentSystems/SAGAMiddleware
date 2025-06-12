@@ -50,11 +50,40 @@ export type SAGAEventType =
   | 'transaction_timeout'
   | 'transaction_archived';
 
+export interface BrowserGraphRequest {
+  // Input 1: Requirements
+  userQuery: string; // "Show me coal energy output trends over the last 3 days"
+  
+  // Input 2: Data Requirements  
+  dataRequirements: {
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    outputFields: string[]; // ['output', 'timestamp', 'type']
+    graphType: 'line' | 'bar' | 'pie' | 'scatter';
+    aggregation?: 'hourly' | 'daily' | 'weekly';
+  };
+  
+  // Input 3: Data Source
+  dataSource: {
+    collection: string; // "supply_analysis"
+    database?: string;
+    filters?: Record<string, any>;
+  };
+  
+  // Request metadata
+  requestId: string;
+  threadId: string;
+  correlationId: string;
+}
+
 export interface SAGAEventData {
   threadId?: string;
   workflowId?: string;
   userQuery?: string;
   visualizationRequest?: any;
+  browserRequest?: BrowserGraphRequest;
   state?: any;
   result?: any;
   error?: string;
@@ -64,17 +93,25 @@ export interface SAGAEventData {
   
   // Human-in-the-loop data
   interactionToken?: string;
-  humanStage?: 'specification_review' | 'code_review' | 'final_approval';
+  humanStage?: 'requirements_review' | 'data_analysis_review' | 'visualization_review' | 'final_approval';
   approvalUrl?: string;
   artifacts?: any;
   decision?: {
-    decision: 'approve' | 'reject' | 'modify';
+    decision: 'approve' | 'reject' | 'modify' | 'refine';
     feedback?: string;
     modifications?: any;
     decidedBy?: string;
+    refinementType?: 'requirements_change' | 'data_scope_change' | 'visualization_change';
   };
   timeoutAt?: Date;
   serviceId?: string;
   checkpoint?: any;
   compensation?: any[];
+  
+  // Enhanced routing info
+  routingInfo?: {
+    source: string;
+    priority: 'low' | 'medium' | 'high';
+    estimatedDuration: number;
+  };
 }

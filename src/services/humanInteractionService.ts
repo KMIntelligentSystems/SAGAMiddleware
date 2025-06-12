@@ -5,7 +5,11 @@ import {
   HumanDecision,
   ApprovalArtifacts,
   TimeoutStrategy,
-  HumanInLoopConfig
+  HumanInLoopConfig,
+  EnhancedApprovalStage,
+  EnhancedHumanDecision,
+  InteractiveDemo,
+  QualityMetrics
 } from '../types/humanInLoopSaga.js';
 
 export class HumanInteractionService extends EventEmitter {
@@ -276,6 +280,258 @@ export class HumanInteractionService extends EventEmitter {
     }
 
     console.log(`🧹 Cleaned up ${expiredTokens.length} expired approvals`);
+  }
+
+  /**
+   * Request enhanced approval with rich context and interactive features
+   */
+  async requestEnhancedApproval(
+    transactionId: string,
+    stage: EnhancedApprovalStage['stage'],
+    artifacts: ApprovalArtifacts & {
+      preview?: string;
+      interactiveDemo?: InteractiveDemo;
+      dataQuality?: QualityMetrics;
+      recommendations?: string[];
+      sampleData?: any[];
+      [key: string]: any;
+    }
+  ): Promise<HumanApprovalToken> {
+    console.log(`🎯 Requesting enhanced approval for ${stage} with rich context...`);
+
+    const interactionToken = this.generateInteractionToken(transactionId, stage);
+    const timeoutMs = this.getEnhancedTimeoutForStage(stage);
+    const expiresAt = new Date(Date.now() + timeoutMs);
+
+    const enhancedApprovalUrl = this.generateEnhancedApprovalUrl(interactionToken, artifacts);
+
+    const approvalToken: HumanApprovalToken = {
+      token: interactionToken,
+      transactionId,
+      stage,
+      expiresAt,
+      artifacts,
+      approvalUrl: enhancedApprovalUrl
+    };
+
+    this.pendingApprovals.set(interactionToken, approvalToken);
+    await this.scheduleTimeout(transactionId, interactionToken, timeoutMs);
+
+    // Enhanced notification with rich context
+    this.emit('enhanced_approval_requested', {
+      transactionId,
+      stage,
+      interactionToken,
+      artifacts,
+      approvalUrl: enhancedApprovalUrl,
+      expiresAt,
+      allowedActions: this.getAllowedActionsForStage(stage),
+      qualityScore: artifacts.dataQuality?.accuracy,
+      previewAvailable: !!artifacts.preview,
+      interactiveDemoAvailable: !!artifacts.interactiveDemo
+    });
+
+    console.log(`🌟 Enhanced approval requested: ${stage}`);
+    console.log(`🔗 Enhanced approval URL: ${enhancedApprovalUrl}`);
+    console.log(`📊 Quality score: ${artifacts.dataQuality?.accuracy ? Math.round(artifacts.dataQuality.accuracy * 100) + '%' : 'N/A'}`);
+    console.log(`🎮 Interactive demo: ${artifacts.interactiveDemo ? 'Available' : 'Not available'}`);
+
+    return approvalToken;
+  }
+
+  /**
+   * Process enhanced human decision with refinement capabilities
+   */
+  async receiveEnhancedDecision(
+    interactionToken: string,
+    decision: Omit<EnhancedHumanDecision, 'decidedAt'>
+  ): Promise<EnhancedHumanDecision> {
+    const approval = this.pendingApprovals.get(interactionToken);
+    if (!approval) {
+      throw new Error(`No pending approval found for token: ${interactionToken}`);
+    }
+
+    if (new Date() > approval.expiresAt) {
+      throw new Error(`Approval token expired: ${interactionToken}`);
+    }
+
+    const enhancedDecision: EnhancedHumanDecision = {
+      decision: decision.decision,
+      feedback: decision.feedback,
+      modifications: decision.modifications,
+      refinementType: decision.refinementType,
+      decidedBy: decision.decidedBy,
+      decidedAt: new Date()
+    };
+
+    // Clean up
+    this.pendingApprovals.delete(interactionToken);
+    this.cancelTimeout(interactionToken);
+
+    // Emit enhanced decision event
+    this.emit('enhanced_decision_received', {
+      transactionId: approval.transactionId,
+      stage: approval.stage,
+      decision: enhancedDecision,
+      requiresRefinement: decision.decision === 'refine',
+      refinementScope: decision.refinementType
+    });
+
+    console.log(`✨ Enhanced decision received: ${decision.decision}`);
+    if (decision.refinementType) {
+      console.log(`🔄 Refinement requested: ${decision.refinementType}`);
+    }
+    console.log(`💬 Feedback: ${decision.feedback || 'None'}`);
+
+    return enhancedDecision;
+  }
+
+  /**
+   * Generate preview URL for artifacts
+   */
+  async generatePreviewUrl(artifacts: any): Promise<string> {
+    // In real implementation, would upload artifacts to preview service
+    const previewId = this.generatePreviewId();
+    return `${this.config.humanInterface.approvalBaseUrl}/preview/${previewId}`;
+  }
+
+  /**
+   * Create approval interface with interactive elements
+   */
+  async createInteractiveApprovalInterface(
+    stage: EnhancedApprovalStage['stage'],
+    artifacts: any
+  ): Promise<string> {
+    console.log(`🎨 Creating interactive approval interface for ${stage}...`);
+
+    // Generate interface configuration
+    const interfaceConfig = {
+      stage,
+      showPreview: !!artifacts.preview,
+      showInteractiveDemo: !!artifacts.interactiveDemo,
+      showDataQuality: !!artifacts.dataQuality,
+      showRecommendations: !!artifacts.recommendations,
+      allowedActions: this.getAllowedActionsForStage(stage),
+      customFields: this.getCustomFieldsForStage(stage)
+    };
+
+    // In real implementation, would generate actual interactive UI
+    const interfaceId = this.generateInterfaceId();
+    const interfaceUrl = `${this.config.humanInterface.approvalBaseUrl}/interactive/${interfaceId}`;
+
+    console.log(`✅ Interactive interface created: ${interfaceUrl}`);
+    return interfaceUrl;
+  }
+
+  /**
+   * Track approval interaction metrics
+   */
+  async trackInteractionMetrics(
+    transactionId: string,
+    stage: string,
+    metrics: {
+      viewTime: number;
+      interactionCount: number;
+      featuresUsed: string[];
+      finalDecision: string;
+    }
+  ): Promise<void> {
+    this.emit('interaction_metrics', {
+      transactionId,
+      stage,
+      metrics,
+      timestamp: new Date()
+    });
+
+    console.log(`📈 Interaction metrics tracked for ${stage}: ${metrics.viewTime}ms view time`);
+  }
+
+  /**
+   * Get enhanced timeout for stage (longer for complex stages)
+   */
+  private getEnhancedTimeoutForStage(stage: EnhancedApprovalStage['stage']): number {
+    const baseTimeout = this.getTimeoutForStage(stage as HumanApprovalStage['stage']);
+    
+    // Enhanced stages get more time for thorough review
+    const multipliers = {
+      'requirements_review': 1.5,
+      'data_analysis_review': 2.0,
+      'visualization_review': 2.5,
+      'final_approval': 1.0
+    };
+
+    return Math.round(baseTimeout * (multipliers[stage] || 1.0));
+  }
+
+  /**
+   * Generate enhanced approval URL with context
+   */
+  private generateEnhancedApprovalUrl(interactionToken: string, artifacts: any): string {
+    const baseUrl = this.config.humanInterface.approvalBaseUrl;
+    const params = new URLSearchParams({
+      token: interactionToken,
+      hasPreview: (!!artifacts.preview).toString(),
+      hasDemo: (!!artifacts.interactiveDemo).toString(),
+      qualityScore: artifacts.dataQuality?.accuracy?.toString() || '0'
+    });
+
+    return `${baseUrl}/enhanced-approve/${interactionToken}?${params.toString()}`;
+  }
+
+  /**
+   * Get allowed actions for approval stage
+   */
+  private getAllowedActionsForStage(stage: EnhancedApprovalStage['stage']): string[] {
+    const commonActions = ['approve', 'reject'];
+    
+    const stageSpecificActions = {
+      'requirements_review': ['modify', 'refine'],
+      'data_analysis_review': ['modify', 'refine'],
+      'visualization_review': ['modify', 'refine'],
+      'final_approval': ['modify']
+    };
+
+    return [...commonActions, ...(stageSpecificActions[stage] || [])];
+  }
+
+  /**
+   * Get custom fields for approval stage
+   */
+  private getCustomFieldsForStage(stage: EnhancedApprovalStage['stage']): any[] {
+    const customFields = {
+      'requirements_review': [
+        { name: 'scope_accuracy', type: 'rating', label: 'How accurate is the scope analysis?' },
+        { name: 'missing_requirements', type: 'text', label: 'Any missing requirements?' }
+      ],
+      'data_analysis_review': [
+        { name: 'data_quality_acceptable', type: 'boolean', label: 'Is data quality acceptable?' },
+        { name: 'visualization_preference', type: 'select', label: 'Preferred visualization', options: ['line', 'bar', 'pie', 'scatter'] }
+      ],
+      'visualization_review': [
+        { name: 'visual_clarity', type: 'rating', label: 'How clear is the visualization?' },
+        { name: 'interactivity_rating', type: 'rating', label: 'Rate the interactive features' }
+      ],
+      'final_approval': [
+        { name: 'production_ready', type: 'boolean', label: 'Ready for production?' },
+        { name: 'deployment_notes', type: 'text', label: 'Any deployment considerations?' }
+      ]
+    };
+
+    return customFields[stage] || [];
+  }
+
+  /**
+   * Generate unique preview ID
+   */
+  private generatePreviewId(): string {
+    return `preview_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Generate unique interface ID
+   */
+  private generateInterfaceId(): string {
+    return `interface_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**

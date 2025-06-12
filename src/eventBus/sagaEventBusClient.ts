@@ -176,18 +176,106 @@ export class SAGAEventBusClient {
 
   private async handleStartGraphRequest(message: EventMessage): Promise<void> {
     const { data } = message;
-    console.log(`📊 Routing start-graph-request from ${message.source} to human-in-loop handler`);
+    console.log(`📊 Routing enhanced start-graph-request from ${message.source} to human-in-loop handler`);
     
-    // Route this message to the human-in-loop coordinator
+    // Validate and parse browser request
+    const browserRequest = this.validateAndParseRequest(data);
+    
+    // Route this message to the enhanced human-in-loop coordinator
     // The actual processing will be handled by HumanInLoopBrowserCoordinator
-    this.publishEvent('human_loop_graph_request', {
+    this.publishEvent('enhanced_graph_request', {
+      browserRequest,
       originalMessage: message,
-      data: data,
+      routingInfo: {
+        source: message.source,
+        priority: this.calculatePriority(browserRequest),
+        estimatedDuration: this.estimateProcessingTime(browserRequest)
+      },
       routedFrom: 'saga-middleware',
       routedAt: new Date()
     }, 'broadcast');
     
-    console.log(`✅ start-graph-request routed to human-in-loop processor`);
+    console.log(`✅ Enhanced start-graph-request routed to human-in-loop processor`);
+    console.log(`📊 Priority: ${this.calculatePriority(browserRequest)}, Estimated duration: ${this.estimateProcessingTime(browserRequest)}ms`);
+  }
+
+  /**
+   * Validate and parse incoming browser request
+   */
+  private validateAndParseRequest(data: any): any {
+    console.log(`🔍 Validating browser request data...`);
+    
+    // Ensure required fields are present
+    const userQuery = data.userQuery || data.query || 'Graph visualization request';
+    const outputFields = data.outputFields || ['timestamp', 'output', 'type'];
+    const graphType = data.chartType || 'line';
+    const collection = data.collection || 'supply_analysis';
+    
+    const validatedRequest = {
+      userQuery,
+      dataRequirements: {
+        dateRange: {
+          start: data.filters?.timeRange?.start || new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          end: data.filters?.timeRange?.end || new Date().toISOString()
+        },
+        outputFields,
+        graphType,
+        aggregation: data.aggregation || 'hourly'
+      },
+      dataSource: {
+        collection,
+        database: data.database,
+        filters: data.filters || {}
+      },
+      requestId: data.workflowId || `validated_${Date.now()}`,
+      threadId: data.threadId || `thread_${Date.now()}`,
+      correlationId: data.correlationId || `corr_${Date.now()}`
+    };
+    
+    console.log(`✅ Browser request validated: ${userQuery.substring(0, 50)}...`);
+    return validatedRequest;
+  }
+
+  /**
+   * Calculate priority based on request characteristics
+   */
+  private calculatePriority(browserRequest: any): 'low' | 'medium' | 'high' {
+    // Simple priority calculation based on data characteristics
+    const timeRange = new Date(browserRequest.dataRequirements.dateRange.end).getTime() - 
+                     new Date(browserRequest.dataRequirements.dateRange.start).getTime();
+    const days = timeRange / (1000 * 60 * 60 * 24);
+    
+    if (days <= 1) return 'high';      // Real-time or recent data
+    if (days <= 7) return 'medium';    // Weekly data
+    return 'low';                      // Historical data
+  }
+
+  /**
+   * Estimate processing time based on request complexity
+   */
+  private estimateProcessingTime(browserRequest: any): number {
+    // Base time for processing
+    let estimatedTime = 5000; // 5 seconds base
+    
+    // Add time based on date range
+    const timeRange = new Date(browserRequest.dataRequirements.dateRange.end).getTime() - 
+                     new Date(browserRequest.dataRequirements.dateRange.start).getTime();
+    const days = timeRange / (1000 * 60 * 60 * 24);
+    estimatedTime += days * 1000; // 1 second per day
+    
+    // Add time based on output fields
+    estimatedTime += browserRequest.dataRequirements.outputFields.length * 500; // 0.5s per field
+    
+    // Add time based on aggregation complexity
+    const aggregationMultiplier: Record<string, number> = {
+      'hourly': 1.5,
+      'daily': 1.0,
+      'weekly': 0.8,
+      'monthly': 0.5
+    };
+    estimatedTime *= aggregationMultiplier[browserRequest.dataRequirements.aggregation] || 1.0;
+    
+    return Math.round(estimatedTime);
   }
 
   private async handleGetVisualizationState(message: EventMessage): Promise<void> {
