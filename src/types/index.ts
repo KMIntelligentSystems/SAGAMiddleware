@@ -27,11 +27,16 @@ export interface MCPResource {
 
 export interface AgentDefinition {
   name: string;
+  backstory: string;
+  taskDescription: string;
+  taskExpectedOutput: string;
   llmConfig: LLMConfig;
-  expectedOutput: any;
+  //expectedOutput: any;
   context: Record<string, any>;
   dependencies: AgentDependency[];
-  task: string;
+  //from agent in Main 
+  //dependents: Agent[];
+ // task: string;
   agentType: 'tool' | 'processing';
   mcpServers?: MCPServerConfig[];
   mcpTools?: string[];

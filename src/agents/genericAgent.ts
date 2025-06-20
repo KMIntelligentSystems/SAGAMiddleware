@@ -4,10 +4,39 @@ import { mcpClientManager } from '../mcp/mcpClient.js';
 export class GenericAgent {
   private availableTools: any[] = [];
   private availableResources: any[] = [];
+  private context: string = '';
   
   constructor(private definition: AgentDefinition) {
     this.initializeMCPConnections();
   }
+
+  /* addDependency(other: Agent | Agent[]) {
+        if (Array.isArray(other) && other.every(item => item instanceof Agent)) {
+            other.forEach(item => {
+                this.dependencies.push(item);
+                item.dependents.push(this);
+            });
+        } else if (other instanceof Agent) {
+            this.dependencies.push(other);
+            other.dependents.push(this);
+        } else {
+            throw new TypeError("The dependency must be an instance or list of Agent.");
+        }
+    }
+
+    addDependent(other: Agent | Agent[]) {
+        if (Array.isArray(other) && other.every(item => item instanceof Agent)) {
+            other.forEach(item => {
+                item.dependencies.push(this);
+                this.dependents.push(item);
+            });
+        } else if (other instanceof Agent) {
+            other.dependencies.push(this);
+            this.dependents.push(other);
+        } else {
+            throw new TypeError("The dependent must be an instance or list of Agent.");
+        }
+    }*/
 
   getName(): string {
     return this.definition.name;
@@ -29,7 +58,8 @@ export class GenericAgent {
     try {
       // Refresh MCP capabilities if needed
       await this.refreshMCPCapabilities();
-      
+
+      this. receiveContext(contextData);
       const prompt = this.buildPrompt(contextData);
       const llmResult = await this.invokeLLM(prompt);
       
@@ -52,10 +82,41 @@ export class GenericAgent {
     }
   }
 
+  private  receiveContext(contextData: Record<string, any>) {
+    const baseContext = { ...this.definition.context, ...contextData };
+        this.context = `${this.definition.name} received context: \n${contextData}`;
+    }
+
+   createPrompt(): string {
+        const prompt = `
+            You are an AI agent. You are part of a team of agents working together to complete a task.
+            I'm going to give you the task description enclosed in <task_description></task_description> tags. I'll also give
+            you the available context from the other agents in <context></context> tags. If the context
+            is not available, the <context></context> tags will be empty. You'll also receive the task
+            expected output enclosed in <task_expected_output></task_expected_output> tags. With all this information
+            you need to create the best possible response, always respecting the format as described in
+            <task_expected_output></task_expected_output> tags. If expected output is not available, just create
+            a meaningful response to complete the task.
+            <task_description>
+            ${this.definition.taskDescription}
+            </task_description>
+
+            <task_expected_output>
+            ${this.definition.taskExpectedOutput}
+            </task_expected_output>
+            <context>
+            ${this.context}
+            </context>
+            Your response:
+        `.trim();
+
+        return prompt;
+    }
+
   private buildPrompt(contextData: Record<string, any>): string {
     const baseContext = { ...this.definition.context, ...contextData };
     
-    let prompt = `Task: ${this.definition.task}\n\n`;
+    let prompt = `Task: ${this.definition.taskDescription}\n\n`;
     
     if (Object.keys(baseContext).length > 0) {
       prompt += `IMPORTANT CONTEXT - USE THESE VALUES EXACTLY:\n`;
@@ -92,8 +153,8 @@ export class GenericAgent {
       prompt += '\n';
     }
 
-    if (this.definition.expectedOutput) {
-      prompt += `Expected Output Format:\n${JSON.stringify(this.definition.expectedOutput, null, 2)}\n\n`;
+    if (this.definition.taskExpectedOutput) {
+      prompt += `Expected Output Format:\n${JSON.stringify(this.definition.taskExpectedOutput, null, 2)}\n\n`;
     }
 
     prompt += `Please complete the task and provide the response in the expected format.`;

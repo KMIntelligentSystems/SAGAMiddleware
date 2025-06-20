@@ -3,8 +3,9 @@ import { AgentDefinition, MCPServerConfig } from '../types/index.js';
 export function createRequirementsInitializerAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'requirements_initializer',
+    backstory: '',
     agentType: 'processing',
-    task: `You are a requirements initialization agent in a SAGA transaction. Parse the initial user request and prepare requirements for processing.
+    taskDescription: `You are a requirements initialization agent in a SAGA transaction. Parse the initial user request and prepare requirements for processing.
 
 TRANSACTION RESPONSIBILITY:
 Initialize requirements gathering by analyzing the workflowRequest and extracting immediate requirements.
@@ -56,12 +57,12 @@ CRITICAL: This is a PROCESSING AGENT - you analyze text and return structured da
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: ''/*{
       immediateRequirements: 'object',
       clarificationNeeded: 'array',
       conversationReady: 'boolean', 
       nextAction: 'string'
-    },
+    }*/,
     
     context: {},
     dependencies: [],
@@ -75,8 +76,9 @@ CRITICAL: This is a PROCESSING AGENT - you analyze text and return structured da
 export function createConversationManagerAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'conversation_manager',
+    backstory: '',
     agentType: 'processing',
-    task: `You are a conversation management agent in a SAGA transaction. Process the output from the requirements_initializer and extract structured requirements.
+    taskDescription: `You are a conversation management agent in a SAGA transaction. Process the output from the requirements_initializer and extract structured requirements.
 
 TRANSACTION RESPONSIBILITY:
 Process requirements initialization results and extract structured VisualizationRequest:
@@ -137,12 +139,12 @@ CRITICAL: This agent processes SAGA transaction dependencies, not external data 
       apiKey: process.env.ANTHROPIC_API_KEY
     },
     
-    expectedOutput: {
-      requirementsComplete: 'boolean',
-      extractedRequirements: 'object',
-      conversationSummary: 'string',
-      missingInformation: 'array'
-    },
+     taskExpectedOutput: ''/*{
+      immediateRequirements: 'object',
+      clarificationNeeded: 'array',
+      conversationReady: 'boolean', 
+      nextAction: 'string'
+    }*/,
     
     context: {},
     dependencies: [
@@ -158,8 +160,9 @@ CRITICAL: This agent processes SAGA transaction dependencies, not external data 
 export function createRequirementsValidatorAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'requirements_validator',
+    backstory: '',
     agentType: 'processing',
-    task: `You are a requirements validation agent in a SAGA transaction. Your role is to validate and finalize the extracted requirements.
+    taskDescription: `You are a requirements validation agent in a SAGA transaction. Your role is to validate and finalize the extracted requirements.
 
 TRANSACTION RESPONSIBILITY:
 Validate the extracted requirements by:
@@ -213,13 +216,12 @@ CRITICAL: This is the final gate before data filtering - requirements must be co
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
-      validationPassed: 'boolean',
-      validatedRequirements: 'object',
-      appliedDefaults: 'array',
-      validationWarnings: 'array', 
-      readyForDataFiltering: 'boolean'
-    },
+    taskExpectedOutput: ''/*{
+      immediateRequirements: 'object',
+      clarificationNeeded: 'array',
+      conversationReady: 'boolean', 
+      nextAction: 'string'
+    }*/,
     
     context: {},
     dependencies: [

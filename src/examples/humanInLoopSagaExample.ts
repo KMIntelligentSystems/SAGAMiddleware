@@ -22,6 +22,8 @@ import {
 import { VisualizationWorkflowRequest } from '../types/visualizationSaga.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 
+import { DataPreprocessor } from '../preprocessing/dataPreprocessor.js'
+
 /**
  * Human-in-the-loop coordinator focused on browser interaction via event bus
  */
@@ -33,6 +35,7 @@ export class HumanInLoopBrowserCoordinator {
   private dataAnalysisService: DataAnalysisService;
   private enhancedCodingService: EnhancedCodingService;
   private config: HumanInLoopConfig;
+  private dataProcessor: DataPreprocessor = new DataPreprocessor();
 
   constructor(config: HumanInLoopConfig) {
     this.config = config;
@@ -305,7 +308,10 @@ export class HumanInLoopBrowserCoordinator {
         },
         outputFields: ['timestamp', 'output', 'type'],
         graphType: (workflowRequest.visualizationRequest?.chartPreferences?.type as any) || 'line',
-        aggregation: workflowRequest.visualizationRequest?.filters?.aggregation || 'daily'
+        aggregation: workflowRequest.visualizationRequest?.filters?.aggregation || 'daily',
+        dataRequirement: ``,
+        codeRequirement: ``,
+        csvPath: ``
       },
       dataSource: {
         collection: 'supply_analysis',
@@ -1142,7 +1148,10 @@ Generated at: ${new Date().toISOString()}
           },
           outputFields: data.outputFields || ['timestamp', 'output', 'type'],
           graphType: (data.chartType || 'line') as 'line' | 'bar' | 'pie' | 'scatter',
-          aggregation: data.aggregation || 'hourly'
+          aggregation: data.aggregation || 'hourly',
+        dataRequirement: message.drReq,
+        codeRequirement: message.cdReq,
+        csvPath: ``
         },
         
         // Input 3: Data source specification
@@ -1161,7 +1170,7 @@ Generated at: ${new Date().toISOString()}
       console.log(`🚀 Starting Enhanced Human-in-Loop Browser SAGA for request: ${browserRequest.requestId}`);
       console.log(`📋 Requirements: ${browserRequest.userQuery}`);
       console.log(`📊 Data Source: ${browserRequest.dataSource.collection}`);
-      console.log(`📈 Graph Type: ${browserRequest.dataRequirements.graphType}`);
+      console.log(`📈 Graph Type: ${browserRequest.dataRequirements.dataRequirement}`);
       
       // Execute the enhanced human-in-the-loop SAGA
       const result = await this.executeEnhancedBrowserSAGA(browserRequest, true);

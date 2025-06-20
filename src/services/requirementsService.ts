@@ -21,6 +21,25 @@ export class RequirementsService {
 
   /**
    * Process user query and browser request into structured requirements
+   * Receives browserRequest.dataRequirements
+   * 
+   * EVENT LISTENER->
+   * handleBrowserGraphRequest -> executeEnhancedBrowserSAGA -> executeRequirementsService ->
+   *  PROCESS QUERY processQueryprocessQuery(query: string, browserRequest: BrowserGraphRequest) ->??
+   * 
+   * dataRequirements: {
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    outputFields: string[]; // ['output', 'timestamp', 'type']
+    graphType: 'line' | 'bar' | 'pie' | 'scatter';
+    aggregation?: 'hourly' | 'daily' | 'weekly';
+
+    codeRequirement: string;
+    dataRequirement: string;
+    csvPath: string;
+  };
    */
   async processUserQuery(
     query: string, 
@@ -197,6 +216,8 @@ export class RequirementsService {
 
   /**
    * Determine the scope of analysis based on query and request
+   * 
+   * Get cdreq etc
    */
   private determineAnalysisScope(query: string, browserRequest: BrowserGraphRequest): string {
     const scopes = [];

@@ -63,6 +63,10 @@ export interface BrowserGraphRequest {
     outputFields: string[]; // ['output', 'timestamp', 'type']
     graphType: 'line' | 'bar' | 'pie' | 'scatter';
     aggregation?: 'hourly' | 'daily' | 'weekly';
+
+    codeRequirement: string;
+    dataRequirement: string;
+    csvPath: string;
   };
   
   // Input 3: Data Source

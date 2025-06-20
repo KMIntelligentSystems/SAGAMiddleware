@@ -4,8 +4,9 @@ import { VisualizationRequest, FilteredDataResult } from '../types/visualization
 export function createDataFilteringAgent(mcpServers: MCPServerConfig[]): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'data_filtering',
+    backstory: '',
     agentType: 'tool',
-    task: `You are a data filtering agent that processes user visualization requests and retrieves relevant energy supply data.
+    taskDescription: `You are a data filtering agent that processes user visualization requests and retrieves relevant energy supply data.
 
 MANDATORY PROCESS:
 1. PARSE USER QUERY: Analyze the user's natural language request to extract:
@@ -76,7 +77,7 @@ CRITICAL: Always use tools before responding. The data must come from actual RAG
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/* {
       data: 'array',
       metadata: {
         totalRecords: 'number',
@@ -90,7 +91,7 @@ CRITICAL: Always use tools before responding. The data must come from actual RAG
         filtersApplied: 'object',
         processingTime: 'number'
       }
-    },
+    },*/
     
     context: {
       collection: 'supply_analysis',
@@ -107,8 +108,9 @@ CRITICAL: Always use tools before responding. The data must come from actual RAG
 export function createChartSpecificationAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'chart_specification',
+    backstory: '',
     agentType: 'processing',
-    task: `You are a chart specification agent that analyzes filtered energy data and user requirements to create detailed, optimal visualization specifications.
+    taskDescription: `You are a chart specification agent that analyzes filtered energy data and user requirements to create detailed, optimal visualization specifications.
 
 MANDATORY PROCESS:
 1. ANALYZE FILTERED DATA: Examine the data structure, patterns, and scope:
@@ -175,7 +177,7 @@ CRITICAL: Base all specifications on actual data characteristics. For hourly coa
       apiKey: process.env.ANTHROPIC_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       chartType: 'string',
       title: 'string',
       xAxis: {
@@ -202,7 +204,7 @@ CRITICAL: Base all specifications on actual data characteristics. For hourly coa
         interval: 'string',
         method: 'string'
       }
-    },
+    },*/
     
     context: {},
     dependencies: [
