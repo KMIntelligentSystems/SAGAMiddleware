@@ -5,7 +5,8 @@ export function createChunkRequesterAgent(mcpServers: MCPServerConfig[]): AgentD
   const agentDefinition: AgentDefinition = {
     name: 'chunk_requester',
     agentType: 'tool',
-    task: `You MUST use the get_chunks tool to retrieve actual data. Do not generate any content without calling tools first.
+    backstory: '',
+    taskDescription: `You MUST use the get_chunks tool to retrieve actual data. Do not generate any content without calling tools first.
 
 MANDATORY TOOL USAGE:
 1. FIRST: Call get_chunks tool with collection parameter from context
@@ -41,7 +42,7 @@ CRITICAL: You must call the get_chunks tool. Do not proceed without using tools.
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       chunks: 'array',
       chunkCount: 'number',
       hasMoreChunks: 'boolean',
@@ -51,7 +52,7 @@ CRITICAL: You must call the get_chunks tool. Do not proceed without using tools.
         offset: 'number',
         batchNumber: 'number'
       }
-    },
+    },*/
     
     context: {},
     dependencies: [],

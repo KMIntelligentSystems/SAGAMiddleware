@@ -5,7 +5,8 @@ export function createChunkAnalyzerAgent(mcpServers?: MCPServerConfig[]): AgentD
   const agentDefinition: AgentDefinition = {
     name: 'chunk_analyzer',
     agentType: 'processing',
-    task: `Analyze individual chunks of data and extract insights.
+    backstory: '',
+   taskDescription: `Analyze individual chunks of data and extract insights.
 
 Your role is to:
 1. Receive a chunk of data from the chunk requester
@@ -42,7 +43,7 @@ OUTPUT: Return structured analysis with:
       apiKey: process.env.ANTHROPIC_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       chunkId: 'string',
       insights: 'string[]',
       patterns: 'string[]',
@@ -54,7 +55,7 @@ OUTPUT: Return structured analysis with:
         processingTime: 'number',
         uniqueElements: 'number'
       }
-    },
+    },*/
     
     context: {},
     dependencies: [],

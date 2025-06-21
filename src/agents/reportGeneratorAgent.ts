@@ -5,7 +5,8 @@ export function createReportGeneratorAgent(mcpServers?: MCPServerConfig[]): Agen
   const agentDefinition: AgentDefinition = {
     name: 'report_generator',
     agentType: 'processing',
-    task: `Generate a comprehensive final report from accumulated data analysis.
+    backstory: '',
+    taskDescription: `Generate a comprehensive final report from accumulated data analysis.
 
 Your role is to:
 1. Receive all accumulated insights, patterns, and statistics
@@ -56,7 +57,7 @@ OUTPUT: Comprehensive structured report with clear sections and actionable insig
       apiKey: process.env.ANTHROPIC_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       title: 'string',
       executiveSummary: 'string',
       keyFindings: 'string[]',
@@ -75,7 +76,7 @@ OUTPUT: Comprehensive structured report with clear sections and actionable insig
         rawInsights: 'string[]'
       },
       generatedAt: 'string'
-    },
+    },*/
     
     context: {},
     dependencies: [],

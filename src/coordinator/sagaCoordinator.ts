@@ -358,6 +358,8 @@ sleep(ms: number) {
     
     try {
       // Execute transactions in order with compensation capability
+      //executeWorkflow above use executeOrder array
+      // VISUALIZATION_TRANSACTIONS:VisualizationTransaction
       for (const transaction of VISUALIZATION_TRANSACTIONS) {
         this.visualizationSagaState!.currentTransaction++;
         

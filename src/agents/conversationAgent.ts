@@ -44,7 +44,8 @@ export function createConversationAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'conversation_manager',
     agentType: 'processing',
-    task: `You are a conversation manager that uses AI SDK with OpenAI threads to gather visualization requirements from users.
+    backstory: '',
+    taskDescription: `You are a conversation manager that uses AI SDK with OpenAI threads to gather visualization requirements from users.
 
 CORE RESPONSIBILITIES:
 1. MAINTAIN CONVERSATION CONTEXT: Use the provided threadId to maintain conversation state
@@ -115,14 +116,14 @@ CRITICAL: Use the threadId to maintain conversation context through the AI SDK. 
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       threadId: 'string',
       requirementsComplete: 'boolean',
       visualizationRequest: 'object',
       nextQuestion: 'string',
       conversationHistory: 'array',
       extractedSoFar: 'object'
-    },
+    },*/
     
     context: {
       energyTypes: ['coal', 'gas', 'green'],

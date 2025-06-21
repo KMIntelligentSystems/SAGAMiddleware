@@ -254,4 +254,4 @@ export class DataPreprocessor {
 }
 
 // Singleton instance
-//export const dataPreprocessor = new DataPreprocessor();
+export const dataPreprocessor = new DataPreprocessor();

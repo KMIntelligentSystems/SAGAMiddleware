@@ -74,7 +74,7 @@ export function createAgentDefinition(config: {
   model: string;
   apiKey: string;
   agentType: 'tool' | 'processing';
-  expectedOutput?: any;
+  expectedOutput?: string;
   context?: Record<string, any>;
   dependencies?: Array<{ agentName: string; required?: boolean }>;
   temperature?: number;
@@ -86,7 +86,7 @@ export function createAgentDefinition(config: {
   console.log("DEF  ", config.apiKey)
   return {
     name: config.name,
-    task: config.task,
+    taskDescription: config.task,
     agentType: config.agentType,
     llmConfig: {
       provider: config.provider,
@@ -95,7 +95,8 @@ export function createAgentDefinition(config: {
       maxTokens: config.maxTokens,
       apiKey: config.apiKey,
     },
-    expectedOutput: config.expectedOutput,
+    backstory: '',
+    taskExpectedOutput: '', //config.expectedOutput,
     context: config.context || {},
     dependencies: (config.dependencies || []).map(dep => ({
       agentName: dep.agentName,

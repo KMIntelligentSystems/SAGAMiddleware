@@ -45,7 +45,7 @@ export class VisualizationSAGAProcessor {
 
     // Ensure data is indexed
     console.log('📊 Ensuring data is indexed...');
-    const dataSource = await dataPreprocessor.ensureDataIndexed(
+   /* const dataSource = await dataPreprocessor.ensureDataIndexed(
       "c:/repos/SAGAMiddleware/data/supply.csv",
       "supply_analysis",
       {
@@ -60,7 +60,7 @@ export class VisualizationSAGAProcessor {
       throw new Error(`Data preprocessing failed: ${dataSource.error}`);
     }
 
-    console.log(`✅ Data indexed: ${dataSource.chunkCount} chunks available`);
+    console.log(`✅ Data indexed: ${dataSource.chunkCount} chunks available`);*/
 
     // Register SAGA agents
     this.registerVisualizationSAGAAgents();

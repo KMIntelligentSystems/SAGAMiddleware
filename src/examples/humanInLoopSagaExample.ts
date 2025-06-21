@@ -1044,7 +1044,7 @@ Generated at: ${new Date().toISOString()}
     socket.on('event_received', async (message: any) => {
       if (message.type === 'start-graph-request' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
-        await this.handleBrowserGraphRequest(message);
+     //   await this.handleBrowserGraphRequest(message);
       } else if (message.type === 'enhanced_graph_request') {
         console.log(`📊 Received enhanced routed graph request with priority: ${message.data.routingInfo?.priority}`);
         await this.handleEnhancedBrowserRequest(message.data.browserRequest, message.data.routingInfo);

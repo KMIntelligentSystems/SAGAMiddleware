@@ -5,7 +5,8 @@ export function createVisualizationReportAgent(): AgentDefinition {
   const agentDefinition: AgentDefinition = {
     name: 'visualization_report',
     agentType: 'processing',
-    task: `You are a visualization report generator that combines data analysis with chart specifications to create comprehensive visualization outputs.
+    backstory: '',
+    taskDescription: `You are a visualization report generator that combines data analysis with chart specifications to create comprehensive visualization outputs.
 
 MANDATORY PROCESS:
 1. ANALYZE INTEGRATED RESULTS: Combine outputs from previous agents:
@@ -78,7 +79,7 @@ CRITICAL: Base all analysis on actual data from previous agents. Never generate 
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       narrative: {
         summary: 'string',
         keyInsights: 'array',
@@ -115,7 +116,7 @@ CRITICAL: Base all analysis on actual data from previous agents. Never generate 
         dateRange: 'string',
         generatedAt: 'string'
       }
-    },
+    },*/
     
     context: {},
     dependencies: [

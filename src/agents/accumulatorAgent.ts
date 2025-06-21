@@ -5,7 +5,8 @@ export function createAccumulatorAgent(mcpServers?: MCPServerConfig[]): AgentDef
   const agentDefinition: AgentDefinition = {
     name: 'accumulator',
     agentType: 'processing',
-    task: `Accumulate and synthesize insights from multiple chunk analyses.
+    backstory: '',
+    taskDescription: `Accumulate and synthesize insights from multiple chunk analyses.
 
 Your role is to:
 1. Receive new analysis results from the chunk analyzer
@@ -41,7 +42,7 @@ OUTPUT: Updated accumulated data structure with merged insights and patterns`,
       apiKey: process.env.OPENAI_API_KEY
     },
     
-    expectedOutput: {
+    taskExpectedOutput: '',/*{
       insights: 'string[]',
       patterns: 'string[]',
       statistics: 'object',
@@ -54,7 +55,7 @@ OUTPUT: Updated accumulated data structure with merged insights and patterns`,
       rawData: 'array',
       shouldContinue: 'boolean?',
       reason: 'string?'
-    },
+    },*/
     
     context: {},
     dependencies: [],
