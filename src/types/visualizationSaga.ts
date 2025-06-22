@@ -75,6 +75,43 @@ export interface VisualizationTransaction {
   status: 'pending' | 'executing' | 'completed' | 'failed' | 'compensated';
 }
 
+// Configuration for the human-in-the-loop system
+export interface HumanInLoopConfig {
+  // Timeout configurations (in milliseconds)
+  //timeouts: TimeoutStrategy;
+  
+  // Service endpoints
+  services: {
+    ragService: string;
+    codingService: string;
+    humanInterface: string;
+    persistence: string;
+  };
+  
+  // Event bus configuration
+  eventBus: {
+    url: string;
+    topics: string[];
+    retryAttempts: number;
+  };
+  
+  // Human interface configuration
+  humanInterface: {
+    approvalBaseUrl: string;
+    emailNotifications: boolean;
+    slackNotifications?: boolean;
+    webhookUrl?: string;
+  };
+  
+  // Persistence configuration
+  persistence: {
+    provider: 'database' | 'file' | 'redis';
+    connectionString?: string;
+    retentionDays: number;
+    backupEnabled: boolean;
+  };
+}
+
 // Transaction definitions for visualization SAGA
 export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA

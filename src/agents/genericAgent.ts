@@ -59,7 +59,7 @@ export class GenericAgent {
       // Refresh MCP capabilities if needed
       await this.refreshMCPCapabilities();
 
-      this. receiveContext(contextData);
+      this.receiveContext(contextData);
       const prompt = this.buildPrompt(contextData);
       const llmResult = await this.invokeLLM(prompt);
       

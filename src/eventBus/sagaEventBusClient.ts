@@ -440,7 +440,7 @@ export class SAGAEventBusClient {
     if (!this.isInitialized) {
       console.log('🔧 Initializing Visualization SAGA Processor...');
       try {
-        await this.visualizationProcessor.initialize();
+      //  await this.visualizationProcessor.initialize();
         this.isInitialized = true;
         this.setupSagaEventForwarding();
         console.log('✅ Visualization SAGA Processor initialized');
