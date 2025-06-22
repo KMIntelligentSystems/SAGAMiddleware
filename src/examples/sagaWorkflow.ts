@@ -9,7 +9,8 @@ import { createDataFilteringAgent, createChartSpecificationAgent } from '../agen
 import { createVisualizationReportAgent } from '../agents/visualizationReportAgent.js';
 import { VisualizationWorkflowRequest, VisualizationSAGAState, HumanInLoopConfig } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
-
+import { BrowserGraphRequest } from '../eventBus/types.js';
+import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -162,7 +163,105 @@ export class SagaWorkflow {
     console.log('🎧 Listening for browser graph requests via service bus...');
   }
 
-    async executeSimpleVisualizationSAGA(): Promise<void> {
+  /**
+     * Handle graph request from browser via Event Bus using Enhanced SAGA
+     */
+    private async handleBrowserGraphRequest(message: any): Promise<void> {
+      try {
+        console.log(`📊 Processing enhanced graph request from browser...`);
+        
+        // Extract data from the message
+        const { data } = message;
+        const threadId = data.threadId || `browser_${Date.now()}`;
+        const userQuery = data.userQuery || data.query || 'Show me coal energy output trends over the last 3 days';
+        
+        // Create enhanced browser request with three key inputs
+        const browserRequest: BrowserGraphRequest = {
+          // Input 1: Requirements for the graph
+          userQuery,
+          
+          // Input 2: Data requirements including date ranges, output fields, and graph type
+          dataRequirements: {
+            dateRange: {
+              start: data.filters?.timeRange?.start || new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // Last 3 days
+              end: data.filters?.timeRange?.end || new Date().toISOString()
+            },
+            outputFields: data.outputFields || ['timestamp', 'output', 'type'],
+            graphType: (data.chartType || 'line') as 'line' | 'bar' | 'pie' | 'scatter',
+            aggregation: data.aggregation || 'hourly',
+          dataRequirement: message.drReq,
+          codeRequirement: message.cdReq,
+          csvPath: ``
+          },
+          
+          // Input 3: Data source specification
+          dataSource: {
+            collection: data.collection || 'supply_analysis',
+            database: data.database,
+            filters: data.filters?.energyTypes ? { type: { $in: data.filters.energyTypes } } : {}
+          },
+          
+          // Request metadata
+          requestId: data.workflowId || `enhanced_browser_${Date.now()}`,
+          threadId,
+          correlationId: message.messageId || `corr_${Date.now()}`
+        };
+        
+        console.log(`🚀 Starting Enhanced Human-in-Loop Browser SAGA for request: ${browserRequest.requestId}`);
+        console.log(`📋 Requirements: ${browserRequest.userQuery}`);
+        console.log(`📊 Data Source: ${browserRequest.dataSource.collection}`);
+        console.log(`📈 Graph Type: ${browserRequest.dataRequirements.dataRequirement}`);
+        
+        // Execute the enhanced human-in-the-loop SAGA
+        const result = await this.executeSimpleVisualizationSAGA(browserRequest);
+        
+        // Publish enhanced result back to event bus for the browser
+        this.eventBusClient['publishEvent']('enhanced_saga_result', {
+          result,
+          workflowId: browserRequest.requestId,
+          threadId: browserRequest.threadId,
+          success: result.success,
+          correlationId: browserRequest.correlationId,
+         // processingTime: result.processingTime,
+        //  refinementCycles: result.refinementCycles,
+          source: 'enhanced-human-in-loop-saga',
+          enhancedFeatures: {
+            requirementsAnalysis: true,
+            dataAnalysis: true,
+            enhancedCoding: true,
+            interactiveDemo: true,
+            qualityMetrics: true
+          }
+        }, 'broadcast');
+        
+        if (result.success) {
+          console.log(`✅ Enhanced browser graph request completed successfully: ${browserRequest.requestId}`);
+         
+        } else {
+        //  console.log(`❌ Enhanced browser graph request failed: ${result.reason}`);
+        }
+        
+      } catch (error) {
+        console.error(`💥 Error handling enhanced browser graph request:`, error);
+        
+        // Publish error back to event bus
+        this.eventBusClient['publishEvent']('enhanced_saga_error', {
+          error: error instanceof Error ? error.message : String(error),
+          workflowId: message.data?.workflowId || `enhanced_browser_error_${Date.now()}`,
+          threadId: message.data?.threadId,
+          correlationId: message.messageId,
+          source: 'enhanced-human-in-loop-saga',
+          enhancedContext: {
+            phase: 'request_processing',
+            services: ['requirements-service', 'data-analysis-service', 'coding-service']
+          }
+        }, 'broadcast');
+      }
+    }
+  
+  
+
+    async executeSimpleVisualizationSAGA(browserRequest: BrowserGraphRequest): Promise<AgentResult> {
     console.log('\n📊 Executing Simple Visualization SAGA');
     console.log('==========================================');
 
@@ -187,12 +286,86 @@ export class SagaWorkflow {
 
     try {
       const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+      
+      return result;
   //    this.displaySAGAResults(result, 'Simple Visualization');
     } catch (error) {
       console.error('❌ Simple SAGA failed:', error);
+      return await this.handleFailure(transactionId, error, sagaState);
     }
   }
+
+   /**
+     * Handle system failure
+     */
+    private async handleFailure(
+      transactionId: string,
+      error: any,
+      sagaState: HumanInLoopSAGAState
+    ): Promise<AgentResult> {
+      await this.executeDistributedCompensation(transactionId, sagaState);
+      
+      sagaState.status = 'failed';
+      sagaState.endTime = new Date();
+      sagaState.errors.push(error instanceof Error ? error.message : String(error));
+      
+      await this.persistenceManager.saveTransactionState(transactionId, sagaState);
+  
+      return {
+        success: false,
+        transactionId,
+        reason: 'system_failure',
+        processingTime: sagaState.endTime.getTime() - sagaState.startTime.getTime(),
+        humanInteractionTime: this.calculateHumanInteractionTime(sagaState),
+        servicesUsed: sagaState.completedServices
+      };
+    }
+  
+    /**
+     * Execute compensation actions across all services
+     */
+    private async executeDistributedCompensation(
+      transactionId: string,
+      sagaState: AgentResult
+    ): Promise<void> {
+      console.log(`🔄 Executing distributed compensation for transaction ${transactionId}`);
+      
+      // Cancel any pending human approvals
+    //  await this.humanInteractionService.cancelApprovals(transactionId, 'Transaction failed');
+      
+      // Execute service-specific compensations
+    /*  for (const [serviceId, service] of sagaState.services.entries()) {
+        if (service.status === 'completed') {
+          console.log(`↪️ Compensating service: ${serviceId}`);
+          // In real implementation, would call service-specific compensation
+        }
+      }
+    }*/
+  
+    /**
+     * Calculate total time spent in human interactions
+     */
+ /*   private calculateHumanInteractionTime(sagaState: AgentResult): number {
+      // In real implementation, would track actual human interaction time
+      return 30000; // Demo: 30 seconds
+    }*/
+  
+    /**
+     * Persist final artifacts to long-term storage
+     */
+   /* private async persistFinalArtifacts(deliverable: FinalDeliverable, transactionId: string): Promise<void> {
+      console.log(`💾 Persisting final artifacts for transaction ${transactionId}`);
+      
+      // In real implementation, would save to database, file system, or cloud storage
+      // For demo, just log the artifacts
+      console.log(`📄 Documentation: ${deliverable.documentation.substring(0, 100)}...`);
+      console.log(`🔧 Deployment instructions ready`);
+      console.log(`📦 Version: ${deliverable.version}`);
+    }*/
+  
 }
+}
+
 
 // Main execution function
 export async function runVisualizationSAGAExample(): Promise<void> {
@@ -239,7 +412,7 @@ export async function runVisualizationSAGAExample(): Promise<void> {
     await processor.initialize();
      // Wait a bit for the event bus connection to be established
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await processor.executeSimpleVisualizationSAGA();
     console.log('📡 Coordinator is now listening for browser requests via event bus...');
     console.log('💡 Send start-graph-request messages from react-app to trigger processing');
     console.log('');
