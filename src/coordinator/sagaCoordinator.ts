@@ -15,6 +15,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { ValidationManager } from '../sublayers/validationManager.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
+import { BrowserGraphRequest } from '../eventBus/types.js';
 
 export class SagaCoordinator extends EventEmitter {
   private agents: Map<string, GenericAgent> = new Map();
@@ -347,7 +348,7 @@ sleep(ms: number) {
 }
 
   async executeVisualizationSAGA(
-    request: VisualizationWorkflowRequest,
+    request: BrowserGraphRequest, //VisualizationWorkflowRequest,
     workflowId: string = `viz_saga_${Date.now()}`
   ): Promise<AgentResult> {
     console.log(`🚀 Starting Visualization SAGA: ${workflowId}`);

@@ -150,7 +150,7 @@ export class SagaWorkflow {
     socket.on('event_received', async (message: any) => {
       if (message.type === 'start-graph-request' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
-     //   await this.handleBrowserGraphRequest(message);
+        await this.handleBrowserGraphRequest(message);
       } else if (message.type === 'enhanced_graph_request') {
         console.log(`📊 Received enhanced routed graph request with priority: ${message.data.routingInfo?.priority}`);
    //     await this.handleEnhancedBrowserRequest(message.data.browserRequest, message.data.routingInfo);
@@ -206,6 +206,25 @@ export class SagaWorkflow {
           threadId,
           correlationId: message.messageId || `corr_${Date.now()}`
         };
+
+        /* const workflowRequest: VisualizationWorkflowRequest = {
+      userQuery: "Show me coal energy output trends over the last 3 days",
+      visualizationRequest: {
+        userQuery: "Show me coal energy output trends over the last 3 days",
+        filters: {
+          energyTypes: ['coal'],
+          timeRange: {
+            start: "2023-11-02T04:00:00.000Z",
+            end: "2023-11-05T23:55:00.000Z"
+          },
+          aggregation: 'hourly'
+        },
+        chartPreferences: {
+          type: 'line'
+        }
+      },
+      workflowId: `simple_saga_${Date.now()}`
+    };*/
         
         console.log(`🚀 Starting Enhanced Human-in-Loop Browser SAGA for request: ${browserRequest.requestId}`);
         console.log(`📋 Requirements: ${browserRequest.userQuery}`);
@@ -265,7 +284,7 @@ export class SagaWorkflow {
     console.log('\n📊 Executing Simple Visualization SAGA');
     console.log('==========================================');
 
-    const workflowRequest: VisualizationWorkflowRequest = {
+   /* const workflowRequest: VisualizationWorkflowRequest = {
       userQuery: "Show me coal energy output trends over the last 3 days",
       visualizationRequest: {
         userQuery: "Show me coal energy output trends over the last 3 days",
@@ -282,16 +301,17 @@ export class SagaWorkflow {
         }
       },
       workflowId: `simple_saga_${Date.now()}`
-    };
+    };*/
 
     try {
-      const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+      const result = await this.coordinator.executeVisualizationSAGA(browserRequest);
       
       return result;
   //    this.displaySAGAResults(result, 'Simple Visualization');
     } catch (error) {
       console.error('❌ Simple SAGA failed:', error);
-      return await this.handleFailure(transactionId, error, sagaState);
+      const transactionId = ';ll'
+      return await this.handleFailure(transactionId, error, 'sagaState');
     }
   }
 
@@ -301,23 +321,27 @@ export class SagaWorkflow {
     private async handleFailure(
       transactionId: string,
       error: any,
-      sagaState: HumanInLoopSAGAState
+      sagaState: any
     ): Promise<AgentResult> {
       await this.executeDistributedCompensation(transactionId, sagaState);
       
-      sagaState.status = 'failed';
+   /*   sagaState.status = 'failed';
       sagaState.endTime = new Date();
       sagaState.errors.push(error instanceof Error ? error.message : String(error));
       
       await this.persistenceManager.saveTransactionState(transactionId, sagaState);
-  
+  */
       return {
         success: false,
-        transactionId,
-        reason: 'system_failure',
-        processingTime: sagaState.endTime.getTime() - sagaState.startTime.getTime(),
-        humanInteractionTime: this.calculateHumanInteractionTime(sagaState),
-        servicesUsed: sagaState.completedServices
+        agentName: '',
+        result: '',
+        error: 'error',
+        timestamp: new Date()
+      //  transactionId,
+       // reason: 'system_failure',
+       // processingTime: sagaState.endTime.getTime() - sagaState.startTime.getTime(),
+      //  humanInteractionTime: this.calculateHumanInteractionTime(sagaState),
+       // servicesUsed: sagaState.completedServices
       };
     }
   
@@ -412,7 +436,7 @@ export async function runVisualizationSAGAExample(): Promise<void> {
     await processor.initialize();
      // Wait a bit for the event bus connection to be established
     await new Promise(resolve => setTimeout(resolve, 2000));
-    await processor.executeSimpleVisualizationSAGA();
+   // await processor.executeSimpleVisualizationSAGA();
     console.log('📡 Coordinator is now listening for browser requests via event bus...');
     console.log('💡 Send start-graph-request messages from react-app to trigger processing');
     console.log('');

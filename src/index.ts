@@ -9,11 +9,6 @@ export * from './types/index.js';
 
 // Visualization workflow exports
 export { 
-  ReactIntegratedVisualizationWorkflow, 
-  createReactVisualizationAPI,
-  REACT_INTEGRATION_EXAMPLES 
-} from './workflows/reactIntegratedVisualizationWorkflow.js';
-export { 
   OpenAIAssistantManager,
   createOpenAIAssistantManager
 } from './agents/openaiAssistantManager.js';

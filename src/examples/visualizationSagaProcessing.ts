@@ -143,8 +143,8 @@ export class VisualizationSAGAProcessor {
     };
 
     try {
-      const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
-      this.displaySAGAResults(result, 'Simple Visualization');
+     // const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+    //  this.displaySAGAResults(result, 'Simple Visualization');
     } catch (error) {
       console.error('❌ Simple SAGA failed:', error);
     }
@@ -160,8 +160,8 @@ export class VisualizationSAGAProcessor {
     };
 
     try {
-      const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
-      this.displaySAGAResults(result, 'Complex Visualization');
+   //   const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+     // this.displaySAGAResults(result, 'Complex Visualization');
     } catch (error) {
       console.error('❌ Complex SAGA failed:', error);
     }
@@ -178,8 +178,8 @@ export class VisualizationSAGAProcessor {
     };
 
     try {
-      const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
-      this.displaySAGAResults(result, 'Conversation-based Visualization');
+    //  const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+      //this.displaySAGAResults(result, 'Conversation-based Visualization');
     } catch (error) {
       console.error('❌ Conversation SAGA failed:', error);
     }
@@ -205,8 +205,8 @@ export class VisualizationSAGAProcessor {
     };
 
     try {
-      const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
-      this.displaySAGAResults(result, 'Failure Recovery Demo');
+    //  const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+    //  this.displaySAGAResults(result, 'Failure Recovery Demo');
     } catch (error) {
       console.log('✅ Expected failure occurred - compensation should have executed');
       console.error('❌ Failure Recovery SAGA result:', error);
@@ -248,8 +248,8 @@ export class VisualizationSAGAProcessor {
       };
 
       try {
-        const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
-        this.displaySAGAResults(result, `Batch ${i + 1}`);
+     //   const result = await this.coordinator.executeVisualizationSAGA(workflowRequest);
+       // this.displaySAGAResults(result, `Batch ${i + 1}`);
       } catch (error) {
         console.error(`❌ Batch ${i + 1} failed:`, error);
       }

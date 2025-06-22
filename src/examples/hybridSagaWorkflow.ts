@@ -105,7 +105,7 @@ export class HybridSagaWorkflow {
     await this.visualizationProcessor.initialize();
     const coordinator = this.visualizationProcessor['coordinator'];
     
-    const result = await coordinator.executeVisualizationSAGA(request);
+    const result = '';//await coordinator.executeVisualizationSAGA(request);
     
     console.log('✅ Local workflow completed');
     return result;

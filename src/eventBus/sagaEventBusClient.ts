@@ -154,15 +154,15 @@ export class SAGAEventBusClient {
       }
       
       const coordinator = this.visualizationProcessor['coordinator']; // Access private coordinator
-      const result = await coordinator.executeVisualizationSAGA(workflowRequest);
+    //  const result = await coordinator.executeVisualizationSAGA(workflowRequest);
       
-      this.publishEvent('saga_result', {
+    /*  this.publishEvent('saga_result', {
         result,
         workflowId: workflowRequest.workflowId,
         threadId: workflowRequest.threadId,
         success: result.success,
         processingTime: result.timestamp ? new Date().getTime() - result.timestamp.getTime() : 0
-      }, 'broadcast');
+      }, 'broadcast');*/
       
     } catch (error) {
       this.publishEvent('saga_error', {
