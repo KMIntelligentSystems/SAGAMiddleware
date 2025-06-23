@@ -1,11 +1,13 @@
 import { WorkingMemory, MCPResource } from '../types/index.js';
 import { mcpClientManager } from '../mcp/mcpClient.js';
+import { ContextSetDefinition } from '../services/contextRegistry.js';
 
 export class ContextManager {
   private workingMemory: Map<string, WorkingMemory> = new Map();
   private contextHistory: Map<string, WorkingMemory[]> = new Map();
   private mcpResourceCache: Map<string, any> = new Map();
   private cacheTimeout = 300000; // 5 minutes
+  private currentContextSet: ContextSetDefinition | null = null;
 
   setContext(agentName: string, context: WorkingMemory): void {
     const history = this.contextHistory.get(agentName) || [];
@@ -19,6 +21,10 @@ export class ContextManager {
 
   getContext(agentName: string): WorkingMemory | undefined {
     return this.workingMemory.get(agentName);
+  }
+
+  setActiveContextSet(contextSet?:  ContextSetDefinition){
+    this.currentContextSet = contextSet as  ContextSetDefinition;
   }
 
   updateContext(agentName: string, updates: Partial<WorkingMemory>): void {

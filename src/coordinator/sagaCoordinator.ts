@@ -16,6 +16,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { ValidationManager } from '../sublayers/validationManager.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
+import { ContextSetDefinition } from '../services/contextRegistry.js';
 
 export class SagaCoordinator extends EventEmitter {
   private agents: Map<string, GenericAgent> = new Map();
@@ -27,6 +28,7 @@ export class SagaCoordinator extends EventEmitter {
   private activeExecutions: Set<string> = new Set();
   private visualizationSagaState: VisualizationSAGAState | null = null;
   private currentExecutingTransactionSet: VisualizationTransaction[] | null = null;
+ // private currentContextSet: ContextSetDefinition | null = null;
 
   constructor() {
     super();
@@ -351,7 +353,8 @@ sleep(ms: number) {
   async executeVisualizationSAGA(
     request: BrowserGraphRequest, //VisualizationWorkflowRequest,
     workflowId: string = `viz_saga_${Date.now()}`,
-    transactionOrdering?: VisualizationTransaction[]
+    transactionOrdering?: VisualizationTransaction[],
+    contextSet?: ContextSetDefinition
   ): Promise<AgentResult> {
     console.log(`🚀 Starting Visualization SAGA: ${workflowId}`);
     
@@ -363,10 +366,13 @@ sleep(ms: number) {
     const transactionId = await this.transactionManager.startTransaction('visualization_saga');
     
     try {
-      // Store the current executing transaction set for dependency resolution
+      // Store the current executing transaction set and context set
       this.currentExecutingTransactionSet = transactionsToExecute;
+      this.contextManager.setActiveContextSet(contextSet)
+    /*  this.currentContextSet = contextSet || null;
       
       console.log(`🔄 Executing ${transactionsToExecute.length} transactions from ${transactionOrdering ? 'TransactionRegistry' : 'default configuration'}`);
+      console.log(`📊 Using context set: ${contextSet?.name || 'none'} with ${contextSet?.dataSources.length || 0} data sources`);*/
       
       // Execute transactions in order with compensation capability
       //executeWorkflow above use executeOrder array
@@ -461,8 +467,9 @@ this.sleep(12000)
         timestamp: new Date()
       };
     } finally {
-      // Clear the current executing transaction set
+      // Clear the current executing transaction set and context set
       this.currentExecutingTransactionSet = null;
+   //   this.currentContextSet = null;
     }
   }
 
@@ -536,7 +543,35 @@ this.sleep(12000)
       }
     }
 
-    return { ...baseContext, ...dependencyContext };
+    // Add context from ContextRegistry (requirement #5)
+   /* const contextRegistryData: Record<string, any> = {};
+    if (this.currentContextSet) {
+      // Add data sources
+      contextRegistryData.dataSources = this.currentContextSet.dataSources;
+      
+      // Add global context
+      contextRegistryData.globalContext = this.currentContextSet.globalContext;
+      
+      // Add LLM prompts specific to this agent and transaction
+      const relevantPrompts = this.currentContextSet.llmPrompts.filter(p => 
+        p.agentName === transaction.agentName && 
+        (p.transactionId === transaction.id || p.transactionId === 'all')
+      );
+      
+      if (relevantPrompts.length > 0) {
+        contextRegistryData.llmPrompts = relevantPrompts;
+        // Use the first matching prompt as the primary prompt
+        contextRegistryData.primaryPrompt = relevantPrompts[0];
+      }
+      
+      // Add context set metadata
+      contextRegistryData.contextSetName = this.currentContextSet.name;
+      contextRegistryData.contextSetDescription = this.currentContextSet.description;
+      
+      console.log(`📊 Added context for ${transaction.agentName}:${transaction.id} - ${this.currentContextSet.dataSources.length} data sources, ${relevantPrompts.length} prompts`);
+    }*/
+
+    return { ...baseContext, ...dependencyContext};//, ...contextRegistryData 
   }
 
   private updateVisualizationSAGAState(transactionId: string, result: AgentResult): void {

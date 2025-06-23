@@ -12,6 +12,7 @@ import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
+import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -20,6 +21,7 @@ export class SagaWorkflow {
   private eventBusClient: SAGAEventBusClient;
   private config: HumanInLoopConfig;
   private transactionRegistry: TransactionRegistry;
+  private contextRegistry: ContextRegistry;
   
   constructor(config: HumanInLoopConfig) {
     this.config = config;
@@ -39,6 +41,13 @@ export class SagaWorkflow {
       defaultTransactionSet: 'visualization'
     };
     this.transactionRegistry = new TransactionRegistry(registryConfig);
+    
+    // Initialize ContextRegistry
+    const contextConfig: ContextRegistryConfig = {
+      eventBusUrl: config.eventBus.url,
+      defaultContextSet: 'default_visualization_context'
+    };
+    this.contextRegistry = new ContextRegistry(contextConfig);
   }
 
   async initialize(): Promise<void> {
@@ -51,6 +60,12 @@ export class SagaWorkflow {
     
     // Register default visualization transaction set
     this.registerDefaultTransactionSet();
+    
+    // Initialize ContextRegistry after TransactionRegistry (requirement #4)
+    await this.contextRegistry.initialize();
+    
+    // Register default context set for the visualization transaction set
+    this.registerDefaultContextSet();
     
     // Connect to RAG server
     try {
@@ -113,6 +128,110 @@ export class SagaWorkflow {
     this.transactionRegistry.setActiveTransactionSet('visualization');
     
     console.log('✅ Default visualization transaction set registered and activated');
+  }
+
+  /**
+   * Register the default context set for visualization transaction set
+   */
+  private registerDefaultContextSet(): void {
+    console.log('📝 Registering default context set for visualization...');
+    
+    // Create default data sources (CSV files focus as per requirement #2)
+    const defaultDataSources: DataSource[] = [
+      {
+        id: 'supply_csv',
+        name: 'Supply Data',
+        type: 'csv',
+        path: 'c:/repos/SAGAMiddleware/data/supply.csv',
+        metadata: {
+          description: 'Supply chain energy data',
+          columns: ['timestamp', 'output', 'type', 'location'],
+          lastModified: new Date()
+        }
+      }
+    ];
+    
+    // Create default LLM prompts for each agent (requirement #3)
+    const defaultLLMPrompts: LLMPromptConfig[] = [
+      {
+        agentName: 'requirements_initializer',
+        transactionId: 'req_init',
+        prompt: 'Initialize requirements gathering for data visualization. Extract user intent and prepare for conversation.',
+        instructions: 'Focus on understanding what the user wants to visualize from the available data sources.',
+        expectedOutput: 'Structured requirements object with user intent and data preferences'
+      },
+      {
+        agentName: 'conversation_manager',
+        transactionId: 'req_extract',
+        prompt: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
+        instructions: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
+        context: { dataSources: defaultDataSources },
+        expectedOutput: 'Complete requirements specification for visualization'
+      },
+      {
+        agentName: 'requirements_validator',
+        transactionId: 'req_validate',
+        prompt: 'Validate extracted requirements against available data sources and ensure feasibility.',
+        instructions: 'Check if requested data fields exist in CSV files and requirements are achievable.',
+        expectedOutput: 'Validated requirements with any necessary adjustments'
+      },
+      {
+        agentName: 'data_filtering',
+        transactionId: 'data_query',
+        prompt: 'Query and filter data from CSV files based on validated requirements.',
+        instructions: 'Use the CSV data sources to extract relevant data matching user requirements.',
+        context: { dataSources: defaultDataSources },
+        expectedOutput: 'Filtered dataset ready for visualization'
+      },
+      {
+        agentName: 'data_filtering',
+        transactionId: 'data_filter',
+        prompt: 'Process and clean the filtered data for visualization.',
+        instructions: 'Clean, aggregate, and format data according to user requirements.',
+        expectedOutput: 'Processed data ready for chart generation'
+      },
+      {
+        agentName: 'chart_specification',
+        transactionId: 'chart_spec',
+        prompt: 'Generate chart specification based on processed data and user requirements.',
+        instructions: 'Create detailed chart configuration including type, axes, styling, and layout.',
+        expectedOutput: 'Complete chart specification object'
+      },
+      {
+        agentName: 'visualization_report',
+        transactionId: 'viz_report',
+        prompt: 'Generate final visualization report with chart and narrative.',
+        instructions: 'Combine chart specification with explanatory text and insights from the data.',
+        expectedOutput: 'Complete visualization report with chart and narrative'
+      }
+    ];
+    
+    const defaultContextSet: ContextSetDefinition = {
+      name: 'default_visualization_context',
+      transactionSetName: 'visualization', // Links to the transaction set (requirement #1)
+      description: 'Default context set for visualization SAGA with CSV data sources',
+      dataSources: defaultDataSources,
+      llmPrompts: defaultLLMPrompts,
+      globalContext: {
+        csvBasePath: 'c:/repos/SAGAMiddleware/data/',
+        supportedChartTypes: ['line', 'bar', 'pie', 'scatter'],
+        defaultTimeRange: '3 days',
+        maxDataPoints: 10000
+      },
+      metadata: {
+        version: '1.0.0',
+        author: 'system',
+        created: new Date()
+      }
+    };
+    
+    // Register the context set
+    this.contextRegistry.registerContextSet(defaultContextSet);
+    
+    // Activate it for the visualization transaction set
+    this.contextRegistry.activateContextSetForTransactionSet('visualization', 'default_visualization_context');
+    
+    console.log('✅ Default context set registered and activated for visualization transaction set');
   }
 
    private registerVisualizationSAGAAgents(): void {
@@ -350,11 +469,17 @@ export class SagaWorkflow {
       
       console.log(`🔄 Using transaction set: ${activeTransactionSet.name} with ${activeTransactionSet.transactions.length} transactions`);
       
-      // Pass transaction ordering to coordinator
+      // Get the active context set for this transaction set
+      const activeContextSet = this.contextRegistry.getContextSetForTransactionSet(activeTransactionSet.name);
+      
+      console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
+      
+      // Pass transaction ordering and context to coordinator
       const result = await this.coordinator.executeVisualizationSAGA(
         browserRequest, 
         `simple_saga_${Date.now()}`,
-        activeTransactionSet.transactions
+        activeTransactionSet.transactions,
+        activeContextSet
       );
       
       return result;
