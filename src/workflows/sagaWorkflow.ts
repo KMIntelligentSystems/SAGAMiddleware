@@ -7,10 +7,11 @@ import {
 } from '../agents/visualizationSagaAgents.js';
 import { createDataFilteringAgent, createChartSpecificationAgent } from '../agents/dataFilteringAgent.js';
 import { createVisualizationReportAgent } from '../agents/visualizationReportAgent.js';
-import { VisualizationWorkflowRequest, VisualizationSAGAState, HumanInLoopConfig } from '../types/visualizationSaga.js';
+import { VisualizationWorkflowRequest, VisualizationSAGAState, HumanInLoopConfig, VISUALIZATION_TRANSACTIONS } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
+import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -18,6 +19,7 @@ export class SagaWorkflow {
   private initialized: boolean = false;
   private eventBusClient: SAGAEventBusClient;
   private config: HumanInLoopConfig;
+  private transactionRegistry: TransactionRegistry;
   
   constructor(config: HumanInLoopConfig) {
     this.config = config;
@@ -30,12 +32,25 @@ export class SagaWorkflow {
       timeout: 120000
     });
     this.eventBusClient = new SAGAEventBusClient(config.eventBus.url);
+    
+    // Initialize TransactionRegistry
+    const registryConfig: TransactionRegistryConfig = {
+      eventBusUrl: config.eventBus.url,
+      defaultTransactionSet: 'visualization'
+    };
+    this.transactionRegistry = new TransactionRegistry(registryConfig);
   }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
     console.log('🚀 Initializing Visualization SAGA Processor...');
+    
+    // Initialize TransactionRegistry first
+    await this.transactionRegistry.initialize();
+    
+    // Register default visualization transaction set
+    this.registerDefaultTransactionSet();
     
     // Connect to RAG server
     try {
@@ -75,6 +90,29 @@ export class SagaWorkflow {
 
     this.initialized = true;
     console.log('✅ Visualization SAGA Processor initialized');
+  }
+
+  /**
+   * Register the default visualization transaction set from types
+   */
+  private registerDefaultTransactionSet(): void {
+    console.log('📝 Registering default visualization transaction set...');
+    
+    this.transactionRegistry.registerTransactionSet({
+      name: 'visualization',
+      description: 'Default visualization SAGA transaction set',
+      transactions: VISUALIZATION_TRANSACTIONS,
+      metadata: {
+        version: '1.0.0',
+        author: 'system',
+        created: new Date()
+      }
+    });
+    
+    // Set as active transaction set
+    this.transactionRegistry.setActiveTransactionSet('visualization');
+    
+    console.log('✅ Default visualization transaction set registered and activated');
   }
 
    private registerVisualizationSAGAAgents(): void {
@@ -304,7 +342,20 @@ export class SagaWorkflow {
     };*/
 
     try {
-      const result = await this.coordinator.executeVisualizationSAGA(browserRequest);
+      // Get the active transaction set from registry
+      const activeTransactionSet = this.transactionRegistry.getActiveTransactionSet();
+      if (!activeTransactionSet) {
+        throw new Error('No active transaction set found in registry');
+      }
+      
+      console.log(`🔄 Using transaction set: ${activeTransactionSet.name} with ${activeTransactionSet.transactions.length} transactions`);
+      
+      // Pass transaction ordering to coordinator
+      const result = await this.coordinator.executeVisualizationSAGA(
+        browserRequest, 
+        `simple_saga_${Date.now()}`,
+        activeTransactionSet.transactions
+      );
       
       return result;
   //    this.displaySAGAResults(result, 'Simple Visualization');

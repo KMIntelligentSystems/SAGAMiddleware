@@ -26,6 +26,7 @@ export class SagaCoordinator extends EventEmitter {
   private transactionManager: TransactionManager;
   private activeExecutions: Set<string> = new Set();
   private visualizationSagaState: VisualizationSAGAState | null = null;
+  private currentExecutingTransactionSet: VisualizationTransaction[] | null = null;
 
   constructor() {
     super();
@@ -300,12 +301,12 @@ export class SagaCoordinator extends EventEmitter {
   // VISUALIZATION SAGA METHODS
   // ========================================
 
-  initializeVisualizationSAGA(workflowId: string, request: VisualizationWorkflowRequest): void {
+  initializeVisualizationSAGA(workflowId: string, request: VisualizationWorkflowRequest, transactionCount?: number): void {
     this.visualizationSagaState = {
       id: workflowId,
       status: 'initializing',
       currentTransaction: 0,
-      totalTransactions: VISUALIZATION_TRANSACTIONS.length,
+      totalTransactions: transactionCount || VISUALIZATION_TRANSACTIONS.length,
       
       requirementsState: {
         threadId: request.threadId,
@@ -349,19 +350,28 @@ sleep(ms: number) {
 
   async executeVisualizationSAGA(
     request: BrowserGraphRequest, //VisualizationWorkflowRequest,
-    workflowId: string = `viz_saga_${Date.now()}`
+    workflowId: string = `viz_saga_${Date.now()}`,
+    transactionOrdering?: VisualizationTransaction[]
   ): Promise<AgentResult> {
     console.log(`🚀 Starting Visualization SAGA: ${workflowId}`);
     
-    this.initializeVisualizationSAGA(workflowId, request);
+    // Use provided transaction ordering or fall back to default
+    const transactionsToExecute = transactionOrdering || VISUALIZATION_TRANSACTIONS;
+    
+    this.initializeVisualizationSAGA(workflowId, request, transactionsToExecute.length);
     
     const transactionId = await this.transactionManager.startTransaction('visualization_saga');
     
     try {
+      // Store the current executing transaction set for dependency resolution
+      this.currentExecutingTransactionSet = transactionsToExecute;
+      
+      console.log(`🔄 Executing ${transactionsToExecute.length} transactions from ${transactionOrdering ? 'TransactionRegistry' : 'default configuration'}`);
+      
       // Execute transactions in order with compensation capability
       //executeWorkflow above use executeOrder array
       // VISUALIZATION_TRANSACTIONS:VisualizationTransaction
-      for (const transaction of VISUALIZATION_TRANSACTIONS) {
+      for (const transaction of transactionsToExecute) {
         this.visualizationSagaState!.currentTransaction++;
         
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
@@ -450,6 +460,9 @@ this.sleep(12000)
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date()
       };
+    } finally {
+      // Clear the current executing transaction set
+      this.currentExecutingTransactionSet = null;
     }
   }
 
@@ -462,9 +475,11 @@ this.sleep(12000)
       throw new Error(`Agent ${transaction.agentName} not registered for transaction ${transaction.id}`);
     }
 
-    // Check dependencies are satisfied
+    // Check dependencies are satisfied (use the current transaction set being executed)
     for (const depId of transaction.dependencies) {
-      const depTransaction = VISUALIZATION_TRANSACTIONS.find(t => t.id === depId);
+      // Find dependency in the current transaction set being executed
+      const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
+      const depTransaction = transactionsToExecute.find(t => t.id === depId);
       if (depTransaction) {
         const depContext = this.contextManager.getContext(depTransaction.agentName);
         if (!depContext?.lastTransactionResult) {
@@ -510,7 +525,8 @@ this.sleep(12000)
     // Add dependency results
     const dependencyContext: Record<string, any> = {};
     for (const depId of transaction.dependencies) {
-      const depTransaction = VISUALIZATION_TRANSACTIONS.find(t => t.id === depId);
+      const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
+      const depTransaction = transactionsToExecute.find(t => t.id === depId);
       if (depTransaction) {
         const depContext = this.contextManager.getContext(depTransaction.agentName);
         if (depContext?.lastTransactionResult) {
