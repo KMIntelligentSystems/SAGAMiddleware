@@ -50,6 +50,11 @@ export interface ContextSetDefinition {
   };
 }
 
+export interface ContextSetPayload {
+ contextSetDefinition: ContextSetDefinition;
+ timestamp: string
+}
+
 export interface ContextRegistrationRequest {
   contextSetName: string;
   transactionSetName: string;
@@ -130,21 +135,38 @@ export class ContextRegistry extends EventEmitter {
     
     console.log('🎧 ContextRegistry listening for event bus messages...');
   }
-
-  private async handleContextSetRegistration(data: ContextRegistrationRequest): Promise<void> {
+/*
+  name: string;
+  transactionSetName: string; // Links to a transaction set
+  description?: string;
+  dataSources: DataSource[];
+  llmPrompts: LLMPromptConfig[];
+  globalContext?: Record<string, any>;
+  metadata?: {
+    version?: string;
+    author?: string;
+    created?: Date;
+    lastModified?: Date;*/
+  private async handleContextSetRegistration(data: ContextSetPayload): Promise<void> {
     try {
-      console.log(`📝 Registering context set: ${data.contextSetName} for transaction set: ${data.transactionSetName}`);
+       const contextDataSet: ContextSetDefinition = data.contextSetDefinition;
+      // Validate the extracted data
+      if (!contextDataSet.name || !contextDataSet.llmPrompts) {
+        throw new Error('Invalid transaction set: name and transactions array are required');
+      }
+
+       console.log(`📝 Registering transaction set: ${ contextDataSet.name}`);
       
       // Validate context set structure
-      this.validateContextRegistration(data);
+      this.validateContextRegistration(contextDataSet);
       
       // Create context set definition
       const contextSet: ContextSetDefinition = {
-        name: data.contextSetName,
-        transactionSetName: data.transactionSetName,
-        dataSources: data.dataSources,
-        llmPrompts: data.llmPrompts,
-        globalContext: data.globalContext || {},
+        name: contextDataSet.name,
+        transactionSetName: contextDataSet.transactionSetName,
+        dataSources: contextDataSet.dataSources,
+        llmPrompts: contextDataSet.llmPrompts,
+        globalContext: contextDataSet.globalContext || {},
         metadata: {
           created: new Date(),
           version: '1.0.0'
@@ -152,31 +174,30 @@ export class ContextRegistry extends EventEmitter {
       };
       
       // Register the context set
-      this.contextSets.set(data.contextSetName, contextSet);
+      this.contextSets.set(contextDataSet.name, contextSet);
       
-      console.log(`✅ Context set registered: ${data.contextSetName} with ${data.dataSources.length} data sources and ${data.llmPrompts.length} LLM prompts`);
+      console.log(`✅ Context set registered: ${contextDataSet.name} with ${contextDataSet.dataSources.length} data sources and ${contextDataSet.llmPrompts.length} LLM prompts`);
       
       // Emit success event
       this.eventBusClient['publishEvent']('context_set_registered', {
-        contextSetName: data.contextSetName,
-        transactionSetName: data.transactionSetName,
-        dataSourceCount: data.dataSources.length,
-        promptCount: data.llmPrompts.length,
+        contextSetName: contextDataSet.name,
+        transactionSetName: contextDataSet.transactionSetName,
+        dataSourceCount: contextDataSet.dataSources.length,
+        promptCount: contextDataSet.llmPrompts.length,
         success: true,
-        correlationId: data.correlationId,
         timestamp: new Date()
       }, 'broadcast');
       
-      this.emit('context_set_registered', { contextSetName: data.contextSetName, transactionSetName: data.transactionSetName });
+      this.emit('context_set_registered', { contextSetName: contextDataSet.name, transactionSetName: contextDataSet.transactionSetName });
       
     } catch (error) {
-      console.error(`❌ Failed to register context set: ${data.contextSetName}`, error);
+      const contextDataSet = data.contextSetDefinition;
+      console.error(`❌ Failed to register context set: ${contextDataSet.name}`, error);
       
       this.eventBusClient['publishEvent']('context_set_registration_failed', {
-        contextSetName: data.contextSetName,
-        transactionSetName: data.transactionSetName,
+        contextSetName: contextDataSet.name,
+        transactionSetName: contextDataSet.transactionSetName,
         error: error instanceof Error ? error.message : String(error),
-        correlationId: data.correlationId,
         timestamp: new Date()
       }, 'broadcast');
     }
@@ -433,8 +454,8 @@ export class ContextRegistry extends EventEmitter {
     }
   }
 
-  private validateContextRegistration(data: ContextRegistrationRequest): void {
-    if (!data.contextSetName || !data.transactionSetName) {
+  private validateContextRegistration(data: ContextSetDefinition): void {
+    if (!data.name || !data.transactionSetName) {
       throw new Error('Context set name and transaction set name are required');
     }
     

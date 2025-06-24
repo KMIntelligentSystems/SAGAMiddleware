@@ -18,6 +18,11 @@ export interface TransactionSetDefinition {
   };
 }
 
+export interface TransactionSetPayload {
+    transactionSetDefinition: TransactionSetDefinition;
+    timestamp: string;
+  }
+
 export interface TransactionOrderingRequest {
   transactionSetName: string;
   transactionIds: string[];
@@ -77,39 +82,46 @@ export class TransactionRegistry extends EventEmitter {
     console.log('🎧 TransactionRegistry listening for event bus messages...');
   }
 
-  private async handleTransactionSetRegistration(data: TransactionSetDefinition): Promise<void> {
+  private async handleTransactionSetRegistration(data: TransactionSetPayload): Promise<void> {
     try {
-      console.log(`📝 Registering transaction set: ${data.name}`);
+      const transactionSet = data.transactionSetDefinition;
+      // Validate the extracted data
+      if (!transactionSet.name || !transactionSet.transactions) {
+        throw new Error('Invalid transaction set: name and transactions array are required');
+      }
+
+       console.log(`📝 Registering transaction set: ${ transactionSet.name}`);
       
       // Validate transaction set structure
-      this.validateTransactionSet(data);
+      this.validateTransactionSet( transactionSet);
       
       // Register the transaction set
-      this.transactionSets.set(data.name, {
-        ...data,
+      this.transactionSets.set( transactionSet.name, {
+        ... transactionSet,
         metadata: {
-          ...data.metadata,
+          ... transactionSet.metadata,
           created: new Date()
         }
       });
       
-      console.log(`✅ Transaction set registered: ${data.name} with ${data.transactions.length} transactions`);
+      console.log(`✅ Transaction set registered: ${ transactionSet.name} with ${ transactionSet.transactions.length} transactions`);
       
       // Emit success event
       this.eventBusClient['publishEvent']('transaction_set_registered', {
-        transactionSetName: data.name,
-        transactionCount: data.transactions.length,
+        transactionSetName:  transactionSet.name,
+        transactionCount:  transactionSet.transactions.length,
         success: true,
         timestamp: new Date()
       }, 'broadcast');
       
-      this.emit('transaction_set_registered', data.name);
+      this.emit('transaction_set_registered',  transactionSet.name);
       
     } catch (error) {
-      console.error(`❌ Failed to register transaction set: ${data.name}`, error);
+      const transactionSet = data.transactionSetDefinition;
+      console.error(`❌ Failed to register transaction set: ${transactionSet.name}`, error);
       
       this.eventBusClient['publishEvent']('transaction_set_registration_failed', {
-        transactionSetName: data.name,
+        transactionSetName:  transactionSet.name,
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date()
       }, 'broadcast');
