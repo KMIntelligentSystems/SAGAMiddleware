@@ -63,6 +63,7 @@ export class SagaWorkflow {
     
     // Initialize ContextRegistry after TransactionRegistry (requirement #4)
     await this.contextRegistry.initialize();
+   
     
     // Register default context set for the visualization transaction set
     this.registerDefaultContextSet();
@@ -156,53 +157,53 @@ export class SagaWorkflow {
       {
         agentName: 'requirements_initializer',
         transactionId: 'req_init',
-        prompt: 'Initialize requirements gathering for data visualization. Extract user intent and prepare for conversation.',
-        instructions: 'Focus on understanding what the user wants to visualize from the available data sources.',
-        expectedOutput: 'Structured requirements object with user intent and data preferences'
+        backstory: 'Initialize requirements gathering for data visualization. Extract user intent and prepare for conversation.',
+        taskDescription: 'Focus on understanding what the user wants to visualize from the available data sources.',
+        taskExpectedOutput: 'Structured requirements object with user intent and data preferences'
       },
       {
         agentName: 'conversation_manager',
         transactionId: 'req_extract',
-        prompt: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
-        instructions: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
+        backstory: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
+        taskDescription: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
         context: { dataSources: defaultDataSources },
-        expectedOutput: 'Complete requirements specification for visualization'
+        taskExpectedOutput: 'Complete requirements specification for visualization'
       },
       {
         agentName: 'requirements_validator',
         transactionId: 'req_validate',
-        prompt: 'Validate extracted requirements against available data sources and ensure feasibility.',
-        instructions: 'Check if requested data fields exist in CSV files and requirements are achievable.',
-        expectedOutput: 'Validated requirements with any necessary adjustments'
+        backstory: 'Validate extracted requirements against available data sources and ensure feasibility.',
+        taskDescription: 'Check if requested data fields exist in CSV files and requirements are achievable.',
+        taskExpectedOutput: 'Validated requirements with any necessary adjustments'
       },
       {
         agentName: 'data_filtering',
         transactionId: 'data_query',
-        prompt: 'Query and filter data from CSV files based on validated requirements.',
-        instructions: 'Use the CSV data sources to extract relevant data matching user requirements.',
+        backstory: 'Query and filter data from CSV files based on validated requirements.',
+        taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
         context: { dataSources: defaultDataSources },
-        expectedOutput: 'Filtered dataset ready for visualization'
+        taskExpectedOutput: 'Filtered dataset ready for visualization'
       },
       {
         agentName: 'data_filtering',
         transactionId: 'data_filter',
-        prompt: 'Process and clean the filtered data for visualization.',
-        instructions: 'Clean, aggregate, and format data according to user requirements.',
-        expectedOutput: 'Processed data ready for chart generation'
+        backstory: 'Process and clean the filtered data for visualization.',
+        taskDescription: 'Clean, aggregate, and format data according to user requirements.',
+        taskExpectedOutput: 'Processed data ready for chart generation'
       },
       {
         agentName: 'chart_specification',
         transactionId: 'chart_spec',
-        prompt: 'Generate chart specification based on processed data and user requirements.',
-        instructions: 'Create detailed chart configuration including type, axes, styling, and layout.',
-        expectedOutput: 'Complete chart specification object'
+        backstory: 'Generate chart specification based on processed data and user requirements.',
+        taskDescription: 'Create detailed chart configuration including type, axes, styling, and layout.',
+        taskExpectedOutput: 'Complete chart specification object'
       },
       {
         agentName: 'visualization_report',
         transactionId: 'viz_report',
-        prompt: 'Generate final visualization report with chart and narrative.',
-        instructions: 'Combine chart specification with explanatory text and insights from the data.',
-        expectedOutput: 'Complete visualization report with chart and narrative'
+        backstory: 'Generate final visualization report with chart and narrative.',
+        taskDescription: 'Combine chart specification with explanatory text and insights from the data.',
+        taskExpectedOutput: 'Complete visualization report with chart and narrative'
       }
     ];
     
@@ -305,7 +306,10 @@ export class SagaWorkflow {
     const socket = this.eventBusClient['socket'];
     
     socket.on('event_received', async (message: any) => {
-      if (message.type === 'start-graph-request' && message.source === 'react-app') {
+       if (message.type === 'thread_id_response' && message.source === 'react-app') {
+        console.log(`📊 Received thread_id_response from browser:` + JSON.stringify(message.data));
+        await this.handleBrowserGraphRequest(message)
+       } else if (message.type === 'start-graph-request' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
         await this.handleBrowserGraphRequest(message);
       } else if (message.type === 'enhanced_graph_request') {

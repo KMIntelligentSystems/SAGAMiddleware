@@ -24,10 +24,10 @@ export interface DataSource {
 export interface LLMPromptConfig {
   agentName: string;
   transactionId: string;
-  prompt: string;
-  instructions?: string;
+  backstory: string;
+  taskDescription: string;
+  taskExpectedOutput: string;
   context?: Record<string, any>;
-  expectedOutput?: string;
   parameters?: {
     temperature?: number;
     maxTokens?: number;
@@ -489,7 +489,7 @@ export class ContextRegistry extends EventEmitter {
   }
 
   private validateLLMPrompt(prompt: LLMPromptConfig): void {
-    if (!prompt.agentName || !prompt.transactionId || !prompt.prompt) {
+    if (!prompt.agentName || !prompt.transactionId || !prompt.backstory) {
       throw new Error(`Invalid LLM prompt: ${JSON.stringify(prompt)} - agentName, transactionId, and prompt are required`);
     }
   }
