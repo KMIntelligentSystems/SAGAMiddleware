@@ -55,30 +55,7 @@ export interface BrowserGraphRequest {
   userQuery: string; // "Show me coal energy output trends over the last 3 days"
   
   // Input 2: Data Requirements  
-  dataRequirements: {
-    dateRange: {
-      start: string;
-      end: string;
-    };
-    outputFields: string[]; // ['output', 'timestamp', 'type']
-    graphType: 'line' | 'bar' | 'pie' | 'scatter';
-    aggregation?: 'hourly' | 'daily' | 'weekly';
-
-    codeRequirement: string;
-    dataRequirement: string;
-    csvPath: string;
-  };
   
-  // Input 3: Data Source
-  dataSource: {
-    collection: string; // "supply_analysis"
-    database?: string;
-    filters?: Record<string, any>;
-  };
-  
-  // Request metadata
-  requestId: string;
-  threadId: string;
   correlationId: string;
 }
 

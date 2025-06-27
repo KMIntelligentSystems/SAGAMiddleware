@@ -40,6 +40,10 @@ CONTEXT PROVIDED:
 - userQuery: The user's natural language visualization request
 - collection: Always "supply_analysis"
 - maxChunks: Maximum chunks to retrieve (default 50 for performance)
+- dataSources: Array of available CSV files and data sources from ContextRegistry
+  - Each dataSource contains: {id, name, type, path, metadata}
+  - CSV files will have type: 'csv' and path to the file
+  - Use these data sources to understand what CSV files are available for analysis
 
 TOOL USAGE REQUIREMENTS:
 - MANDATORY: Only use semantic_search and get_chunks tools
@@ -95,7 +99,8 @@ CRITICAL: Always use tools before responding. The data must come from actual RAG
     
     context: {
       collection: 'supply_analysis',
-      maxChunks: 50
+      maxChunks: 50,
+      dataSources: [] // Will be populated from ContextRegistry
     },
     dependencies: [],
     mcpServers,

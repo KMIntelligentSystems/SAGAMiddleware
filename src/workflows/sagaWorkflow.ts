@@ -13,6 +13,7 @@ import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
+import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -22,6 +23,12 @@ export class SagaWorkflow {
   private config: HumanInLoopConfig;
   private transactionRegistry: TransactionRegistry;
   private contextRegistry: ContextRegistry;
+  private conversationManager: ConversationManager;
+  
+  // Global thread and message retention
+  private currentThreadId: string | null = null;
+  private currentUserMessage: string | null = null;
+  private lastThreadMessage: ThreadMessage | null = null;
   
   constructor(config: HumanInLoopConfig) {
     this.config = config;
@@ -48,6 +55,9 @@ export class SagaWorkflow {
       defaultContextSet: 'default_visualization_context'
     };
     this.contextRegistry = new ContextRegistry(contextConfig);
+    
+    // Initialize ConversationManager
+    this.conversationManager = new ConversationManager(process.env.OPENAI_ASSISTANT_ID || '');
   }
 
   async initialize(): Promise<void> {
@@ -232,6 +242,9 @@ export class SagaWorkflow {
     // Activate it for the visualization transaction set
     this.contextRegistry.activateContextSetForTransactionSet('visualization', 'default_visualization_context');
     
+    // Initialize ConversationManager after context setup
+    console.log('🧵 ConversationManager initialized with assistant ID:', process.env.OPENAI_ASSISTANT_ID || 'not set');
+    
     console.log('✅ Default context set registered and activated for visualization transaction set');
   }
 
@@ -307,8 +320,8 @@ export class SagaWorkflow {
     
     socket.on('event_received', async (message: any) => {
        if (message.type === 'thread_id_response' && message.source === 'react-app') {
-        console.log(`📊 Received thread_id_response from browser:` + JSON.stringify(message.data));
-        await this.handleBrowserGraphRequest(message)
+        console.log(`🧵 Received thread_id_response from browser:` + JSON.stringify(message.data));
+        await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'start-graph-request' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
         await this.handleBrowserGraphRequest(message);
@@ -322,6 +335,65 @@ export class SagaWorkflow {
     });
     
     console.log('🎧 Listening for browser graph requests via service bus...');
+  }
+
+  /**
+   * Handle OpenAI thread request from browser
+   */
+  private async handleOpenAIThreadRequest(message: any): Promise<void> {
+    try {
+      console.log(`🧵 Processing OpenAI thread request from browser...`);
+      
+      // Extract threadId from message
+      const { data } = message;
+      const threadId = data.threadId;
+      
+      if (!threadId) {
+        console.error('❌ No threadId provided in thread_id_response');
+        return;
+      }
+      
+      // Store thread globally for retention
+      this.currentThreadId = threadId;
+      
+      // Fetch latest message from OpenAI thread
+      const threadMessage = await this.conversationManager.fetchLatestThreadMessage(threadId);
+      
+      if (!threadMessage) {
+        console.error(`❌ No user message found in thread ${threadId}`);
+        return;
+      }
+      
+      // Store message globally for retention
+      this.currentUserMessage = threadMessage.userMessage;
+      this.lastThreadMessage = threadMessage;
+      
+      console.log(`📝 Fetched user message: ${threadMessage.userMessage.substring(0, 100)}...`);
+      
+      // Create browser request from thread message
+      const browserRequest: BrowserGraphRequest = {
+        userQuery: threadMessage.userMessage,
+        correlationId: ''
+      };
+      
+      // Execute SAGA with thread context
+      await this.executeThreadVisualizationSAGA(browserRequest, threadId);
+      
+    } catch (error) {
+      console.error('❌ Error handling OpenAI thread request:', error);
+      
+      // Send error response back to thread if possible
+      if (this.currentThreadId) {
+        try {
+          await this.conversationManager.sendResponseToThread(
+            this.currentThreadId, 
+            'I encountered an error processing your request. Please try again.'
+          );
+        } catch (responseError) {
+          console.error('❌ Failed to send error response to thread:', responseError);
+        }
+      }
+    }
   }
 
   /**
@@ -342,29 +414,6 @@ export class SagaWorkflow {
           userQuery,
           
           // Input 2: Data requirements including date ranges, output fields, and graph type
-          dataRequirements: {
-            dateRange: {
-              start: data.filters?.timeRange?.start || new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // Last 3 days
-              end: data.filters?.timeRange?.end || new Date().toISOString()
-            },
-            outputFields: data.outputFields || ['timestamp', 'output', 'type'],
-            graphType: (data.chartType || 'line') as 'line' | 'bar' | 'pie' | 'scatter',
-            aggregation: data.aggregation || 'hourly',
-          dataRequirement: message.drReq,
-          codeRequirement: message.cdReq,
-          csvPath: ``
-          },
-          
-          // Input 3: Data source specification
-          dataSource: {
-            collection: data.collection || 'supply_analysis',
-            database: data.database,
-            filters: data.filters?.energyTypes ? { type: { $in: data.filters.energyTypes } } : {}
-          },
-          
-          // Request metadata
-          requestId: data.workflowId || `enhanced_browser_${Date.now()}`,
-          threadId,
           correlationId: message.messageId || `corr_${Date.now()}`
         };
 
@@ -387,10 +436,9 @@ export class SagaWorkflow {
       workflowId: `simple_saga_${Date.now()}`
     };*/
         
-        console.log(`🚀 Starting Enhanced Human-in-Loop Browser SAGA for request: ${browserRequest.requestId}`);
+  
         console.log(`📋 Requirements: ${browserRequest.userQuery}`);
-        console.log(`📊 Data Source: ${browserRequest.dataSource.collection}`);
-        console.log(`📈 Graph Type: ${browserRequest.dataRequirements.dataRequirement}`);
+   
         
         // Execute the enhanced human-in-the-loop SAGA
         const result = await this.executeSimpleVisualizationSAGA(browserRequest);
@@ -398,8 +446,8 @@ export class SagaWorkflow {
         // Publish enhanced result back to event bus for the browser
         this.eventBusClient['publishEvent']('enhanced_saga_result', {
           result,
-          workflowId: browserRequest.requestId,
-          threadId: browserRequest.threadId,
+          workflowId: '',//browserRequest.requestId,
+          threadId: '',//browserRequest.threadId,
           success: result.success,
           correlationId: browserRequest.correlationId,
          // processingTime: result.processingTime,
@@ -415,7 +463,7 @@ export class SagaWorkflow {
         }, 'broadcast');
         
         if (result.success) {
-          console.log(`✅ Enhanced browser graph request completed successfully: ${browserRequest.requestId}`);
+          
          
         } else {
         //  console.log(`❌ Enhanced browser graph request failed: ${result.reason}`);
@@ -439,7 +487,60 @@ export class SagaWorkflow {
       }
     }
   
-  
+  /**
+   * Execute visualization SAGA specifically for OpenAI thread requests
+   */
+  private async executeThreadVisualizationSAGA(browserRequest: BrowserGraphRequest, threadId: string): Promise<void> {
+    try {
+      console.log(`🧵 Executing Thread Visualization SAGA for thread: ${threadId}`);
+      
+      // Get active transaction set
+      const activeTransactionSet = this.transactionRegistry.getActiveTransactionSet();
+      if (!activeTransactionSet) {
+        throw new Error('No active transaction set found');
+      }
+      
+      // Get the active context set for this transaction set
+      const activeContextSet = this.contextRegistry.getContextSetForTransactionSet(activeTransactionSet.name);
+      console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
+      
+      // Add thread-specific context to the browser request
+      const threadRequest: BrowserGraphRequest = {
+        ...browserRequest,
+     
+      };
+      
+      // Execute SAGA through coordinator
+      const result = await this.coordinator.executeVisualizationSAGA(
+        threadRequest,
+        `thread_saga_${threadId}_${Date.now()}`,
+        activeTransactionSet.transactions,
+        activeContextSet
+      );
+      
+      // Send response back to thread
+      if (result.success) {
+        const responseMessage = result.result || 'Your request has been processed successfully.';
+        await this.conversationManager.sendResponseToThread(threadId, responseMessage);
+        console.log(`✅ Thread SAGA completed successfully for thread: ${threadId}`);
+      } else {
+        const errorMessage = `I encountered an issue processing your request: ${result.error || 'Unknown error'}`;
+        await this.conversationManager.sendResponseToThread(threadId, errorMessage);
+        console.log(`❌ Thread SAGA failed for thread: ${threadId}`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error executing Thread Visualization SAGA:`, error);
+      
+      // Send error response to thread
+      try {
+        const errorMessage = 'I encountered a technical error. Please try again or rephrase your request.';
+        await this.conversationManager.sendResponseToThread(threadId, errorMessage);
+      } catch (responseError) {
+        console.error('❌ Failed to send error response to thread:', responseError);
+      }
+    }
+  }
 
     async executeSimpleVisualizationSAGA(browserRequest: BrowserGraphRequest): Promise<AgentResult> {
     console.log('\n📊 Executing Simple Visualization SAGA');
