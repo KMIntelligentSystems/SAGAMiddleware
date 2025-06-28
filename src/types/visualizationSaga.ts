@@ -116,73 +116,21 @@ export interface HumanInLoopConfig {
 export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
   {
-    id: 'req_init',
-    name: 'Initialize Requirements Gathering',
-    agentName: 'requirements_initializer', 
-    dependencies: [],
+    id: 'tx-1',
+    name: 'Start Conversation',
+    agentName: 'ConversationAgent',
+    dependencies: ['tx-2'],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
   {
-    id: 'req_extract',
-    name: 'Extract User Requirements',
-    agentName: 'conversation_manager',
-    dependencies: ['req_init'],
+    id: 'tx-2',
+    name: 'Apply RAG Tool',
+    agentName: 'DataFilteringAgent',
+    dependencies: [],
     compensationAction: 'cleanup_thread',
     status: 'pending'
-  },
-  {
-    id: 'req_validate', 
-    name: 'Validate Requirements',
-    agentName: 'requirements_validator',
-    dependencies: ['req_extract'],
-    compensationAction: 'reset_requirements_state',
-    status: 'pending'
-  },
-  
-  // Transaction Set 2: Data Filtering SAGA  
-  {
-    id: 'data_query',
-    name: 'Query RAG Server',
-    agentName: 'data_filtering',
-    dependencies: ['req_validate'],
-    compensationAction: 'release_data_connections',
-    status: 'pending'
-  },
-  {
-    id: 'data_filter',
-    name: 'Filter and Process Data', 
-    agentName: 'data_filtering',
-    dependencies: ['data_query'],
-    compensationAction: 'cleanup_filtered_data',
-    status: 'pending'
-  },
-  {
-    id: 'chart_spec',
-    name: 'Generate Chart Specification',
-    agentName: 'chart_specification', 
-    dependencies: ['data_filter'],
-    compensationAction: 'reset_chart_spec',
-    status: 'pending'
-  },
-  {
-    id: 'viz_report',
-    name: 'Generate Visualization Report',
-    agentName: 'visualization_report',
-    dependencies: ['chart_spec'],
-    compensationAction: 'cleanup_report_state',
-    status: 'pending'
   }
-  
-  // Transaction Set 3: Coding SAGA (future)
-  // {
-  //   id: 'code_gen',
-  //   name: 'Generate D3 Code',
-  //   agentName: 'code_generator',
-  //   dependencies: ['viz_report'],
-  //   compensationAction: 'cleanup_generated_code',
-  //   status: 'pending'
-  // }
 ];
 
 export interface VisualizationWorkflowRequest {

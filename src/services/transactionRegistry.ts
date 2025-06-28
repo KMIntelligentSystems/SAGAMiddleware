@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import { VisualizationTransaction } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 
 export interface TransactionRegistryConfig {
@@ -7,15 +6,21 @@ export interface TransactionRegistryConfig {
   defaultTransactionSet?: string;
 }
 
-export interface TransactionSetDefinition {
+
+export interface Transaction {
+  id: string;
   name: string;
-  description?: string;
-  transactions: VisualizationTransaction[];
-  metadata?: {
-    version?: string;
-    author?: string;
-    created?: Date;
-  };
+  agentName: string;
+  dependencies: string[];
+  compensationAgent?: string;
+  compensationAction?: string;
+  status: 'pending' | 'executing' | 'completed' | 'failed' | 'compensated';
+}
+
+export interface TransactionSetDefinition{
+  name: string;
+  description: string;
+  transactions: Transaction[]
 }
 
 export interface TransactionSetPayload {
@@ -68,13 +73,13 @@ export class TransactionRegistry extends EventEmitter {
           await this.handleTransactionSetRegistration(message.data);
           break;
         case 'update_transaction_ordering':
-          await this.handleTransactionOrderingUpdate(message.data);
+       //   await this.handleTransactionOrderingUpdate(message.data);
           break;
         case 'set_active_transaction_set':
-          await this.handleSetActiveTransactionSet(message.data);
+       //   await this.handleSetActiveTransactionSet(message.data);
           break;
         case 'get_transaction_registry_status':
-          await this.handleGetRegistryStatus(message);
+      //    await this.handleGetRegistryStatus(message);
           break;
       }
     });
@@ -97,11 +102,7 @@ export class TransactionRegistry extends EventEmitter {
       
       // Register the transaction set
       this.transactionSets.set( transactionSet.name, {
-        ... transactionSet,
-        metadata: {
-          ... transactionSet.metadata,
-          created: new Date()
-        }
+        ... transactionSet
       });
       
       console.log(`✅ Transaction set registered: ${ transactionSet.name} with ${ transactionSet.transactions.length} transactions`);
@@ -128,7 +129,30 @@ export class TransactionRegistry extends EventEmitter {
     }
   }
 
-  private async handleTransactionOrderingUpdate(data: TransactionOrderingRequest): Promise<void> {
+   private validateTransactionSet(transactionSet: TransactionSetDefinition): void {
+    if (!transactionSet.name || !transactionSet.transactions || !Array.isArray(transactionSet.transactions)) {
+      throw new Error('Invalid transaction set: name and transactions array are required');
+    }
+    
+    // Validate each transaction has required fields
+    for (const transaction of transactionSet.transactions) {
+      if (!transaction.id || !transaction.name || !transaction.agentName) {
+        throw new Error(`Invalid transaction: ${JSON.stringify(transaction)} - id, name, and agentName are required`);
+      }
+    }
+    
+    // Validate dependencies exist within the transaction set
+    const transactionIds = new Set(transactionSet.transactions.map(t => t.id));
+    for (const transaction of transactionSet.transactions) {
+      for (const depId of transaction.dependencies) {
+        if (!transactionIds.has(depId)) {
+          throw new Error(`Transaction ${transaction.id} has invalid dependency: ${depId}`);
+        }
+      }
+    }
+  }
+
+ /* private async handleTransactionOrderingUpdate(data: TransactionOrderingRequest): Promise<void> {
     try {
       console.log(`🔄 Updating transaction ordering for: ${data.transactionSetName}`);
       
@@ -215,28 +239,6 @@ export class TransactionRegistry extends EventEmitter {
     this.eventBusClient['publishEvent']('transaction_registry_status', status, 'broadcast');
   }
 
-  private validateTransactionSet(transactionSet: TransactionSetDefinition): void {
-    if (!transactionSet.name || !transactionSet.transactions || !Array.isArray(transactionSet.transactions)) {
-      throw new Error('Invalid transaction set: name and transactions array are required');
-    }
-    
-    // Validate each transaction has required fields
-    for (const transaction of transactionSet.transactions) {
-      if (!transaction.id || !transaction.name || !transaction.agentName) {
-        throw new Error(`Invalid transaction: ${JSON.stringify(transaction)} - id, name, and agentName are required`);
-      }
-    }
-    
-    // Validate dependencies exist within the transaction set
-    const transactionIds = new Set(transactionSet.transactions.map(t => t.id));
-    for (const transaction of transactionSet.transactions) {
-      for (const depId of transaction.dependencies) {
-        if (!transactionIds.has(depId)) {
-          throw new Error(`Transaction ${transaction.id} has invalid dependency: ${depId}`);
-        }
-      }
-    }
-  }
 
   private updateTransactionOrdering(
     transactionSet: TransactionSetDefinition, 
@@ -269,11 +271,11 @@ export class TransactionRegistry extends EventEmitter {
     
     // Update the transaction set
     transactionSet.transactions = reorderedTransactions;
-  }
+  }*/
 
   // Public API methods for sagaWorkflow to use
 
-  public registerTransactionSet(transactionSet: TransactionSetDefinition): void {
+  public registerDefaultTransactionSet(transactionSet: TransactionSetDefinition): void {
     this.validateTransactionSet(transactionSet);
     this.transactionSets.set(transactionSet.name, transactionSet);
     console.log(`📝 Local registration: ${transactionSet.name} with ${transactionSet.transactions.length} transactions`);
@@ -291,7 +293,7 @@ export class TransactionRegistry extends EventEmitter {
     return this.transactionSets.get(this.activeTransactionSet);
   }
 
-  public getTransactionOrdering(transactionSetName: string): VisualizationTransaction[] {
+  public getTransactionOrdering(transactionSetName: string): Transaction[] {
     const transactionSet = this.transactionSets.get(transactionSetName);
     if (!transactionSet) {
       throw new Error(`Transaction set not found: ${transactionSetName}`);
@@ -311,7 +313,7 @@ export class TransactionRegistry extends EventEmitter {
     this.emit('active_transaction_set_changed', name);
   }
 
-  public getTransactionById(transactionSetName: string, transactionId: string): VisualizationTransaction | undefined {
+  public getTransactionById(transactionSetName: string, transactionId: string): Transaction | undefined {
     const transactionSet = this.transactionSets.get(transactionSetName);
     if (!transactionSet) {
       return undefined;
@@ -319,8 +321,4 @@ export class TransactionRegistry extends EventEmitter {
     return transactionSet.transactions.find(t => t.id === transactionId);
   }
 
-  public getTransactionMetadata(transactionSetName: string): any {
-    const transactionSet = this.transactionSets.get(transactionSetName);
-    return transactionSet?.metadata;
-  }
 }

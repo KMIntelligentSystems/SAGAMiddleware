@@ -118,15 +118,10 @@ export class SagaWorkflow {
   private registerDefaultTransactionSet(): void {
     console.log('📝 Registering default visualization transaction set...');
     
-    this.transactionRegistry.registerTransactionSet({
+    this.transactionRegistry.registerDefaultTransactionSet({
       name: 'visualization',
       description: 'Default visualization SAGA transaction set',
       transactions: VISUALIZATION_TRANSACTIONS,
-      metadata: {
-        version: '1.0.0',
-        author: 'system',
-        created: new Date()
-      }
     });
     
     // Set as active transaction set
@@ -160,16 +155,16 @@ export class SagaWorkflow {
     const defaultLLMPrompts: LLMPromptConfig[] = [
      
       {
-        agentName: 'conversation_manager',
-        transactionId: 'req_extract',
+        agentName: 'ConversationAgent',
+        transactionId: 'tx-1',
         backstory: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
         taskDescription: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
         context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Complete requirements specification for visualization'
       },
       {
-        agentName: 'data_filtering',
-        transactionId: 'data_query',
+        agentName: 'DataFilteringAgent',
+        transactionId: 'tx-2',
         backstory: 'Query and filter data from CSV files based on validated requirements.',
         taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
         context: { dataSources: defaultDataSources },
@@ -183,21 +178,10 @@ export class SagaWorkflow {
       description: 'Default context set for visualization SAGA with CSV data sources',
       dataSources: defaultDataSources,
       llmPrompts: defaultLLMPrompts,
-      globalContext: {
-        csvBasePath: 'c:/repos/SAGAMiddleware/data/',
-        supportedChartTypes: ['line', 'bar', 'pie', 'scatter'],
-        defaultTimeRange: '3 days',
-        maxDataPoints: 10000
-      },
-      metadata: {
-        version: '1.0.0',
-        author: 'system',
-        created: new Date()
-      }
     };
     
     // Register the context set
-  //  this.contextRegistry.registerContextSet(defaultContextSet);
+    this.contextRegistry.registerDefaultContextSet(defaultContextSet);
     
     // Activate it for the visualization transaction set
     this.contextRegistry.activateContextSetForTransactionSet('visualization', 'default_visualization_context');
@@ -222,7 +206,7 @@ export class SagaWorkflow {
       for (const agentName of uniqueAgentNames) {
         let agent: AgentDefinition;
         
-        if (agentName === 'data_filtering') {
+        if (agentName === 'DataFilteringAgent') {
           agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
         } else {
           agent = this.createAgentFromLLMPrompts(agentName);

@@ -41,13 +41,7 @@ export interface ContextSetDefinition {
   description?: string;
   dataSources: DataSource[];
   llmPrompts: LLMPromptConfig[];
-  globalContext?: Record<string, any>;
-  metadata?: {
-    version?: string;
-    author?: string;
-    created?: Date;
-    lastModified?: Date;
-  };
+  
 }
 
 export interface ContextSetPayload {
@@ -113,22 +107,22 @@ export class ContextRegistry extends EventEmitter {
           await this.handleContextSetRegistration(message.data);
           break;
         case 'update_context_set':
-          await this.handleContextSetUpdate(message.data);
+        //  await this.handleContextSetUpdate(message.data);
           break;
         case 'activate_context_set':
-          await this.handleActivateContextSet(message.data);
+         // await this.handleActivateContextSet(message.data);
           break;
         case 'add_data_sources':
-          await this.handleAddDataSources(message.data);
+        //  await this.handleAddDataSources(message.data);
           break;
         case 'update_llm_prompts':
-          await this.handleUpdateLLMPrompts(message.data);
+       //   await this.handleUpdateLLMPrompts(message.data);
           break;
         case 'get_context_registry_status':
-          await this.handleGetContextRegistryStatus(message);
+      //    await this.handleGetContextRegistryStatus(message);
           break;
         case 'get_context_for_transaction':
-          await this.handleGetContextForTransaction(message.data);
+      //    await this.handleGetContextForTransaction(message.data);
           break;
       }
     });
@@ -166,11 +160,7 @@ export class ContextRegistry extends EventEmitter {
         transactionSetName: contextDataSet.transactionSetName,
         dataSources: contextDataSet.dataSources,
         llmPrompts: contextDataSet.llmPrompts,
-        globalContext: contextDataSet.globalContext || {},
-        metadata: {
-          created: new Date(),
-          version: '1.0.0'
-        }
+      
       };
       
       // Register the context set
@@ -203,7 +193,47 @@ export class ContextRegistry extends EventEmitter {
     }
   }
 
-  private async handleContextSetUpdate(data: ContextUpdateRequest): Promise<void> {
+  private validateContextRegistration(data: ContextSetDefinition): void {
+    if (!data.name || !data.transactionSetName) {
+      throw new Error('Context set name and transaction set name are required');
+    }
+    
+    if (!Array.isArray(data.dataSources) || !Array.isArray(data.llmPrompts)) {
+      throw new Error('Data sources and LLM prompts must be arrays');
+    }
+    
+    // Validate data sources
+    for (const dataSource of data.dataSources) {
+      this.validateDataSource(dataSource);
+    }
+    
+    // Validate LLM prompts
+    for (const prompt of data.llmPrompts) {
+      this.validateLLMPrompt(prompt);
+    }
+  }
+
+   private validateDataSource(dataSource: DataSource): void {
+    if (!dataSource.id || !dataSource.name || !dataSource.type) {
+      throw new Error(`Invalid data source: ${JSON.stringify(dataSource)} - id, name, and type are required`);
+    }
+    
+    if (dataSource.type === 'csv' && !dataSource.path) {
+      throw new Error(`CSV data source requires path: ${dataSource.id}`);
+    }
+    
+    if (['database', 'table'].includes(dataSource.type) && !dataSource.connectionString) {
+      throw new Error(`Database data source requires connectionString: ${dataSource.id}`);
+    }
+  }
+
+  private validateLLMPrompt(prompt: LLMPromptConfig): void {
+    if (!prompt.agentName || !prompt.transactionId || !prompt.backstory) {
+      throw new Error(`Invalid LLM prompt: ${JSON.stringify(prompt)} - agentName, transactionId, and prompt are required`);
+    }
+  }
+
+  /*private async handleContextSetUpdate(data: ContextUpdateRequest): Promise<void> {
     try {
       console.log(`🔄 Updating context set: ${data.contextSetName}`);
       
@@ -454,49 +484,11 @@ export class ContextRegistry extends EventEmitter {
     }
   }
 
-  private validateContextRegistration(data: ContextSetDefinition): void {
-    if (!data.name || !data.transactionSetName) {
-      throw new Error('Context set name and transaction set name are required');
-    }
-    
-    if (!Array.isArray(data.dataSources) || !Array.isArray(data.llmPrompts)) {
-      throw new Error('Data sources and LLM prompts must be arrays');
-    }
-    
-    // Validate data sources
-    for (const dataSource of data.dataSources) {
-      this.validateDataSource(dataSource);
-    }
-    
-    // Validate LLM prompts
-    for (const prompt of data.llmPrompts) {
-      this.validateLLMPrompt(prompt);
-    }
-  }
-
-  private validateDataSource(dataSource: DataSource): void {
-    if (!dataSource.id || !dataSource.name || !dataSource.type) {
-      throw new Error(`Invalid data source: ${JSON.stringify(dataSource)} - id, name, and type are required`);
-    }
-    
-    if (dataSource.type === 'csv' && !dataSource.path) {
-      throw new Error(`CSV data source requires path: ${dataSource.id}`);
-    }
-    
-    if (['database', 'table'].includes(dataSource.type) && !dataSource.connectionString) {
-      throw new Error(`Database data source requires connectionString: ${dataSource.id}`);
-    }
-  }
-
-  private validateLLMPrompt(prompt: LLMPromptConfig): void {
-    if (!prompt.agentName || !prompt.transactionId || !prompt.backstory) {
-      throw new Error(`Invalid LLM prompt: ${JSON.stringify(prompt)} - agentName, transactionId, and prompt are required`);
-    }
-  }
+ */
 
   // Public API methods for sagaWorkflow and sagaCoordinator to use
 
-  public registerContextSet(contextSetDefinition: ContextSetDefinition): void {
+  public registerDefaultContextSet(contextSetDefinition: ContextSetDefinition): void {
     this.contextSets.set(contextSetDefinition.name, contextSetDefinition);
     console.log(`📝 Local context set registration: ${contextSetDefinition.name} for transaction set: ${contextSetDefinition.transactionSetName}`);
     this.emit('context_set_registered', { 
@@ -542,10 +534,6 @@ export class ContextRegistry extends EventEmitter {
     );
   }
 
-  public getGlobalContextForTransactionSet(transactionSetName: string): Record<string, any> {
-    const contextSet = this.getContextSetForTransactionSet(transactionSetName);
-    return contextSet?.globalContext || {};
-  }
 
   public getAllContextSets(): string[] {
     return Array.from(this.contextSets.keys());
