@@ -8,29 +8,17 @@ export { DataPreprocessor, dataPreprocessor } from './preprocessing/dataPreproce
 export * from './types/index.js';
 
 // Visualization workflow exports
+
 export { 
-  OpenAIAssistantManager,
-  createOpenAIAssistantManager
-} from './agents/openaiAssistantManager.js';
-export { 
-  createConversationAgent, 
-  conversationManager,
   ConversationManager 
-} from './agents/conversationAgent.js';
-export { 
-  createDataFilteringAgent, 
-  createChartSpecificationAgent 
-} from './agents/dataFilteringAgent.js';
-export { createVisualizationReportAgent } from './agents/visualizationReportAgent.js';
+} from './services/conversationManager.js';
+
 export { 
   createRequirementsInitializerAgent,
   createConversationManagerAgent,
   createRequirementsValidatorAgent
 } from './agents/visualizationSagaAgents.js';
-export { 
-  VisualizationSAGAProcessor,
-  runVisualizationSAGAExample 
-} from './examples/visualizationSagaProcessing.js';
+
 export * from './types/visualization.js';
 export * from './types/visualizationSaga.js';
 

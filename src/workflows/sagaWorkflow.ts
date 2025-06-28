@@ -1,16 +1,10 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer, dataPreprocessor } from '../index.js';
-import { 
-  createRequirementsInitializerAgent,
-  createConversationManagerAgent,
-  createRequirementsValidatorAgent
-} from '../agents/visualizationSagaAgents.js';
-import { createDataFilteringAgent, createChartSpecificationAgent } from '../agents/dataFilteringAgent.js';
-import { createVisualizationReportAgent } from '../agents/visualizationReportAgent.js';
+import { GenericAgent } from '../agents/genericAgent.js';
 import { VisualizationWorkflowRequest, VisualizationSAGAState, HumanInLoopConfig, VISUALIZATION_TRANSACTIONS } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
-import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
+import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig } from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
@@ -164,13 +158,7 @@ export class SagaWorkflow {
     
     // Create default LLM prompts for each agent (requirement #3)
     const defaultLLMPrompts: LLMPromptConfig[] = [
-      {
-        agentName: 'requirements_initializer',
-        transactionId: 'req_init',
-        backstory: 'Initialize requirements gathering for data visualization. Extract user intent and prepare for conversation.',
-        taskDescription: 'Focus on understanding what the user wants to visualize from the available data sources.',
-        taskExpectedOutput: 'Structured requirements object with user intent and data preferences'
-      },
+     
       {
         agentName: 'conversation_manager',
         transactionId: 'req_extract',
@@ -180,40 +168,12 @@ export class SagaWorkflow {
         taskExpectedOutput: 'Complete requirements specification for visualization'
       },
       {
-        agentName: 'requirements_validator',
-        transactionId: 'req_validate',
-        backstory: 'Validate extracted requirements against available data sources and ensure feasibility.',
-        taskDescription: 'Check if requested data fields exist in CSV files and requirements are achievable.',
-        taskExpectedOutput: 'Validated requirements with any necessary adjustments'
-      },
-      {
         agentName: 'data_filtering',
         transactionId: 'data_query',
         backstory: 'Query and filter data from CSV files based on validated requirements.',
         taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
         context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Filtered dataset ready for visualization'
-      },
-      {
-        agentName: 'data_filtering',
-        transactionId: 'data_filter',
-        backstory: 'Process and clean the filtered data for visualization.',
-        taskDescription: 'Clean, aggregate, and format data according to user requirements.',
-        taskExpectedOutput: 'Processed data ready for chart generation'
-      },
-      {
-        agentName: 'chart_specification',
-        transactionId: 'chart_spec',
-        backstory: 'Generate chart specification based on processed data and user requirements.',
-        taskDescription: 'Create detailed chart configuration including type, axes, styling, and layout.',
-        taskExpectedOutput: 'Complete chart specification object'
-      },
-      {
-        agentName: 'visualization_report',
-        transactionId: 'viz_report',
-        backstory: 'Generate final visualization report with chart and narrative.',
-        taskDescription: 'Combine chart specification with explanatory text and insights from the data.',
-        taskExpectedOutput: 'Complete visualization report with chart and narrative'
       }
     ];
     
@@ -250,22 +210,97 @@ export class SagaWorkflow {
 
    private registerVisualizationSAGAAgents(): void {
       console.log('🔧 Registering Visualization SAGA agents...');
-  
-      const requirementsInitializer = createRequirementsInitializerAgent();
-      const conversationManager = createConversationManagerAgent();
-      const requirementsValidator = createRequirementsValidatorAgent();
-      const dataFilteringAgent = createDataFilteringAgent([this.ragServerConfig]);
-      const chartSpecAgent = createChartSpecificationAgent();
-      const visualizationReportAgent = createVisualizationReportAgent();
-  
-      this.coordinator.registerAgent(requirementsInitializer);
-      this.coordinator.registerAgent(conversationManager);
-      this.coordinator.registerAgent(requirementsValidator);
-      this.coordinator.registerAgent(dataFilteringAgent);
-      this.coordinator.registerAgent(chartSpecAgent);
-      this.coordinator.registerAgent(visualizationReportAgent);
-  
+
+      // Get all llmPrompts and extract unique agent names
+      const contextSet = this.contextRegistry.getContextSetForTransactionSet('visualization');
+      if (!contextSet) {
+        throw new Error('No context set found for visualization transaction set');
+      }
+      const uniqueAgentNames = [...new Set(contextSet.llmPrompts.map(prompt => prompt.agentName))];
+
+      // Create agents dynamically from llmPrompts
+      for (const agentName of uniqueAgentNames) {
+        let agent: AgentDefinition;
+        
+        if (agentName === 'data_filtering') {
+          agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
+        } else {
+          agent = this.createAgentFromLLMPrompts(agentName);
+        }
+        
+        this.coordinator.registerAgent(agent);
+        console.log(`✅ Registered agent: ${agentName}`);
+      }
+
       console.log('✅ All SAGA agents registered');
+    }
+
+    private createAgentFromLLMPrompts(agentName: string, mcpServers?: MCPServerConfig[]): AgentDefinition {
+      // Get llmPrompts for this agent from the context registry
+      const llmPrompts = this.contextRegistry.getLLMPromptsForAgent('visualization', agentName);
+      
+      if (llmPrompts.length === 0) {
+        throw new Error(`No LLM prompts found for agent: ${agentName}`);
+      }
+
+      // Use the first prompt as the base configuration
+      const basePrompt = llmPrompts[0];
+      
+      // Get LLM configuration from prompt parameters if available, otherwise use defaults
+      const promptParams = basePrompt.parameters || {};
+      let llmConfig: LLMConfig;
+      let agentType: 'tool' | 'processing';
+      let mcpTools: string[] = [];
+      
+      // Determine agent type and configuration based on agent name
+      if (agentName === 'data_filtering') {
+        agentType = 'tool';
+        mcpTools = ['semantic_search'];
+        llmConfig = {
+          provider:  'openai',
+          model:  'gpt-4o-mini',
+          temperature: promptParams.temperature || 0.2,
+          maxTokens: promptParams.maxTokens || 2000,
+          apiKey: process.env.OPENAI_API_KEY
+        };
+      } else {
+        agentType = 'processing';
+        llmConfig = {
+          provider:  'openai',
+          model: promptParams.model || 'gpt-4o',
+          temperature: promptParams.temperature || 0.3,
+          maxTokens: promptParams.maxTokens || 1500,
+          apiKey: process.env.OPENAI_API_KEY
+        };
+      }
+
+      // Create base context from llmPrompts
+      let context = basePrompt.context || {};
+      
+      // Add specific context for data_filtering agent
+      if (agentName === 'data_filtering') {
+        context = {
+          ...context,
+          collection: 'supply_analysis',
+          maxChunks: 50
+        };
+      }
+
+      // Create agent definition using information from llmPrompts
+      const agentDefinition: AgentDefinition = {
+        name: agentName,
+        backstory: basePrompt.backstory,
+        taskDescription: basePrompt.taskDescription,
+        taskExpectedOutput: basePrompt.taskExpectedOutput,
+        llmConfig,
+        context,
+        dependencies: [],
+        agentType,
+        mcpServers: mcpServers || [],
+        mcpTools
+      };
+
+      return agentDefinition;
     }
   
     private setupEventListeners(): void {

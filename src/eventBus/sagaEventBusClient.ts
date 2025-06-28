@@ -1,11 +1,10 @@
 import { io as SocketIOClient } from 'socket.io-client';
-import { VisualizationSAGAProcessor } from '../examples/visualizationSagaProcessing.js';
 import { VisualizationWorkflowRequest, VisualizationSAGAState } from '../types/visualizationSaga.js';
 import { EventMessage, ServiceRegistration, SAGAEventType, SAGAEventData } from './types.js';
 
 export class SAGAEventBusClient {
   private socket: any;
-  private visualizationProcessor: VisualizationSAGAProcessor;
+  //private visualizationProcessor: VisualizationSAGAProcessor;
   private isConnected: boolean = false;
   private messageQueue: EventMessage[] = [];
   private eventBusUrl: string;
@@ -13,7 +12,7 @@ export class SAGAEventBusClient {
 
   constructor(eventBusUrl: string = 'http://localhost:3003') {
     this.eventBusUrl = eventBusUrl;
-    this.visualizationProcessor = new VisualizationSAGAProcessor();
+  //  this.visualizationProcessor = new VisualizationSAGAProcessor();
     this.initializeConnection();
   }
 
@@ -52,9 +51,6 @@ export class SAGAEventBusClient {
         ]
       };
       this.socket.emit('register_service', registration);
-
-      // Initialize the processor and setup event forwarding
-      this.initializeProcessor();
       
       // Process any queued messages
       this.processMessageQueue();
@@ -89,34 +85,11 @@ export class SAGAEventBusClient {
   private async handleIncomingEvent(message: EventMessage): Promise<void> {
     try {
       switch (message.type) {
-        case 'start_visualization_saga':
-          await this.handleStartVisualizationSaga(message);
-          break;
-          
+       
         case 'start-graph-request':
           await this.handleStartGraphRequest(message);
           break;
-          
-        case 'get_visualization_state':
-          await this.handleGetVisualizationState(message);
-          break;
-          
-        case 'cancel_workflow':
-          await this.handleCancelWorkflow(message);
-          break;
-
-        // Human-in-the-loop event handlers
-        case 'human_decision_received':
-          await this.handleHumanDecisionReceived(message);
-          break;
-
-        case 'human_approval_timeout':
-          await this.handleHumanApprovalTimeout(message);
-          break;
-
-        case 'human_interaction_resumed':
-          await this.handleHumanInteractionResumed(message);
-          break;
+  
           
         default:
           console.log(`⚠️ Unhandled event type: ${message.type}`);
@@ -133,49 +106,10 @@ export class SAGAEventBusClient {
     }
   }
 
-  private async handleStartVisualizationSaga(message: EventMessage): Promise<void> {
-    const { data } = message;
-    console.log(`🚀 Starting Visualization SAGA for threadId: ${data.threadId}`);
-    
-    const workflowRequest: VisualizationWorkflowRequest = {
-      threadId: data.threadId,
-      userQuery: data.userQuery,
-      visualizationRequest: data.visualizationRequest,
-      workflowId: data.workflowId || `saga_${Date.now()}`,
-      correlationId: data.correlationId || message.messageId
-    };
-
-    try {
-      // Ensure processor is initialized
-      if (!this.isInitialized) {
-        await this.visualizationProcessor.initialize();
-        this.isInitialized = true;
-        this.setupSagaEventForwarding();
-      }
-      
-      const coordinator = this.visualizationProcessor['coordinator']; // Access private coordinator
-    //  const result = await coordinator.executeVisualizationSAGA(workflowRequest);
-      
-    /*  this.publishEvent('saga_result', {
-        result,
-        workflowId: workflowRequest.workflowId,
-        threadId: workflowRequest.threadId,
-        success: result.success,
-        processingTime: result.timestamp ? new Date().getTime() - result.timestamp.getTime() : 0
-      }, 'broadcast');*/
-      
-    } catch (error) {
-      this.publishEvent('saga_error', {
-        error: error instanceof Error ? error.message : String(error),
-        workflowId: workflowRequest.workflowId,
-        threadId: workflowRequest.threadId,
-        success: false
-      }, 'broadcast');
-    }
-  }
+ 
 
   private async handleStartGraphRequest(message: EventMessage): Promise<void> {
-    const { data } = message;
+    const { data } = message
     console.log(`📊 Routing enhanced start-graph-request from ${message.source} to human-in-loop handler`);
     
     // Validate and parse browser request
@@ -278,246 +212,9 @@ export class SAGAEventBusClient {
     return Math.round(estimatedTime);
   }
 
-  private async handleGetVisualizationState(message: EventMessage): Promise<void> {
-    try {
-      if (!this.isInitialized) {
-        await this.visualizationProcessor.initialize();
-        this.isInitialized = true;
-        this.setupSagaEventForwarding();
-      }
-      
-      const coordinator = this.visualizationProcessor['coordinator'];
-      const state = coordinator.getVisualizationSAGAState();
-      
-      this.publishEvent('visualization_state_response', {
-        state,
-        workflowId: message.data.workflowId,
-        threadId: message.data.threadId,
-        requestId: message.messageId
-      }, message.source);
-    } catch (error) {
-      this.publishEvent('saga_error', {
-        error: error instanceof Error ? error.message : String(error),
-        workflowId: message.data.workflowId,
-        threadId: message.data.threadId,
-        requestId: message.messageId
-      }, message.source);
-    }
-  }
-
-
-  private async handleCancelWorkflow(message: EventMessage): Promise<void> {
-    const { workflowId, workflowType } = message.data;
-    console.log(`🛑 Canceling workflow: ${workflowId} (${workflowType})`);
-    
-    // Note: Would need to implement cancellation logic in SagaCoordinator
-    this.publishEvent('workflow_cancelled', {
-      workflowId,
-      workflowType,
-      cancelled: true,
-      timestamp: new Date()
-    }, 'broadcast');
-  }
-
-  // Human-in-the-loop event handlers
-  private async handleHumanDecisionReceived(message: EventMessage): Promise<void> {
-    const { interactionToken, decision, workflowId } = message.data;
-    console.log(`🤝 Human decision received: ${decision?.decision} for token ${interactionToken}`);
-    
-    try {
-      if (!this.isInitialized) {
-        await this.visualizationProcessor.initialize();
-        this.isInitialized = true;
-        this.setupSagaEventForwarding();
-      }
-      
-      // Forward decision to coordinator for processing
-      const coordinator = this.visualizationProcessor['coordinator'];
-      
-      // Emit event to resume SAGA processing
-      coordinator.emit('human_decision_received', {
-        interactionToken,
-        decision,
-        workflowId,
-        timestamp: new Date()
-      });
-
-      this.publishEvent('saga_state_update', {
-        type: 'human_decision_processed',
-        workflowId,
-        interactionToken,
-        decision: decision?.decision,
-        feedback: decision?.feedback
-      }, 'broadcast');
-
-    } catch (error) {
-      this.publishEvent('saga_error', {
-        error: error instanceof Error ? error.message : String(error),
-        workflowId,
-        interactionToken,
-        eventType: 'human_decision_processing'
-      }, 'broadcast');
-    }
-  }
-
-  private async handleHumanApprovalTimeout(message: EventMessage): Promise<void> {
-    const { interactionToken, workflowId, humanStage, timeoutAt } = message.data;
-    console.log(`⏰ Human approval timeout for ${humanStage} (Token: ${interactionToken})`);
-    
-    try {
-      if (!this.isInitialized) {
-        await this.visualizationProcessor.initialize();
-        this.isInitialized = true;
-        this.setupSagaEventForwarding();
-      }
-
-      const coordinator = this.visualizationProcessor['coordinator'];
-      
-      // Emit timeout event to trigger compensation
-      coordinator.emit('human_approval_timeout', {
-        interactionToken,
-        workflowId,
-        humanStage,
-        timeoutAt
-      });
-
-      this.publishEvent('saga_state_update', {
-        type: 'human_approval_timeout_processed',
-        workflowId,
-        interactionToken,
-        humanStage,
-        timeoutAt
-      }, 'broadcast');
-
-    } catch (error) {
-      this.publishEvent('saga_error', {
-        error: error instanceof Error ? error.message : String(error),
-        workflowId,
-        interactionToken,
-        eventType: 'human_timeout_processing'
-      }, 'broadcast');
-    }
-  }
-
-  private async handleHumanInteractionResumed(message: EventMessage): Promise<void> {
-    const { workflowId, interactionToken, artifacts } = message.data;
-    console.log(`🔄 Human interaction resumed for workflow ${workflowId}`);
-    
-    try {
-      if (!this.isInitialized) {
-        await this.visualizationProcessor.initialize();
-        this.isInitialized = true;
-        this.setupSagaEventForwarding();
-      }
-
-      const coordinator = this.visualizationProcessor['coordinator'];
-      
-      // Resume SAGA processing from where it left off
-      coordinator.emit('human_interaction_resumed', {
-        workflowId,
-        interactionToken,
-        artifacts,
-        resumedAt: new Date()
-      });
-
-      this.publishEvent('saga_state_update', {
-        type: 'human_interaction_resumed_processed',
-        workflowId,
-        interactionToken
-      }, 'broadcast');
-
-    } catch (error) {
-      this.publishEvent('saga_error', {
-        error: error instanceof Error ? error.message : String(error),
-        workflowId,
-        interactionToken,
-        eventType: 'human_resume_processing'
-      }, 'broadcast');
-    }
-  }
-
-  private async initializeProcessor(): Promise<void> {
-    if (!this.isInitialized) {
-      console.log('🔧 Initializing Visualization SAGA Processor...');
-      try {
-      //  await this.visualizationProcessor.initialize();
-        this.isInitialized = true;
-        this.setupSagaEventForwarding();
-        console.log('✅ Visualization SAGA Processor initialized');
-      } catch (error) {
-        console.error('❌ Failed to initialize processor:', error);
-        throw error;
-      }
-    }
-  }
-
-  private setupSagaEventForwarding(): void {
-    if (!this.isInitialized) return;
-    
-    console.log('🔧 Setting up SAGA event forwarding to Event Bus');
-    const coordinator = this.visualizationProcessor['coordinator'];
-
-    // Visualization SAGA events
-    coordinator.on('visualization_saga_initialized', (state: VisualizationSAGAState) => {
-      this.publishEvent('saga_state_update', { 
-        type: 'visualization_saga_initialized', 
-        state,
-        threadId: state.requirementsState?.threadId,
-        workflowId: state.id
-      }, 'broadcast');
-    });
-
-    coordinator.on('visualization_transaction_started', (event: any) => {
-      this.publishEvent('saga_state_update', { 
-        type: 'visualization_transaction_started', 
-        event,
-        threadId: event.sagaState?.requirementsState?.threadId,
-        workflowId: event.sagaState?.id,
-        transactionName: event.name
-      }, 'broadcast');
-    });
-
-    coordinator.on('visualization_transaction_completed', (event: any) => {
-      this.publishEvent('saga_state_update', { 
-        type: 'visualization_transaction_completed', 
-        event,
-        threadId: event.sagaState?.requirementsState?.threadId,
-        workflowId: event.sagaState?.id,
-        transactionName: event.name
-      }, 'broadcast');
-    });
-
-    coordinator.on('visualization_saga_completed', (state: VisualizationSAGAState) => {
-      this.publishEvent('saga_state_update', { 
-        type: 'visualization_saga_completed', 
-        state,
-        threadId: state.requirementsState?.threadId,
-        workflowId: state.id,
-        finalOutput: state.reportState?.finalOutput
-      }, 'broadcast');
-    });
-
-    coordinator.on('visualization_saga_failed', (event: any) => {
-      this.publishEvent('saga_state_update', { 
-        type: 'visualization_saga_failed', 
-        event,
-        threadId: event.sagaState?.requirementsState?.threadId,
-        workflowId: event.sagaState?.id,
-        error: event.error
-      }, 'broadcast');
-    });
-
-    // Compensation events
-    coordinator.on('compensation_executed', (event: any) => {
-      this.publishEvent('saga_state_update', {
-        type: 'compensation_executed',
-        event,
-        action: event.action,
-        agentName: event.agentName
-      }, 'broadcast');
-    });
-  }
-
+ 
+  
+  
   private publishEvent(type: string, data: any, target?: string): void {
     const message: EventMessage = {
       type,
@@ -578,13 +275,4 @@ export class SAGAEventBusClient {
     return this.messageQueue.length;
   }
 
-  public getVisualizationProcessor(): VisualizationSAGAProcessor {
-    return this.visualizationProcessor;
-  }
-
-  public async ensureInitialized(): Promise<void> {
-    if (!this.isInitialized) {
-      await this.initializeProcessor();
-    }
-  }
 }
