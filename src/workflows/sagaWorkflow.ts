@@ -197,7 +197,7 @@ export class SagaWorkflow {
     };
     
     // Register the context set
-    this.contextRegistry.registerContextSet(defaultContextSet);
+  //  this.contextRegistry.registerContextSet(defaultContextSet);
     
     // Activate it for the visualization transaction set
     this.contextRegistry.activateContextSetForTransactionSet('visualization', 'default_visualization_context');
