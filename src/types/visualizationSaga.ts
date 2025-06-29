@@ -8,7 +8,7 @@ export interface VisualizationSAGAState {
   totalTransactions: number;
   
   // Human-in-the-loop extensions
-  humanInLoop?: {
+  /*humanInLoop?: {
     enabled: boolean;
     currentStage?: HumanApprovalStage['stage'];
     pendingApproval?: HumanApprovalStage;
@@ -49,7 +49,7 @@ export interface VisualizationSAGAState {
     dataEnhanced: boolean;
     outputValidated: boolean;
     finalOutput?: any;
-  };
+  };*/
   
   errors: string[];
   startTime: Date;

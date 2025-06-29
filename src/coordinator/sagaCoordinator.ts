@@ -41,7 +41,7 @@ export class SagaCoordinator extends EventEmitter {
     const agent = new GenericAgent(definition);
     this.agents.set(definition.name, agent);
     this.agentDefinitions.set(definition.name, definition);
-    this.recalculateExecutionOrder();
+ //   this.recalculateExecutionOrder();
     
     console.log(`🔧 Registered agent: ${definition.name}`);
     console.log(`🔧 MCP servers: ${definition.mcpServers?.map(s => s.name).join(', ') || 'none'}`);
@@ -171,33 +171,7 @@ export class SagaCoordinator extends EventEmitter {
       currentTransaction: 0,
       totalTransactions: transactionCount || VISUALIZATION_TRANSACTIONS.length,
       
-      requirementsState: {
-        threadId: request.threadId,
-        conversationComplete: false,
-        requirementsExtracted: false,
-        validationComplete: false,
-        extractedRequirements: request.visualizationRequest
-      },
-      
-      dataFilteringState: {
-        queryStarted: false,
-        queryComplete: false,
-        filteringComplete: false,
-        dataValidated: false
-      },
-      
-      chartSpecState: {
-        analysisComplete: false,
-        specificationGenerated: false,
-        specificationValidated: false
-      },
-      
-      reportState: {
-        narrativeGenerated: false,
-        dataEnhanced: false,
-        outputValidated: false
-      },
-      
+    
       errors: [],
       startTime: new Date(),
       compensations: []
@@ -222,7 +196,7 @@ sleep(ms: number) {
     // Use provided transaction ordering or fall back to default
     const transactionsToExecute = transactionOrdering || VISUALIZATION_TRANSACTIONS;
     
-    this.initializeVisualizationSAGA(workflowId, request, transactionsToExecute.length);
+   // this.initializeVisualizationSAGA(workflowId, request, transactionsToExecute.length);
     
     const transactionId = await this.transactionManager.startTransaction('visualization_saga');
     
@@ -238,8 +212,9 @@ sleep(ms: number) {
       // Execute transactions in order with compensation capability
       //executeWorkflow above use executeOrder array
       // VISUALIZATION_TRANSACTIONS:VisualizationTransaction
+      
       for (const transaction of transactionsToExecute) {
-        this.visualizationSagaState!.currentTransaction++;
+       
         
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
         this.emit('visualization_transaction_started', { 
@@ -247,12 +222,10 @@ sleep(ms: number) {
           name: transaction.name,
           sagaState: this.visualizationSagaState 
         });
-        console.log("NAME  ", transaction.name)
-if(transaction.name == 'Initialize Requirements Gathering'){
-  console.log("HEREEEEEEEEEEEEEEEEEEEE  ")
-this.sleep(12000)
-}
-        const result = await this.executeVisualizationTransaction(transaction, request);
+    
+        const result = await this.executeVisualizationTransaction(transaction, request); 
+        this.visualizationSagaState!.currentTransaction++;
+
         
         if (!result.success) {
           console.log(`❌ Transaction failed: ${transaction.name} - ${result.error}`);
@@ -263,6 +236,16 @@ this.sleep(12000)
           
           throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
         }
+        
+        const prevContextSet = contextSet as ContextSetDefinition
+        prevContextSet.llmPrompts[this.visualizationSagaState!.currentTransaction].context = {'currResult': result.result};
+        const nextContextSet: ContextSetDefinition = {
+         name: '',
+        transactionSetName: '', // Links to a transaction set
+        dataSources: [],
+        llmPrompts: [prevContextSet.llmPrompts[this.visualizationSagaState!.currentTransaction] ]
+      };
+        this.contextManager.setActiveContextSet(nextContextSet);
 
         // Update context with transaction result
         this.contextManager.updateContext(transaction.agentName, {
@@ -293,15 +276,15 @@ this.sleep(12000)
         agentName: 'visualization_saga_coordinator',
         result: {
           sagaState: this.visualizationSagaState,
-          finalOutput: this.visualizationSagaState?.reportState.finalOutput,
+          finalOutput: '',//this.visualizationSagaState?.reportState.finalOutput,
           summary: {
             totalTransactions: this.visualizationSagaState?.totalTransactions || 0,
             processingTime: this.visualizationSagaState?.endTime 
               ? this.visualizationSagaState.endTime.getTime() - this.visualizationSagaState.startTime.getTime()
               : 0,
-            requirementsGathered: this.visualizationSagaState?.requirementsState.conversationComplete || false,
-            dataFiltered: this.visualizationSagaState?.dataFilteringState.filteringComplete || false,
-            chartSpecGenerated: this.visualizationSagaState?.chartSpecState.specificationGenerated || false
+            requirementsGathered: false,//this.visualizationSagaState?.requirementsState.conversationComplete || false,
+            dataFiltered: false,//this.visualizationSagaState?.dataFilteringState.filteringComplete || false,
+            chartSpecGenerated: false,//this.visualizationSagaState?.chartSpecState.specificationGenerated || false
           }
         },
         success: true,
@@ -336,7 +319,7 @@ this.sleep(12000)
 
   private async executeVisualizationTransaction(
     transaction: VisualizationTransaction, 
-    request: VisualizationWorkflowRequest
+    request: BrowserGraphRequest
   ): Promise<AgentResult> {
     const agent = this.agents.get(transaction.agentName);
     if (!agent) {
@@ -344,7 +327,7 @@ this.sleep(12000)
     }
 
     // Check dependencies are satisfied (use the current transaction set being executed)
-    for (const depId of transaction.dependencies) {
+  /*  for (const depId of transaction.dependencies) {
       // Find dependency in the current transaction set being executed
       const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
       const depTransaction = transactionsToExecute.find(t => t.id === depId);
@@ -354,7 +337,7 @@ this.sleep(12000)
           throw new Error(`Dependency ${depId} not satisfied for transaction ${transaction.id}`);
         }
       }
-    }
+    }*/
 
     // Build context for this transaction
     const context = await this.buildVisualizationTransactionContext(transaction, request);
@@ -386,12 +369,30 @@ this.sleep(12000)
     const baseContext = {
       transactionId: transaction.id,
       transactionName: transaction.name,
+      transactionAgent: transaction.agentName,
       sagaState: this.visualizationSagaState,
       workflowRequest: request
     };
 
+    let context: Record<string, any> = {}
+    let activeContext = 'data sources:';
+    let userQuery = 'user query';
+    let counter = 1;
+    if(baseContext.sagaState?.currentTransaction == 0){
+      const contextSet = this.contextManager.getActiveContextSet();
+      for(const dataSource of contextSet.dataSources){
+        if(dataSource.path && dataSource.type == 'csv'){
+          activeContext = activeContext + counter++ + ':' + 'path:' + dataSource.path + ','
+        }
+      }
+      userQuery = userQuery + request.userQuery;
+      context = {"initial context": userQuery + '-----------------' + activeContext}
+    } else {
+      context = {"next context": this.contextManager.getActiveContextSet()}
+    }
+
     // Add dependency results
-    const dependencyContext: Record<string, any> = {};
+ /*   const dependencyContext: Record<string, any> = {};
     for (const depId of transaction.dependencies) {
       const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
       const depTransaction = transactionsToExecute.find(t => t.id === depId);
@@ -402,7 +403,7 @@ this.sleep(12000)
           dependencyContext[depTransaction.agentName] = depContext.lastTransactionResult;
         }
       }
-    }
+    }*/
 
     // Add context from ContextRegistry (requirement #5)
    /* const contextRegistryData: Record<string, any> = {};
@@ -432,13 +433,13 @@ this.sleep(12000)
       console.log(`📊 Added context for ${transaction.agentName}:${transaction.id} - ${this.currentContextSet.dataSources.length} data sources, ${relevantPrompts.length} prompts`);
     }*/
 
-    return { ...baseContext, ...dependencyContext};//, ...contextRegistryData 
+    return context;//, ...contextRegistryData 
   }
 
   private updateVisualizationSAGAState(transactionId: string, result: AgentResult): void {
     if (!this.visualizationSagaState) return;
 
-    switch (transactionId) {
+  /*  switch (transactionId) {
       case 'req_init':
         this.visualizationSagaState.requirementsState.conversationComplete = result.success;
         break;
@@ -474,7 +475,7 @@ this.sleep(12000)
           this.visualizationSagaState.reportState.finalOutput = result.result;
         }
         break;
-    }
+    }*/
 
     // Update overall status
     if (result.success) {
@@ -508,7 +509,7 @@ this.sleep(12000)
   }
 
   private async executeCompensationAction(compensation: CompensationAction): Promise<void> {
-    switch (compensation.action) {
+   /* switch (compensation.action) {
       case 'cleanup_thread':
         // Clean up OpenAI thread if it was created
         if (this.visualizationSagaState?.requirementsState.threadId) {
@@ -534,7 +535,7 @@ this.sleep(12000)
           agentName: compensation.agentName 
         });
         break;
-    }
+    }*/
   }
 
   getVisualizationSAGAState(): VisualizationSAGAState | null {
@@ -542,10 +543,10 @@ this.sleep(12000)
   }
 
   getVisualizationRequirements(): any {
-    return this.visualizationSagaState?.requirementsState.extractedRequirements || null;
+    return '';//this.visualizationSagaState?.requirementsState.extractedRequirements || null;
   }
 
   getVisualizationOutput(): any {
-    return this.visualizationSagaState?.reportState.finalOutput || null;
+    return '';//this.visualizationSagaState?.reportState.finalOutput || null;
   }
 }

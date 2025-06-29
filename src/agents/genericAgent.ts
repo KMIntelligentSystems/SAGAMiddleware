@@ -60,7 +60,7 @@ export class GenericAgent {
       await this.refreshMCPCapabilities();
 
       this.receiveContext(contextData);
-      const prompt = this.buildPrompt(contextData);
+      const prompt = this.createPrompt();//buildPrompt(contextData);
       const llmResult = await this.invokeLLM(prompt);
       
       const result = llmResult;
@@ -83,7 +83,7 @@ export class GenericAgent {
   }
 
   private  receiveContext(contextData: Record<string, any>) {
-    const baseContext = { ...this.definition.context, ...contextData };
+    const baseContext = contextData;
         this.context = `${this.definition.name} received context: \n${contextData}`;
     }
 
@@ -114,7 +114,7 @@ export class GenericAgent {
     }
 
   private buildPrompt(contextData: Record<string, any>): string {
-    const baseContext = { ...this.definition.context, ...contextData };
+    const baseContext = contextData;
     
     let prompt = `Task: ${this.definition.taskDescription}\n\n`;
     

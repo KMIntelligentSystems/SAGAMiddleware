@@ -27,6 +27,10 @@ export class ContextManager {
     this.currentContextSet = contextSet as  ContextSetDefinition;
   }
 
+   getActiveContextSet(): ContextSetDefinition{
+    return this.currentContextSet as ContextSetDefinition;
+  }
+
   updateContext(agentName: string, updates: Partial<WorkingMemory>): void {
     const current = this.workingMemory.get(agentName) || {};
     this.setContext(agentName, { ...current, ...updates });

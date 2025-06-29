@@ -32,7 +32,7 @@ export interface AgentDefinition {
   taskExpectedOutput: string;
   llmConfig: LLMConfig;
   //expectedOutput: any;
-  context: Record<string, any>;
+  context?: Record<string, any>;
   dependencies: AgentDependency[];
   //from agent in Main 
   //dependents: Agent[];

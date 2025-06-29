@@ -1,4 +1,5 @@
 import { Transaction, CompensableOperation } from '../types/index.js';
+import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 
 export class TransactionManager {
   private transactions: Map<string, Transaction> = new Map();

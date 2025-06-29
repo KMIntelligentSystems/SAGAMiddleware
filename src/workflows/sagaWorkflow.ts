@@ -100,7 +100,7 @@ export class SagaWorkflow {
     console.log(`✅ Data indexed: ${dataSource.chunkCount} chunks available`);*/
 
     // Register SAGA agents
-    this.registerVisualizationSAGAAgents();
+    this.registerAgents();
 
     // Set up event listeners
     this.setupEventListeners();
@@ -159,7 +159,7 @@ export class SagaWorkflow {
         transactionId: 'tx-1',
         backstory: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
         taskDescription: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
-        context: { dataSources: defaultDataSources },
+      //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Complete requirements specification for visualization'
       },
       {
@@ -167,7 +167,7 @@ export class SagaWorkflow {
         transactionId: 'tx-2',
         backstory: 'Query and filter data from CSV files based on validated requirements.',
         taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
-        context: { dataSources: defaultDataSources },
+      //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Filtered dataset ready for visualization'
       }
     ];
@@ -192,7 +192,7 @@ export class SagaWorkflow {
     console.log('✅ Default context set registered and activated for visualization transaction set');
   }
 
-   private registerVisualizationSAGAAgents(): void {
+   private registerAgents(): void {
       console.log('🔧 Registering Visualization SAGA agents...');
 
       // Get all llmPrompts and extract unique agent names
@@ -208,7 +208,8 @@ export class SagaWorkflow {
         
         if (agentName === 'DataFilteringAgent') {
           agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
-        } else {
+        } 
+         else {
           agent = this.createAgentFromLLMPrompts(agentName);
         }
         
@@ -237,7 +238,7 @@ export class SagaWorkflow {
       let mcpTools: string[] = [];
       
       // Determine agent type and configuration based on agent name
-      if (agentName === 'data_filtering') {
+      if (agentName === 'DataFilteringAgent') {
         agentType = 'tool';
         mcpTools = ['semantic_search'];
         llmConfig = {
@@ -259,17 +260,17 @@ export class SagaWorkflow {
       }
 
       // Create base context from llmPrompts
-      let context = basePrompt.context || {};
+    /*  let context = basePrompt.context || {};
       
       // Add specific context for data_filtering agent
-      if (agentName === 'data_filtering') {
+      if (agentName === 'DataFilteringAgent') {
         context = {
           ...context,
           collection: 'supply_analysis',
           maxChunks: 50
         };
-      }
-
+      }*/
+      let context = basePrompt.context || {};
       // Create agent definition using information from llmPrompts
       const agentDefinition: AgentDefinition = {
         name: agentName,
@@ -279,9 +280,8 @@ export class SagaWorkflow {
         llmConfig,
         context,
         dependencies: [],
-        agentType,
-        mcpServers: mcpServers || [],
-        mcpTools
+        agentType: 'processing',
+        mcpServers: mcpServers || []
       };
 
       return agentDefinition;
