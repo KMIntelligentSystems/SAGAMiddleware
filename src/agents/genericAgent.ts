@@ -1,5 +1,6 @@
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
 import { mcpClientManager } from '../mcp/mcpClient.js';
+import { OpenAI } from 'openai';
 
 export class GenericAgent {
   private availableTools: any[] = [];
@@ -52,7 +53,7 @@ export class GenericAgent {
       .map(dep => dep.agentName);
   }
 
-  async execute(contextData: Record<string, any> = {}): Promise<AgentResult> {
+  async execute(contextData: Record<string, any>): Promise<AgentResult> {
     const startTime = new Date();
     
     try {
@@ -61,6 +62,7 @@ export class GenericAgent {
 
       this.receiveContext(contextData);
       const prompt = this.createPrompt();//buildPrompt(contextData);
+      console.log("PROMPT ",prompt)
       const llmResult = await this.invokeLLM(prompt);
       
       const result = llmResult;
@@ -83,8 +85,9 @@ export class GenericAgent {
   }
 
   private  receiveContext(contextData: Record<string, any>) {
-    const baseContext = contextData;
-        this.context = `${this.definition.name} received context: \n${contextData}`;
+    const baseContext: string = JSON.stringify(contextData);
+        this.context = `${this.definition.name} received context: \n${baseContext}`;
+        console.log("CONTEXT 1 ", this.context)
     }
 
    createPrompt(): string {
@@ -166,20 +169,20 @@ export class GenericAgent {
     return prompt;
   }
 
-  private async invokeLLM(prompt: string): Promise<string> {
+  private async invokeLLM(prompt: string): Promise<AgentResult> {
     const config = this.definition.llmConfig;
     
     switch (config.provider) {
       case 'openai':
         return await this.invokeOpenAI(prompt, config);
       case 'anthropic':
-        return await this.invokeAnthropic(prompt, config);
+       // return await this.invokeAnthropic(prompt, config);
       default:
         throw new Error(`Unsupported LLM provider: ${config.provider}`);
     }
   }
 
-  private async invokeOpenAI(prompt: string, config: LLMConfig): Promise<string> {
+  private async invokeOpenAI(prompt: string, config: LLMConfig): Promise<AgentResult> {
     const { OpenAI } = await import('openai');
     
     const client = new OpenAI({
@@ -190,6 +193,7 @@ export class GenericAgent {
     if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
       const tools = this.availableTools.map(tool => {
         // Fix schema for get_chunks tool
+        console.log("TOOL NAME ",tool.name)
         if (tool.name === 'get_chunks') {
           return {
             type: "function" as const,
@@ -266,24 +270,41 @@ export class GenericAgent {
       });
       
       // For chunk_requester agent, ALWAYS force tool calls
-      const isChunkRequester = this.definition.name === 'chunk_requester';
-      console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
+    //  const isChunkRequester = this.definition.name === 'chunk_requester';
+   //   console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
       
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', isChunkRequester);
+      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai'/*, isChunkRequester*/);
     }
 
-    // No tools available, use regular completion
+   const userMessage: OpenAI.ChatCompletionMessageParam = {
+    role: "user",
+    content: prompt,
+  };
     const response = await client.chat.completions.create({
+       messages: [userMessage],
+        model: config.model,
+        temperature: 0.3,
+     //   maxTokens: 3000,
+    });
+   return  {
+     agentName: this.getName(),
+     result: response.choices[0].message.content as string,
+     success: true,
+     timestamp: new Date()}
+ 
+    // No tools available, use regular completion
+  /*  const response = await client.chat.completions.create({
       model: config.model,
       messages: [{ role: "user", content: prompt }],
       temperature: config.temperature || 0.7,
       max_tokens: config.maxTokens || 1000
     });
 
-    return response.choices[0].message.content || "";
+    return response.choices[0].message.content || "";*/
+  
   }
 
-  private async invokeAnthropic(prompt: string, config: LLMConfig): Promise<string> {
+  private async invokeAnthropic(prompt: string, config: LLMConfig): Promise<AgentResult> {
     const { Anthropic } = await import('@anthropic-ai/sdk');
     
     const client = new Anthropic({
@@ -376,13 +397,25 @@ export class GenericAgent {
       messages: [{ role: "user", content: prompt }]
     });
 
-    return response.content
+    const message = response.content
       .filter(content => content.type === 'text')
       .map(content => content.type === 'text' ? content.text : '')
       .join('');
+
+     return  {
+     agentName: this.getName(),
+     result: message,
+     success: true,
+     timestamp: new Date()}
+    
+
+  /*  return response.content
+      .filter(content => content.type === 'text')
+      .map(content => content.type === 'text' ? content.text : '')
+      .join('');*/
   }
 
-  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = false): Promise<string> {
+  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = false): Promise<AgentResult> {
     // Create conversation loop to handle multiple tool calls
     let conversationHistory: any[] = [{ role: "user", content: prompt }];
     let maxIterations = 5; // Allow more iterations for finding data
@@ -546,7 +579,13 @@ export class GenericAgent {
     // If we reach here, return the last response instead of throwing error
     const lastMessage = conversationHistory[conversationHistory.length - 1];
     if (lastMessage && lastMessage.content) {
-      return typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
+   //   return typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
+
+    return  {
+     agentName: this.getName(),
+     result: lastMessage.content  as string,
+     success: true,
+     timestamp: new Date()}
     }
     
     throw new Error("Maximum tool call iterations reached and no valid response found");

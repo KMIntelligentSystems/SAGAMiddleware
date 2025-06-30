@@ -285,7 +285,7 @@ export class TransactionRegistry extends EventEmitter {
   public getTransactionSet(name: string): TransactionSetDefinition | undefined {
     return this.transactionSets.get(name);
   }
-
+//Set up to return  this.activeTransactionSet = name = 'visulaization' see setActiveTransactionSet
   public getActiveTransactionSet(): TransactionSetDefinition | undefined {
     if (!this.activeTransactionSet) {
       return undefined;
@@ -304,7 +304,7 @@ export class TransactionRegistry extends EventEmitter {
   public getAllTransactionSets(): string[] {
     return Array.from(this.transactionSets.keys());
   }
-
+//Set from registerDefaultTransactionSet() not event listener
   public setActiveTransactionSet(name: string): void {
     if (!this.transactionSets.has(name)) {
       throw new Error(`Transaction set not found: ${name}`);

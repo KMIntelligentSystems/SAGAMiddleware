@@ -42,7 +42,7 @@ export interface ContextSetDefinition {
   description?: string;
   dataSources: DataSource[];
   llmPrompts: LLMPromptConfig[];
-  
+  userQuery: string;
 }
 
 export interface ContextSetPayload {
@@ -161,7 +161,7 @@ export class ContextRegistry extends EventEmitter {
         transactionSetName: contextDataSet.transactionSetName,
         dataSources: contextDataSet.dataSources,
         llmPrompts: contextDataSet.llmPrompts,
-      
+        userQuery: ''
       };
       
       // Register the context set

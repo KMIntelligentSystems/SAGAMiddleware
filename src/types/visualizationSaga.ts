@@ -125,6 +125,14 @@ export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
   },
   {
     id: 'tx-2',
+    name: 'Index files',
+    agentName: 'DataProcessingAgent',
+     dependencies: ['tx-3'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  },
+  {
+    id: 'tx-3',
     name: 'Apply RAG Tool',
     agentName: 'DataFilteringAgent',
     dependencies: [],

@@ -1,4 +1,9 @@
+import { assert } from 'console';
 import OpenAI from 'openai';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 export interface ThreadMessage {
   threadId: string;
@@ -22,15 +27,15 @@ export interface ThreadResponse {
  * - No conversation state (handled by ConversationAgent via SAGA)
  */
 export class ConversationManager {
-  private openaiClient: OpenAI;
-  private assistantId: string;
-
-  constructor(assistantId: string) {
-    this.openaiClient = new OpenAI({
+  private openaiClient: OpenAI = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
-    });
+    });;
+  private assistantId: string;
+  constructor(assistantId: string) {
     this.assistantId = assistantId;
   }
+
+  
 
   /**
    * Fetch the latest user message from OpenAI thread

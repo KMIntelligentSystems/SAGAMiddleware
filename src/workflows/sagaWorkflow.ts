@@ -51,7 +51,7 @@ export class SagaWorkflow {
     this.contextRegistry = new ContextRegistry(contextConfig);
     
     // Initialize ConversationManager
-    this.conversationManager = new ConversationManager(process.env.OPENAI_ASSISTANT_ID || '');
+    this.conversationManager = new ConversationManager( process.env.ASSISTANT_ID  || '');
   }
 
   async initialize(): Promise<void> {
@@ -59,7 +59,7 @@ export class SagaWorkflow {
 
     console.log('🚀 Initializing Visualization SAGA Processor...');
     
-    // Initialize TransactionRegistry first
+    // Initialize TransactionRegistry first set up event bus listener
     await this.transactionRegistry.initialize();
     
     // Register default visualization transaction set
@@ -156,12 +156,12 @@ export class SagaWorkflow {
      
       {
         agentName: 'ConversationAgent',
-        agentType: 'tool',
+        agentType: 'processing',
         transactionId: 'tx-1',
-        backstory: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
-        taskDescription: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
+        backstory: 'Manage conversation with user as an intermediary passing user instructions to other agentw.',
+        taskDescription: 'Understand the user instructions.',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Complete requirements specification for visualization'
+        taskExpectedOutput: 'Provide logically structured understanding of the user instructions'
       },
       {
         agentName: 'DataProcessingAgent',
@@ -170,11 +170,11 @@ export class SagaWorkflow {
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Clear instructions for tool calls to index a file '
+        taskExpectedOutput: 'Pass on relevant information concerning the collection so that other agents can operate against that collection '
       },
       {
         agentName: 'DataFilteringAgent',
-        agentType: 'processing',
+        agentType: 'tool',
         transactionId: 'tx-3',
         backstory: 'Query and filter data from CSV files based on validated requirements.',
         taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
@@ -189,6 +189,7 @@ export class SagaWorkflow {
       description: 'Default context set for visualization SAGA with CSV data sources',
       dataSources: defaultDataSources,
       llmPrompts: defaultLLMPrompts,
+      userQuery: this.currentUserMessage as string
     };
     
     // Register the context set
@@ -408,10 +409,10 @@ export class SagaWorkflow {
       // Send error response back to thread if possible
       if (this.currentThreadId) {
         try {
-          await this.conversationManager.sendResponseToThread(
+        /*  await this.conversationManager.sendResponseToThread(
             this.currentThreadId, 
             'I encountered an error processing your request. Please try again.'
-          );
+          );*/
         } catch (responseError) {
           console.error('❌ Failed to send error response to thread:', responseError);
         }
@@ -522,9 +523,10 @@ export class SagaWorkflow {
       if (!activeTransactionSet) {
         throw new Error('No active transaction set found');
       }
-      
+      console.log("COUNT TRSN ", activeTransactionSet.transactions.length)
       // Get the active context set for this transaction set
       const activeContextSet = this.contextRegistry.getContextSetForTransactionSet(activeTransactionSet.name);
+      // Using context set: default_visualization_context for transaction set: visualization
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
       
       // Add thread-specific context to the browser request
@@ -535,20 +537,20 @@ export class SagaWorkflow {
       
       // Execute SAGA through coordinator
       const result = await this.coordinator.executeVisualizationSAGA(
-        threadRequest,
+        browserRequest,
         `thread_saga_${threadId}_${Date.now()}`,
         activeTransactionSet.transactions,
         activeContextSet
       );
-      
+      console.log("RESGULT W", result.result)
       // Send response back to thread
       if (result.success) {
         const responseMessage = result.result || 'Your request has been processed successfully.';
-        await this.conversationManager.sendResponseToThread(threadId, responseMessage);
+     //   await this.conversationManager.sendResponseToThread(threadId, responseMessage);
         console.log(`✅ Thread SAGA completed successfully for thread: ${threadId}`);
       } else {
         const errorMessage = `I encountered an issue processing your request: ${result.error || 'Unknown error'}`;
-        await this.conversationManager.sendResponseToThread(threadId, errorMessage);
+     //   await this.conversationManager.sendResponseToThread(threadId, errorMessage);
         console.log(`❌ Thread SAGA failed for thread: ${threadId}`);
       }
       
@@ -558,7 +560,7 @@ export class SagaWorkflow {
       // Send error response to thread
       try {
         const errorMessage = 'I encountered a technical error. Please try again or rephrase your request.';
-        await this.conversationManager.sendResponseToThread(threadId, errorMessage);
+       // await this.conversationManager.sendResponseToThread(threadId, errorMessage);
       } catch (responseError) {
         console.error('❌ Failed to send error response to thread:', responseError);
       }

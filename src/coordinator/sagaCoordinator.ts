@@ -194,12 +194,12 @@ sleep(ms: number) {
     console.log(`🚀 Starting Visualization SAGA: ${workflowId}`);
     
     // Use provided transaction ordering or fall back to default
-    const transactionsToExecute = transactionOrdering || VISUALIZATION_TRANSACTIONS;
-    
+    const transactionsToExecute = transactionOrdering as VisualizationTransaction[];//|| VISUALIZATION_TRANSACTIONS;
+    console.log("transactionsToExecute COUNT ", transactionsToExecute.length)
    // this.initializeVisualizationSAGA(workflowId, request, transactionsToExecute.length);
     
-    const transactionId = await this.transactionManager.startTransaction('visualization_saga');
-    
+    //const transactionId = await this.transactionManager.startTransaction('visualization_saga');
+    let counter = 0;
     try {
       // Store the current executing transaction set and context set
       this.currentExecutingTransactionSet = transactionsToExecute;
@@ -214,8 +214,6 @@ sleep(ms: number) {
       // VISUALIZATION_TRANSACTIONS:VisualizationTransaction
       
       for (const transaction of transactionsToExecute) {
-       
-        
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
         this.emit('visualization_transaction_started', { 
           transaction: transaction.id, 
@@ -224,8 +222,8 @@ sleep(ms: number) {
         });
     
         const result = await this.executeVisualizationTransaction(transaction, request); 
-        this.visualizationSagaState!.currentTransaction++;
-
+        counter++;
+        console.log("RRESULT ", result.result)
         
         if (!result.success) {
           console.log(`❌ Transaction failed: ${transaction.name} - ${result.error}`);
@@ -238,36 +236,38 @@ sleep(ms: number) {
         }
         //Get previous result to put into the context of the next agent to run. The previous result will have instructions for the next agent
         const prevContextSet = contextSet as ContextSetDefinition
-        prevContextSet.llmPrompts[this.visualizationSagaState!.currentTransaction].context = {'currResult': result.result};
+        prevContextSet.llmPrompts[counter].context = {'currResult': result.result};
         const nextContextSet: ContextSetDefinition = {
          name: '',
         transactionSetName: '', // Links to a transaction set
         dataSources: [],
-        llmPrompts: [prevContextSet.llmPrompts[this.visualizationSagaState!.currentTransaction] ]
+        llmPrompts: [prevContextSet.llmPrompts[counter] ],
+        userQuery: ''
       };
         this.contextManager.setActiveContextSet(nextContextSet);
 
         // Update context with transaction result
-        this.contextManager.updateContext(transaction.agentName, {
+      /*  this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: result.result,
           transactionId: transaction.id,
           timestamp: new Date()
-        });
+        });*/
 
         console.log(`✅ Transaction completed: ${transaction.name}`);
+          // All transactions completed successfully
+     /*   this.visualizationSagaState!.status = 'completed';
+       this.visualizationSagaState!.endTime = new Date();
         this.emit('visualization_transaction_completed', { 
           transaction: transaction.id,
           name: transaction.name, 
           result: result.result,
           sagaState: this.visualizationSagaState
-        });
+        });*/
       }
 
-      // All transactions completed successfully
-      this.visualizationSagaState!.status = 'completed';
-      this.visualizationSagaState!.endTime = new Date();
+    
       
-      await this.transactionManager.commitTransaction(transactionId);
+    //  await this.transactionManager.commitTransaction(transactionId);
       
       console.log(`🎉 Visualization SAGA completed successfully: ${workflowId}`);
       this.emit('visualization_saga_completed', this.visualizationSagaState);
@@ -292,7 +292,7 @@ sleep(ms: number) {
       };
 
     } catch (error) {
-      await this.transactionManager.rollbackTransaction(transactionId);
+   //   await this.transactionManager.rollbackTransaction(transactionId);
       
       this.visualizationSagaState!.status = 'failed';
       this.visualizationSagaState!.endTime = new Date();
@@ -344,9 +344,9 @@ sleep(ms: number) {
     
     // Execute the transaction
     const result = await agent.execute(context);
-    
+    console.log("RESULT ", result.result)
     // Update SAGA state based on transaction
-    this.updateVisualizationSAGAState(transaction.id, result);
+  /*  this.updateVisualizationSAGAState(transaction.id, result);
     
     // Record compensation action if transaction succeeded
     if (result.success && transaction.compensationAction) {
@@ -357,7 +357,7 @@ sleep(ms: number) {
         executed: false,
         timestamp: new Date()
       });
-    }
+    }*/
 
     return result;
   }
@@ -366,21 +366,16 @@ sleep(ms: number) {
     transaction: VisualizationTransaction, 
     request: VisualizationWorkflowRequest
   ): Promise<Record<string, any>> {
-    const baseContext = {
-      transactionId: transaction.id,
-      transactionName: transaction.name,
-      transactionAgent: transaction.agentName,
-      sagaState: this.visualizationSagaState,
-      workflowRequest: request
-    };
+    const currContextSet = this.contextManager.getActiveContextSet();
+   
 
     let context: Record<string, any> = {}
     let activeContext = 'data sources:';
     let userQuery = 'user query';
     let counter = 1;
-    if(baseContext.sagaState?.currentTransaction == 0){
-      const contextSet = this.contextManager.getActiveContextSet();
-      for(const dataSource of contextSet.dataSources){
+    if(currContextSet.userQuery != ''){
+     // const contextSet = this.contextManager.getActiveContextSet();
+      for(const dataSource of currContextSet.dataSources){
         if(dataSource.path && dataSource.type == 'csv'){
           activeContext = activeContext + counter++ + ':' + 'path:' + dataSource.path + ','
         }
@@ -432,6 +427,7 @@ sleep(ms: number) {
       
       console.log(`📊 Added context for ${transaction.agentName}:${transaction.id} - ${this.currentContextSet.dataSources.length} data sources, ${relevantPrompts.length} prompts`);
     }*/
+    console.log(`💥 CONTEXT: ${context}`);
 
     return context;//, ...contextRegistryData 
   }
