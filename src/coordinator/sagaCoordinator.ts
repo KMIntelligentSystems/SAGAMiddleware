@@ -236,7 +236,7 @@ sleep(ms: number) {
           
           throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
         }
-        
+        //Get previous result to put into the context of the next agent to run. The previous result will have instructions for the next agent
         const prevContextSet = contextSet as ContextSetDefinition
         prevContextSet.llmPrompts[this.visualizationSagaState!.currentTransaction].context = {'currResult': result.result};
         const nextContextSet: ContextSetDefinition = {
