@@ -156,6 +156,7 @@ export class SagaWorkflow {
      
       {
         agentName: 'ConversationAgent',
+        agentType: 'tool',
         transactionId: 'tx-1',
         backstory: 'Manage conversation with user to extract detailed visualization requirements from the available CSV data sources.',
         taskDescription: 'Ask clarifying questions about time ranges, data fields, chart types, and filtering preferences.',
@@ -163,8 +164,18 @@ export class SagaWorkflow {
         taskExpectedOutput: 'Complete requirements specification for visualization'
       },
       {
-        agentName: 'DataFilteringAgent',
+        agentName: 'DataProcessingAgent',
+        agentType: 'tool',
         transactionId: 'tx-2',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Clear instructions for tool calls to index a file '
+      },
+      {
+        agentName: 'DataFilteringAgent',
+        agentType: 'processing',
+        transactionId: 'tx-3',
         backstory: 'Query and filter data from CSV files based on validated requirements.',
         taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
       //  context: { dataSources: defaultDataSources },
@@ -209,6 +220,9 @@ export class SagaWorkflow {
         if (agentName === 'DataFilteringAgent') {
           agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
         } 
+         else if (agentName === 'DataProcessingAgent'){
+            agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
+        } 
          else {
           agent = this.createAgentFromLLMPrompts(agentName);
         }
@@ -248,7 +262,19 @@ export class SagaWorkflow {
           maxTokens: promptParams.maxTokens || 2000,
           apiKey: process.env.OPENAI_API_KEY
         };
-      } else {
+      } 
+      if (agentName === 'DataProcessingAgent') {
+        agentType = 'tool';
+        mcpTools = ['index_file'];
+        llmConfig = {
+          provider:  'openai',
+          model:  'gpt-4o-mini',
+          temperature: promptParams.temperature || 0.2,
+          maxTokens: promptParams.maxTokens || 2000,
+          apiKey: process.env.OPENAI_API_KEY
+        };
+      } 
+      else {
         agentType = 'processing';
         llmConfig = {
           provider:  'openai',
