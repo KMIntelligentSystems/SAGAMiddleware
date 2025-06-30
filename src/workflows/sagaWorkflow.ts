@@ -212,18 +212,21 @@ export class SagaWorkflow {
         throw new Error('No context set found for visualization transaction set');
       }
       const uniqueAgentNames = [...new Set(contextSet.llmPrompts.map(prompt => prompt.agentName))];
+      
+      // Extract agent types for each unique agent
+      const agentTypes = new Map<string, string>();
+      for (const prompt of contextSet.llmPrompts) {
+        agentTypes.set(prompt.agentName, prompt.agentType);
+      }
 
       // Create agents dynamically from llmPrompts
       for (const agentName of uniqueAgentNames) {
         let agent: AgentDefinition;
+        const agentType = agentTypes.get(agentName);
         
-        if (agentName === 'DataFilteringAgent') {
+        if (agentType === 'tool') {
           agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
-        } 
-         else if (agentName === 'DataProcessingAgent'){
-            agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
-        } 
-         else {
+        } else {
           agent = this.createAgentFromLLMPrompts(agentName);
         }
         
@@ -247,43 +250,18 @@ export class SagaWorkflow {
       
       // Get LLM configuration from prompt parameters if available, otherwise use defaults
       const promptParams = basePrompt.parameters || {};
-      let llmConfig: LLMConfig;
-      let agentType: 'tool' | 'processing';
-      let mcpTools: string[] = [];
       
-      // Determine agent type and configuration based on agent name
-      if (agentName === 'DataFilteringAgent') {
-        agentType = 'tool';
-        mcpTools = ['semantic_search'];
-        llmConfig = {
-          provider:  'openai',
-          model:  'gpt-4o-mini',
-          temperature: promptParams.temperature || 0.2,
-          maxTokens: promptParams.maxTokens || 2000,
-          apiKey: process.env.OPENAI_API_KEY
-        };
-      } 
-      if (agentName === 'DataProcessingAgent') {
-        agentType = 'tool';
-        mcpTools = ['index_file'];
-        llmConfig = {
-          provider:  'openai',
-          model:  'gpt-4o-mini',
-          temperature: promptParams.temperature || 0.2,
-          maxTokens: promptParams.maxTokens || 2000,
-          apiKey: process.env.OPENAI_API_KEY
-        };
-      } 
-      else {
-        agentType = 'processing';
-        llmConfig = {
-          provider:  'openai',
-          model: promptParams.model || 'gpt-4o',
-          temperature: promptParams.temperature || 0.3,
-          maxTokens: promptParams.maxTokens || 1500,
-          apiKey: process.env.OPENAI_API_KEY
-        };
-      }
+      // Get agent type from llmPrompts
+      const agentType = basePrompt.agentType as 'tool' | 'processing';
+      
+      // Create LLM config based on agent type
+      const llmConfig: LLMConfig = {
+        provider: 'openai',
+        model: promptParams.model || (agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o'),
+        temperature: promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),
+        maxTokens: promptParams.maxTokens || (agentType === 'tool' ? 2000 : 1500),
+        apiKey: process.env.OPENAI_API_KEY
+      };
 
       // Create base context from llmPrompts
     /*  let context = basePrompt.context || {};
@@ -306,7 +284,7 @@ export class SagaWorkflow {
         llmConfig,
         context,
         dependencies: [],
-        agentType: 'processing',
+        agentType: agentType,
         mcpServers: mcpServers || []
       };
 

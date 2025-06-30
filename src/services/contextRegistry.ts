@@ -23,6 +23,7 @@ export interface DataSource {
 
 export interface LLMPromptConfig {
   agentName: string;
+  agentType: string;
   transactionId: string;
   backstory: string;
   taskDescription: string;

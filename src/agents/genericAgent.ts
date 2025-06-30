@@ -218,6 +218,37 @@ export class GenericAgent {
               }
             }
           };
+        } else if (tool.name === 'index-file') {
+          return {
+            type: "function" as const,
+            function: {
+              name: tool.name,
+              description: "Index a file into a vector collection",
+              parameters: {
+                type: "object",
+                properties: {
+                  filePath: { 
+                    type: "string", 
+                    description: "Path to the file to index" 
+                  },
+                  collection: { 
+                    type: "string", 
+                    description: "Name of the collection to store the indexed data" 
+                  },
+                  metadata: {
+                    type: "object",
+                    description: "Optional metadata for the indexed file",
+                    properties: {
+                      type: { type: "string" },
+                      source: { type: "string" },
+                      indexedAt: { type: "string" }
+                    }
+                  }
+                },
+                required: ["filePath", "collection"]
+              }
+            }
+          };
         }
         
         return {
@@ -286,6 +317,34 @@ export class GenericAgent {
                 }
               },
               required: ["collection"]
+            }
+          };
+        } else if (tool.name === 'index-file') {
+          return {
+            name: tool.name,
+            description: "Index a file into a vector collection",
+            input_schema: {
+              type: "object",
+              properties: {
+                filePath: { 
+                  type: "string", 
+                  description: "Path to the file to index" 
+                },
+                collection: { 
+                  type: "string", 
+                  description: "Name of the collection to store the indexed data" 
+                },
+                metadata: {
+                  type: "object",
+                  description: "Optional metadata for the indexed file",
+                  properties: {
+                    type: { type: "string" },
+                    source: { type: "string" },
+                    indexedAt: { type: "string" }
+                  }
+                }
+              },
+              required: ["filePath", "collection"]
             }
           };
         }
