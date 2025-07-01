@@ -170,16 +170,25 @@ export class SagaWorkflow {
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Pass on relevant information concerning the collection so that other agents can operate against that collection '
+        taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
       },
       {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
         transactionId: 'tx-3',
-        backstory: 'Query and filter data from CSV files based on validated requirements.',
-        taskDescription: 'Use the CSV data sources to extract relevant data matching user requirements.',
+        backstory: 'Query and filter data from vectorized CSV files based on validated requirements.',
+        taskDescription: 'Use the vectorized CSV data chunks to extract relevant data matching user requirements.',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Filtered dataset ready for visualization'
+        taskExpectedOutput: 'Provide all the processed data for another agent to structure'
+      },
+      {
+        agentName: 'DataVisualizationAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4',
+        backstory: 'You compute the values that meet the requirements for data visualization.',
+        taskDescription: 'Provide a clear summary of the data so that it can be used by a graphing agent to meet the requirements of the visualiization type.',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: ''
       }
     ];
     
@@ -529,11 +538,6 @@ export class SagaWorkflow {
       // Using context set: default_visualization_context for transaction set: visualization
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
       
-      // Add thread-specific context to the browser request
-      const threadRequest: BrowserGraphRequest = {
-        ...browserRequest,
-     
-      };
       
       // Execute SAGA through coordinator
       const result = await this.coordinator.executeVisualizationSAGA(
@@ -542,7 +546,7 @@ export class SagaWorkflow {
         activeTransactionSet.transactions,
         activeContextSet
       );
-      console.log("RESGULT W", result.result)
+      console.log('HEERERERWQRWER')
       // Send response back to thread
       if (result.success) {
         const responseMessage = result.result || 'Your request has been processed successfully.';

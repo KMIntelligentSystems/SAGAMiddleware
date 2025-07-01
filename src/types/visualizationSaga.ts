@@ -135,7 +135,15 @@ export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
     id: 'tx-3',
     name: 'Apply RAG Tool',
     agentName: 'DataFilteringAgent',
-    dependencies: [],
+    dependencies: ['tx-4'],
+    compensationAction: 'cleanup_thread',
+    status: 'pending'
+  },
+  {
+    id: 'tx-4',
+    name: 'Data Visualizer',
+    agentName: 'DataVisualizationAgent',
+    dependencies: ['tx-3'],
     compensationAction: 'cleanup_thread',
     status: 'pending'
   }

@@ -215,14 +215,9 @@ sleep(ms: number) {
       
       for (const transaction of transactionsToExecute) {
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
-        this.emit('visualization_transaction_started', { 
-          transaction: transaction.id, 
-          name: transaction.name,
-          sagaState: this.visualizationSagaState 
-        });
+       
     
         const result = await this.executeVisualizationTransaction(transaction, request); 
-        counter++;
         console.log("RRESULT ", result.result)
         
         if (!result.success) {
@@ -235,17 +230,24 @@ sleep(ms: number) {
           throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
         }
         //Get previous result to put into the context of the next agent to run. The previous result will have instructions for the next agent
-        const prevContextSet = contextSet as ContextSetDefinition
-        prevContextSet.llmPrompts[counter].context = {'currResult': result.result};
-        const nextContextSet: ContextSetDefinition = {
-         name: '',
-        transactionSetName: '', // Links to a transaction set
-        dataSources: [],
-        llmPrompts: [prevContextSet.llmPrompts[counter] ],
-        userQuery: ''
-      };
-        this.contextManager.setActiveContextSet(nextContextSet);
-
+        if(contextSet && counter < contextSet.llmPrompts.length - 1){
+            const prevContextSet = contextSet as ContextSetDefinition
+            const nextPromptIndex = counter + 1;
+            if (prevContextSet.llmPrompts[nextPromptIndex]) {
+              prevContextSet.llmPrompts[nextPromptIndex].context = {'currResult': result.result};
+              const nextContextSet: ContextSetDefinition = {
+                name: '',
+                transactionSetName: '', // Links to a transaction set
+                dataSources: [],
+                llmPrompts: [prevContextSet.llmPrompts[nextPromptIndex] ],
+                userQuery: ''
+              };
+              this.contextManager.setActiveContextSet(nextContextSet);
+            }
+        }
+        counter++;
+    
+    
         // Update context with transaction result
       /*  this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: result.result,
@@ -265,44 +267,24 @@ sleep(ms: number) {
         });*/
       }
 
-    
-      
+  
     //  await this.transactionManager.commitTransaction(transactionId);
       
       console.log(`🎉 Visualization SAGA completed successfully: ${workflowId}`);
-      this.emit('visualization_saga_completed', this.visualizationSagaState);
 
-      return {
+ return {
         agentName: 'visualization_saga_coordinator',
-        result: {
-          sagaState: this.visualizationSagaState,
-          finalOutput: '',//this.visualizationSagaState?.reportState.finalOutput,
-          summary: {
-            totalTransactions: this.visualizationSagaState?.totalTransactions || 0,
-            processingTime: this.visualizationSagaState?.endTime 
-              ? this.visualizationSagaState.endTime.getTime() - this.visualizationSagaState.startTime.getTime()
-              : 0,
-            requirementsGathered: false,//this.visualizationSagaState?.requirementsState.conversationComplete || false,
-            dataFiltered: false,//this.visualizationSagaState?.dataFilteringState.filteringComplete || false,
-            chartSpecGenerated: false,//this.visualizationSagaState?.chartSpecState.specificationGenerated || false
-          }
-        },
+        result: '',
         success: true,
         timestamp: new Date()
       };
-
     } catch (error) {
    //   await this.transactionManager.rollbackTransaction(transactionId);
       
-      this.visualizationSagaState!.status = 'failed';
-      this.visualizationSagaState!.endTime = new Date();
+  //  💥 Visualization SAGA failed: thread_saga_thread_JO596op9tdbjiJaySjJPQe21_1751344836444 - TypeError: Cannot set properties of undefined (setting 'context')
       
       console.log(`💥 Visualization SAGA failed: ${workflowId} - ${error}`);
-      this.emit('visualization_saga_failed', { 
-        sagaState: this.visualizationSagaState, 
-        error: error instanceof Error ? error.message : String(error) 
-      });
-
+    
       return {
         agentName: 'visualization_saga_coordinator',
         result: null,
@@ -327,12 +309,13 @@ sleep(ms: number) {
     }
 
     // Check dependencies are satisfied (use the current transaction set being executed)
-  /*  for (const depId of transaction.dependencies) {
+ /*  for (const depId of transaction.dependencies) {
       // Find dependency in the current transaction set being executed
       const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
       const depTransaction = transactionsToExecute.find(t => t.id === depId);
       if (depTransaction) {
         const depContext = this.contextManager.getContext(depTransaction.agentName);
+        console.log("DEPS   ", depContext)
         if (!depContext?.lastTransactionResult) {
           throw new Error(`Dependency ${depId} not satisfied for transaction ${transaction.id}`);
         }
@@ -383,7 +366,9 @@ sleep(ms: number) {
       userQuery = userQuery + request.userQuery;
       context = {"initial context": userQuery + '-----------------' + activeContext}
     } else {
-      context = {"next context": this.contextManager.getActiveContextSet()}
+      const nextContext = this.contextManager.getActiveContextSet();
+      nextContext.userQuery = request.userQuery as string;
+      context = {"next context": nextContext}
     }
 
     // Add dependency results
