@@ -2,7 +2,8 @@ import { EventEmitter } from 'events';
 import { 
   AgentDefinition, 
   SagaEvent, 
-  AgentResult
+  AgentResult,
+  WorkingMemory
 } from '../types/index.js';
 import { 
   VisualizationSAGAState, 
@@ -195,7 +196,7 @@ sleep(ms: number) {
     
     // Use provided transaction ordering or fall back to default
     const transactionsToExecute = transactionOrdering as VisualizationTransaction[];//|| VISUALIZATION_TRANSACTIONS;
-    console.log("transactionsToExecute COUNT ", transactionsToExecute.length)
+
    // this.initializeVisualizationSAGA(workflowId, request, transactionsToExecute.length);
     
     //const transactionId = await this.transactionManager.startTransaction('visualization_saga');
@@ -234,7 +235,9 @@ sleep(ms: number) {
             const prevContextSet = contextSet as ContextSetDefinition
             const nextPromptIndex = counter + 1;
             if (prevContextSet.llmPrompts[nextPromptIndex]) {
-              prevContextSet.llmPrompts[nextPromptIndex].context = {'currResult': result.result};
+              if(transaction.agentName != 'ConversationAgent'){
+                   prevContextSet.llmPrompts[nextPromptIndex].context = {'currResult': result.result};
+              }
               const nextContextSet: ContextSetDefinition = {
                 name: '',
                 transactionSetName: '', // Links to a transaction set
@@ -249,11 +252,11 @@ sleep(ms: number) {
     
     
         // Update context with transaction result
-      /*  this.contextManager.updateContext(transaction.agentName, {
+        this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: result.result,
           transactionId: transaction.id,
           timestamp: new Date()
-        });*/
+        });
 
         console.log(`✅ Transaction completed: ${transaction.name}`);
           // All transactions completed successfully
@@ -349,72 +352,296 @@ sleep(ms: number) {
     transaction: VisualizationTransaction, 
     request: VisualizationWorkflowRequest
   ): Promise<Record<string, any>> {
-    const currContextSet = this.contextManager.getActiveContextSet();
-   
-
-    let context: Record<string, any> = {}
-    let activeContext = 'data sources:';
-    let userQuery = 'user query';
-    let counter = 1;
-    if(currContextSet.userQuery != ''){
-     // const contextSet = this.contextManager.getActiveContextSet();
-      for(const dataSource of currContextSet.dataSources){
-        if(dataSource.path && dataSource.type == 'csv'){
-          activeContext = activeContext + counter++ + ':' + 'path:' + dataSource.path + ','
+    const currContextSet: ContextSetDefinition = this.contextManager.getActiveContextSet();
+    const conversationContext: WorkingMemory = this.contextManager.getContext('ConversationAgent') as WorkingMemory;
+    
+    let context: Record<string, any> = {};
+    
+    // 1. Extract data sources information to string (if not empty)
+    let dataSourcesText = '';
+    if (currContextSet.dataSources && currContextSet.dataSources.length > 0) {
+      dataSourcesText = 'Data Sources:\n';
+      currContextSet.dataSources.forEach((dataSource, index) => {
+        dataSourcesText += `${index + 1}. ${dataSource.name} (${dataSource.type})`;
+        if (dataSource.path) {
+          dataSourcesText += ` - Path: ${dataSource.path}`;
         }
-      }
-      userQuery = userQuery + request.userQuery;
-      context = {"initial context": userQuery + '-----------------' + activeContext}
-    } else {
-      const nextContext = this.contextManager.getActiveContextSet();
-      nextContext.userQuery = request.userQuery as string;
-      context = {"next context": nextContext}
+        if (dataSource.connectionString) {
+          dataSourcesText += ` - Connection: ${dataSource.connectionString}`;
+        }
+        if (dataSource.tableName) {
+          dataSourcesText += ` - Table: ${dataSource.tableName}`;
+        }
+        dataSourcesText += '\n';
+      });
     }
+    
+    // 2. Always provide the LLM prompt
+    let llmPromptText = '';
+    const relevantPrompt = currContextSet.llmPrompts.find(p => p.agentName === transaction.agentName);
+    if (relevantPrompt) {
+      llmPromptText = `Agent: ${relevantPrompt.agentName}\n`;
+      llmPromptText += `Backstory: ${relevantPrompt.backstory}\n`;
+    //  llmPromptText += `Task Description: ${relevantPrompt.taskDescription}\n`;
+    //  llmPromptText += `Expected Output: ${relevantPrompt.taskExpectedOutput}\n`;
+      
+      // Include existing context if available
+      if (relevantPrompt.context) {
+        llmPromptText += `Additional Context: ${JSON.stringify(relevantPrompt.context)}\n`;
+      }
+    }
+    
+    // 3. Parse user query to extract agent-specific task descriptions
+    let agentSpecificTask = '';
+    if (transaction.agentName === 'ConversationAgent') {
+      // ConversationAgent needs the entire user query for human-in-the-loop conversations
+      agentSpecificTask = request.userQuery || '';
+    } else {
+      // For other agents, first try to get instructions from ConversationAgent's working memory
+      if (conversationContext && conversationContext.lastTransactionResult) {
+        agentSpecificTask = this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+      }
+      
+      // If no conversation context available, fall back to parsing the original user query
+      if (!agentSpecificTask && request.userQuery) {
+        agentSpecificTask = this.parseUserQueryForAgent(request.userQuery, transaction.agentName);
+      }
+    }
+    
+    // Build final context with text-only variables
+    context = {
+      dataSources: dataSourcesText,
+      llmPrompt: llmPromptText,
+      agentSpecificTask: agentSpecificTask
+      //userQuery: request.userQuery || ''
+    };
+    
+    console.log(`📊 Built context for ${transaction.agentName}: data sources (${currContextSet.dataSources?.length || 0}), prompt available: ${!!relevantPrompt}`);
+    
+    return context;
+  }
 
-    // Add dependency results
- /*   const dependencyContext: Record<string, any> = {};
-    for (const depId of transaction.dependencies) {
-      const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
-      const depTransaction = transactionsToExecute.find(t => t.id === depId);
-      if (depTransaction) {
-        const depContext = this.contextManager.getContext(depTransaction.agentName);
-        if (depContext?.lastTransactionResult) {
-          dependencyContext[depId] = depContext.lastTransactionResult;
-          dependencyContext[depTransaction.agentName] = depContext.lastTransactionResult;
+  private parseConversationResultForAgent(conversationResult: any, agentName: string): string {
+    try {
+      // Extract the result string from the conversation context
+      let resultText = '';
+      if (typeof conversationResult === 'string') {
+        resultText = conversationResult;
+      } else if (conversationResult.result) {
+        resultText = conversationResult.result;
+      } else {
+        return '';
+      }
+      // Handle both formats: numbered sections and markdown sections
+      
+      // First try to find numbered sections like "1. Agent name: DataProcessingAgent"
+      const numberedSectionRegex = new RegExp(`\\d+\\.\\s*Agent name:\\s*${agentName}[\\s\\S]*?(?=\\d+\\.\\s*Agent name:|$)`, 'i');
+      let match = resultText.match(numberedSectionRegex);
+      if (!match) {
+        // Try markdown format like "**DataProcessingAgent**"
+        const markdownSectionRegex = new RegExp(`\\*\\*${agentName}\\*\\*[\\s\\S]*?(?=\\d+\\.\\s*\\*\\*\\w+Agent\\*\\*|$)`, 'i');
+        match = resultText.match(markdownSectionRegex);
+      }
+      if (match) {
+        let agentSection = match[0];
+        
+        // Clean up the section by removing markdown formatting and extracting key information
+        agentSection = agentSection.replace(/\*\*|\\\\/g, ''); // Remove markdown bold and escaped characters
+        agentSection = agentSection.replace(/\\n/g, '\n'); // Convert escaped newlines to actual newlines
+        
+        // For numbered sections, extract everything after "Agent name: AgentName"
+        if (agentSection.includes('Agent name:')) {
+          const agentNameIndex = agentSection.indexOf('Agent name:');
+          const afterAgentName = agentSection.substring(agentNameIndex);
+          const lines = afterAgentName.split('\n');
+          
+          let cleanedInstructions = '';
+          for (let i = 1; i < lines.length; i++) { // Skip the "Agent name:" line
+            const trimmedLine = lines[i].trim();
+            if (trimmedLine) {
+              // Clean up the line and add it
+              if (trimmedLine.startsWith('Task description:')) {
+                cleanedInstructions += trimmedLine + '\n';
+              } else if (!trimmedLine.match(/^\d+\.\s*Agent name:/)) {
+                cleanedInstructions += trimmedLine + '\n';
+              }
+            }
+          }
+          
+          console.log(`CLEANED for ${agentName}:`, cleanedInstructions.trim());
+          return cleanedInstructions.trim();
+        } else {
+          // For markdown sections like "**DataProcessingAgent**: content"
+          // Remove the agent name part and extract the content
+          const agentNamePattern = new RegExp(`^${agentName}\\s*:\\s*`, 'i');
+          const content = agentSection.replace(agentNamePattern, '').trim();
+          
+          // Remove any trailing numbered sections that might have been captured
+          const cleanContent = content.replace(/\n\s*\d+\.\s*$/, '').trim();
+          
+          // For DataFilteringAgent, extract structured query parameters
+          if (agentName === 'DataFilteringAgent') {
+            const structuredQuery = this.parseDataFilteringQuery(cleanContent);
+            console.log(`STRUCTURED QUERY for ${agentName}:`, JSON.stringify(structuredQuery, null, 2));
+            return JSON.stringify(structuredQuery);
+          }
+          
+          console.log(`CLEANED for ${agentName}:`, cleanContent);
+          return cleanContent;
         }
       }
-    }*/
+      
+      return '';
+    } catch (error) {
+      console.warn(`Failed to parse conversation result for agent ${agentName}:`, error);
+      return '';
+    }
+  }
 
-    // Add context from ContextRegistry (requirement #5)
-   /* const contextRegistryData: Record<string, any> = {};
-    if (this.currentContextSet) {
-      // Add data sources
-      contextRegistryData.dataSources = this.currentContextSet.dataSources;
+  private parseDataFilteringQuery(content: string): any {
+    try {
+      const query: any = {
+        collection: "supply_analysis",
+        search_text: "",
+        metadata_filters: {},
+        date_filters: {},
+        limit: 1000,
+        include_distances: false
+      };
+
+      // Extract semantic search text from the quoted string
+      const semanticSearchMatch = content.match(/Task description for semantic search:\s*["']([^"']+)["']/i);
+      if (semanticSearchMatch) {
+        const searchContent = semanticSearchMatch[1];
+        
+        // Extract the main search description before the colon
+        const mainSearchMatch = searchContent.match(/^([^:]+):/);
+        if (mainSearchMatch) {
+          query.search_text = mainSearchMatch[1].trim();
+        } else {
+          query.search_text = searchContent;
+        }
+      } else {
+        // Fallback: look for any quoted strings
+        const quotedMatch = content.match(/["']([^"']+)["']/);
+        if (quotedMatch) {
+          query.search_text = quotedMatch[1];
+        }
+      }
+
+      // Extract date range with flexible patterns
+      const datePattern = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/g;
+      const dateMatches = content.match(datePattern);
       
-      // Add global context
-      contextRegistryData.globalContext = this.currentContextSet.globalContext;
+      if (dateMatches && dateMatches.length >= 2) {
+        // Assume first date is start, second is end
+        query.date_filters = {
+          field: "timestamp",
+          start_date: dateMatches[0],
+          end_date: dateMatches[1]
+        };
+      } else if (dateMatches && dateMatches.length === 1) {
+        // If only one date, try to determine if it's start or end
+        if (content.toLowerCase().includes('start')) {
+          query.date_filters = {
+            field: "timestamp",
+            start_date: dateMatches[0]
+          };
+        } else if (content.toLowerCase().includes('end')) {
+          query.date_filters = {
+            field: "timestamp",
+            end_date: dateMatches[0]
+          };
+        }
+      }
+
+      // Extract energy type from search text or content
+      const energyTypes = ['coal', 'gas', 'oil', 'solar', 'wind', 'nuclear', 'energy'];
+      for (const energyType of energyTypes) {
+        if (content.toLowerCase().includes(energyType)) {
+          query.metadata_filters.energy_type = energyType;
+          break;
+        }
+      }
+
+      // Extract time aggregation patterns
+      const aggregationTypes = ['hourly', 'daily', 'weekly', 'monthly'];
+      for (const aggType of aggregationTypes) {
+        if (content.toLowerCase().includes(aggType)) {
+          query.metadata_filters.aggregation = aggType;
+          break;
+        }
+      }
+
+      // Extract trends/output patterns
+      if (content.toLowerCase().includes('trend')) {
+        query.metadata_filters.analysis_type = 'trend';
+      }
+      if (content.toLowerCase().includes('output')) {
+        query.metadata_filters.metric_type = 'output';
+      }
+
+      return {
+        tool_name: "structured_query",
+        parameters: query
+      };
+    } catch (error) {
+      console.warn('Failed to parse data filtering query:', error);
+      return {
+        tool_name: "structured_query",
+        parameters: {
+          collection: "supply_analysis",
+          search_text: content,
+          metadata_filters: {},
+          limit: 100
+        }
+      };
+    }
+  }
+
+  private parseUserQueryForAgent(userQuery: string, agentName: string): string {
+    try {
+      // Split the user query into sections by numbered lines
+      const sections = userQuery.split(/\d+\.\s*Agent name:/);
       
-      // Add LLM prompts specific to this agent and transaction
-      const relevantPrompts = this.currentContextSet.llmPrompts.filter(p => 
-        p.agentName === transaction.agentName && 
-        (p.transactionId === transaction.id || p.transactionId === 'all')
-      );
-      
-      if (relevantPrompts.length > 0) {
-        contextRegistryData.llmPrompts = relevantPrompts;
-        // Use the first matching prompt as the primary prompt
-        contextRegistryData.primaryPrompt = relevantPrompts[0];
+      for (const section of sections) {
+        if (section.trim() === '') continue;
+        
+        // Extract agent name and task description from each section
+        const lines = section.trim().split('\n');
+        const agentNameLine = lines[0]?.trim();
+        
+        // Check if this section is for the current agent
+        if (agentNameLine?.includes(agentName)) {
+          // Find the task description line
+          const taskDescIndex = lines.findIndex(line => 
+            line.trim().toLowerCase().startsWith('task description:')
+          );
+          
+          if (taskDescIndex !== -1) {
+            // Extract everything after "Task description:"
+            let taskDescription = lines[taskDescIndex].replace(/task description:\s*/i, '').trim();
+            
+            // Include any additional lines that are part of the task description
+            for (let i = taskDescIndex + 1; i < lines.length; i++) {
+              if (lines[i].trim() && !lines[i].includes('Agent name:')) {
+                taskDescription += ' ' + lines[i].trim();
+              } else {
+                break;
+              }
+            }
+            
+            return taskDescription;
+          }
+        }
       }
       
-      // Add context set metadata
-      contextRegistryData.contextSetName = this.currentContextSet.name;
-      contextRegistryData.contextSetDescription = this.currentContextSet.description;
-      
-      console.log(`📊 Added context for ${transaction.agentName}:${transaction.id} - ${this.currentContextSet.dataSources.length} data sources, ${relevantPrompts.length} prompts`);
-    }*/
-    console.log(`💥 CONTEXT: ${context}`);
-
-    return context;//, ...contextRegistryData 
+      // If no specific task found for this agent, return empty string
+      return '';
+    } catch (error) {
+      console.warn(`Failed to parse user query for agent ${agentName}:`, error);
+      return '';
+    }
   }
 
   private updateVisualizationSAGAState(transactionId: string, result: AgentResult): void {

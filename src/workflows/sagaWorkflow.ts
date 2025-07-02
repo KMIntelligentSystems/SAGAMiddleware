@@ -158,10 +158,10 @@ export class SagaWorkflow {
         agentName: 'ConversationAgent',
         agentType: 'processing',
         transactionId: 'tx-1',
-        backstory: 'Manage conversation with user as an intermediary passing user instructions to other agentw.',
+        backstory: 'Manage conversation with user as an intermediary passing user instructions to other agents.',
         taskDescription: 'Understand the user instructions.',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide logically structured understanding of the user instructions'
+        taskExpectedOutput: 'Return the specific instructions for each agent with enumerated list with the agents name at the start of the enumeration'
       },
       {
         agentName: 'DataProcessingAgent',
