@@ -479,6 +479,15 @@ export class GenericAgent {
               arguments: parsedArgs
             });
             
+            // Check if this was an indexing operation and wait for completion
+            if (toolCall.function.name === 'index_file' || toolCall.function.name === 'index-file') {
+              const collection = parsedArgs.collection;
+              if (collection) {
+                console.log(`🔄 Detected indexing operation for collection: ${collection}`);
+                await this.waitForIndexingCompletion(collection);
+              }
+            }
+            
             const resultContent = JSON.stringify(toolResult);
             console.log(`Tool result length: ${resultContent.length} characters`);
             
@@ -544,6 +553,15 @@ export class GenericAgent {
             name: toolUseContent.name,
             arguments: toolUseContent.input
           });
+          
+          // Check if this was an indexing operation and wait for completion
+          if (toolUseContent.name === 'index_file' || toolUseContent.name === 'index-file') {
+            const collection = toolUseContent.input.collection;
+            if (collection) {
+              console.log(`🔄 Detected indexing operation for collection: ${collection}`);
+              await this.waitForIndexingCompletion(collection);
+            }
+          }
           
           const resultContent = JSON.stringify(toolResult);
           // Truncate large results to prevent context overflow
@@ -728,5 +746,35 @@ export class GenericAgent {
 
   async refreshCapabilities(): Promise<void> {
     await this.refreshMCPCapabilities();
+  }
+
+  private async waitForIndexingCompletion(collection: string): Promise<void> {
+    const maxWaitTime = 300000; // 5 minutes
+    const pollInterval = 10000; // 10 seconds
+    const startTime = Date.now();
+    
+    console.log(`⏳ Waiting for collection ${collection} to be ready for queries...`);
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Try to query the collection to see if it exists and has data
+        const testResult = await this.executeMCPToolCall({
+          name: 'get_chunks',
+          arguments: { collection, limit: 1 }
+        });
+        
+        if (testResult && !testResult.error) {
+          console.log(`✅ Collection ${collection} is ready for queries`);
+          return;
+        }
+      } catch (error) {
+        // Collection not ready yet, continue polling
+        console.log(`⏳ Collection ${collection} not ready yet, continuing to poll...`);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    
+    throw new Error(`Collection ${collection} was not ready within ${maxWaitTime}ms`);
   }
 }

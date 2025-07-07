@@ -32,7 +32,7 @@ export class SagaWorkflow {
       transport: "stdio",
       command: "node",
       args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
-      timeout: 120000
+      timeout: 600000
     });
     this.eventBusClient = new SAGAEventBusClient(config.eventBus.url);
     
@@ -176,17 +176,17 @@ export class SagaWorkflow {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
         transactionId: 'tx-3',
-        backstory: 'Query and filter data from vectorized CSV files based on validated requirements.',
-        taskDescription: 'Use the vectorized CSV data chunks to extract relevant data matching user requirements.',
+        backstory: 'Provide the search query for a structured query search.',
+        taskDescription: 'Use the inputs provided to create a query.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide all the processed data for another agent to structure'
       },
       {
-        agentName: 'DataVisualizationAgent',
+        agentName: 'DataManipulationAgent',
         agentType: 'processing',
         transactionId: 'tx-4',
-        backstory: 'You compute the values that meet the requirements for data visualization.',
-        taskDescription: 'Provide a clear summary of the data so that it can be used by a graphing agent to meet the requirements of the visualiization type.',
+        backstory: 'You compute the values that meet the requirements.',
+        taskDescription: 'Provide a complete generation of the required data in csv format.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: ''
       }

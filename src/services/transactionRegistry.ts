@@ -237,10 +237,10 @@ export class TransactionRegistry extends EventEmitter {
     };
     
     this.eventBusClient['publishEvent']('transaction_registry_status', status, 'broadcast');
-  }
+  }*/
 
 
-  private updateTransactionOrdering(
+  /*private updateTransactionOrdering(
     transactionSet: TransactionSetDefinition, 
     orderingRequest: TransactionOrderingRequest
   ): void {
@@ -248,7 +248,7 @@ export class TransactionRegistry extends EventEmitter {
     const transactionMap = new Map(transactionSet.transactions.map(t => [t.id, t]));
     
     // Reorder transactions based on the provided ordering
-    const reorderedTransactions: VisualizationTransaction[] = [];
+    const reorderedTransactions: [] = [];
     
     for (const transactionId of orderingRequest.transactionIds) {
       const transaction = transactionMap.get(transactionId);

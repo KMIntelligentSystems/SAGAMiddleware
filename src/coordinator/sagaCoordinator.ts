@@ -250,7 +250,7 @@ sleep(ms: number) {
         }
         counter++;
     
-    
+    console.log("HERE BEFOR UPDATA CONTEXT")
         // Update context with transaction result
         this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: result.result,
@@ -269,7 +269,7 @@ sleep(ms: number) {
           sagaState: this.visualizationSagaState
         });*/
       }
-
+ 
   
     //  await this.transactionManager.commitTransaction(transactionId);
       
@@ -311,7 +311,14 @@ sleep(ms: number) {
       throw new Error(`Agent ${transaction.agentName} not registered for transaction ${transaction.id}`);
     }
 
-    // Check dependencies are satisfied (use the current transaction set being executed)
+    // Build context for this transaction
+    const context = await this.buildVisualizationTransactionContext(transaction, request);
+    
+    // Execute the transaction
+    const result = await agent.execute(context);
+    console.log("RESULT ", result.result)
+    
+       // Check dependencies are satisfied (use the current transaction set being executed)
  /*  for (const depId of transaction.dependencies) {
       // Find dependency in the current transaction set being executed
       const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
@@ -325,12 +332,7 @@ sleep(ms: number) {
       }
     }*/
 
-    // Build context for this transaction
-    const context = await this.buildVisualizationTransactionContext(transaction, request);
-    
-    // Execute the transaction
-    const result = await agent.execute(context);
-    console.log("RESULT ", result.result)
+
     // Update SAGA state based on transaction
   /*  this.updateVisualizationSAGAState(transaction.id, result);
     
@@ -344,7 +346,7 @@ sleep(ms: number) {
         timestamp: new Date()
       });
     }*/
-
+await new Promise(resolve => setTimeout(resolve, 500));
     return result;
   }
 
@@ -382,8 +384,8 @@ sleep(ms: number) {
     if (relevantPrompt) {
       llmPromptText = `Agent: ${relevantPrompt.agentName}\n`;
       llmPromptText += `Backstory: ${relevantPrompt.backstory}\n`;
-    //  llmPromptText += `Task Description: ${relevantPrompt.taskDescription}\n`;
-    //  llmPromptText += `Expected Output: ${relevantPrompt.taskExpectedOutput}\n`;
+      llmPromptText += `Task Description: ${relevantPrompt.taskDescription}\n`;
+      llmPromptText += `Expected Output: ${relevantPrompt.taskExpectedOutput}\n`;
       
       // Include existing context if available
       if (relevantPrompt.context) {
@@ -399,9 +401,10 @@ sleep(ms: number) {
     } else {
       // For other agents, first try to get instructions from ConversationAgent's working memory
       if (conversationContext && conversationContext.lastTransactionResult) {
+        console.log("HERE IN CONVERSATIONCONTEXT")
         agentSpecificTask = this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
       }
-      
+
       // If no conversation context available, fall back to parsing the original user query
       if (!agentSpecificTask && request.userQuery) {
         agentSpecificTask = this.parseUserQueryForAgent(request.userQuery, transaction.agentName);

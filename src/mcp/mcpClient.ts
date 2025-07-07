@@ -132,7 +132,17 @@ RAG MCP Server started in stdio mode*/
   async callTool(serverName: string, toolCall: MCPToolCall): Promise<any> {
     const client = this.getClient(serverName);
     const serverConfig = this.serverConfigs.get(serverName);
-    const timeout = serverConfig?.timeout || 120000;
+    
+    // Operation-specific timeouts
+    const OPERATION_TIMEOUTS: Record<string, number> = {
+      'index_file': 600000,    // 5 minutes for file indexing
+      'index-file': 500000,    // Handle both naming conventions
+      'semantic_search': 60000, // 1 minute for searches
+      'get_chunks': 30000,     // 30 seconds for chunk retrieval
+      'default': 120000        // 2 minutes default
+    };
+    
+    const timeout = OPERATION_TIMEOUTS[toolCall.name] ?? serverConfig?.timeout ?? OPERATION_TIMEOUTS['default'];
     
     try {
       console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);

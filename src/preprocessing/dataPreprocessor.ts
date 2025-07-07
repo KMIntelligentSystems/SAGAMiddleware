@@ -172,7 +172,7 @@ export class DataPreprocessor {
    * Wait for indexing job completion with timeout handling
    */
   private async waitForIndexingCompletion(job: IndexingJob): Promise<IndexingJob> {
-    const maxWaitTime = 300000; // 5 minutes max
+    const maxWaitTime = 600000; // 10 minutes max
     const checkInterval = 2000; // Check every 2 seconds
     const startTime = Date.now();
 

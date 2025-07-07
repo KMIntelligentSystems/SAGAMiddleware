@@ -142,7 +142,7 @@ export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
   {
     id: 'tx-4',
     name: 'Data Visualizer',
-    agentName: 'DataVisualizationAgent',
+    agentName: 'DataManipulationAgent',
     dependencies: ['tx-3'],
     compensationAction: 'cleanup_thread',
     status: 'pending'
