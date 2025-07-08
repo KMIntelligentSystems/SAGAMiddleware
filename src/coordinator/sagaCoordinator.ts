@@ -346,7 +346,7 @@ sleep(ms: number) {
         timestamp: new Date()
       });
     }*/
-await new Promise(resolve => setTimeout(resolve, 500));
+//await new Promise(resolve => setTimeout(resolve, 500));
     return result;
   }
 
@@ -435,15 +435,26 @@ await new Promise(resolve => setTimeout(resolve, 500));
       } else {
         return '';
       }
+      
+      // Debug: Log the actual conversation result format
+      console.log(`🔍 DEBUG: Parsing conversation result for ${agentName}`);
+      console.log(`🔍 DEBUG: Result text type:`, typeof resultText);
+      console.log(`🔍 DEBUG: Result text content:`, resultText.substring(0, 500) + (resultText.length > 500 ? '...' : ''));
+      console.log(`🔍 DEBUG: Looking for agent:`, agentName);
       // Handle both formats: numbered sections and markdown sections
       
       // First try to find numbered sections like "1. Agent name: DataProcessingAgent"
       const numberedSectionRegex = new RegExp(`\\d+\\.\\s*Agent name:\\s*${agentName}[\\s\\S]*?(?=\\d+\\.\\s*Agent name:|$)`, 'i');
+      console.log(`🔍 DEBUG: Numbered regex:`, numberedSectionRegex.toString());
       let match = resultText.match(numberedSectionRegex);
+      console.log(`🔍 DEBUG: Numbered regex match:`, match ? match[0].substring(0, 200) + '...' : 'NO MATCH');
+      
       if (!match) {
         // Try markdown format like "**DataProcessingAgent**"
         const markdownSectionRegex = new RegExp(`\\*\\*${agentName}\\*\\*[\\s\\S]*?(?=\\d+\\.\\s*\\*\\*\\w+Agent\\*\\*|$)`, 'i');
+        console.log(`🔍 DEBUG: Markdown regex:`, markdownSectionRegex.toString());
         match = resultText.match(markdownSectionRegex);
+        console.log(`🔍 DEBUG: Markdown regex match:`, match ? match[0].substring(0, 200) + '...' : 'NO MATCH');
       }
       if (match) {
         let agentSection = match[0];
@@ -494,6 +505,32 @@ await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
       
+      // If no specific patterns match, try a more flexible approach
+      console.log(`🔍 DEBUG: No regex matches found, trying flexible parsing...`);
+      
+      // Look for any mention of the agent name in the text
+      const agentMentionRegex = new RegExp(`${agentName}[\\s\\S]{0,500}`, 'i');
+      const agentMention = resultText.match(agentMentionRegex);
+      if (agentMention) {
+        console.log(`🔍 DEBUG: Found agent mention:`, agentMention[0].substring(0, 200) + '...');
+        // Extract everything after the agent name until the next agent or end
+        const afterAgentName = agentMention[0];
+        // Try to find a task description or content after the agent name
+        const taskMatch = afterAgentName.match(/task[^:]*:\s*(.+?)(?=\n|$)/i);
+        if (taskMatch) {
+          console.log(`🔍 DEBUG: Found task content:`, taskMatch[1]);
+          return taskMatch[1].trim();
+        }
+        
+        // If no specific task pattern, return first meaningful line after agent name
+        const lines = afterAgentName.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length > 1) {
+          console.log(`🔍 DEBUG: Returning first meaningful line:`, lines[1]);
+          return lines[1];
+        }
+      }
+      
+      console.log(`🔍 DEBUG: No parsing successful, returning empty string`);
       return '';
     } catch (error) {
       console.warn(`Failed to parse conversation result for agent ${agentName}:`, error);

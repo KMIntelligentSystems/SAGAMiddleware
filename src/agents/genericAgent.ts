@@ -116,7 +116,7 @@ export class GenericAgent {
         return prompt;
     }
 
-  private buildPrompt(contextData: Record<string, any>): string {
+  /* buildPrompt(contextData: Record<string, any>): string {
     const baseContext = contextData;
     
     let prompt = `Task: ${this.definition.taskDescription}\n\n`;
@@ -139,7 +139,7 @@ export class GenericAgent {
           prompt += `  Parameters: ${params}\n`;
         }
       }
-      prompt += '\nYou MUST use these tools to complete your task. Do not provide any analysis or response without first calling the required tools. Always start by calling the appropriate tool to retrieve data.\n\n';
+      prompt += '\nUse the most appropriate tool for your task. Only call the tool that is necessary - do not call multiple tools unless specifically required by the task.\n\n';
     } else if (this.definition.agentType === 'processing') {
       prompt += `AGENT TYPE: PROCESSING AGENT\n`;
       prompt += `You are a text processing agent. NO external tools or data access are available.\n`;
@@ -167,7 +167,7 @@ export class GenericAgent {
     console.log('===================');
     
     return prompt;
-  }
+  }*/
 
   private async invokeLLM(prompt: string): Promise<AgentResult> {
     const config = this.definition.llmConfig;
@@ -273,7 +273,8 @@ export class GenericAgent {
     //  const isChunkRequester = this.definition.name === 'chunk_requester';
    //   console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
       
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai'/*, isChunkRequester*/);
+      // Set forceToolUse to false to allow more natural tool selection
+      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
     }
 
    const userMessage: OpenAI.ChatCompletionMessageParam = {
@@ -386,7 +387,8 @@ export class GenericAgent {
       // For chunk_requester agent, ALWAYS force tool calls
       const isChunkRequester = this.definition.name === 'chunk_requester';
       
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic', isChunkRequester);
+      // Set forceToolUse to false to allow more natural tool selection
+      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic', false);
     }
 
     // No tools available, use regular completion
@@ -415,18 +417,21 @@ export class GenericAgent {
       .join('');*/
   }
 
-  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = false): Promise<AgentResult> {
+  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = true): Promise<AgentResult> {
     // Create conversation loop to handle multiple tool calls
     let conversationHistory: any[] = [{ role: "user", content: prompt }];
     let maxIterations = 5; // Allow more iterations for finding data
+    let hasExecutedTool = false; // Track if any tool has been executed
     
     while (maxIterations > 0) {
     //  console.log("TOOLS ", tools);
       let response;
       
       if (provider === 'openai') {
-        const toolChoice = forceToolUse ? "required" : "auto";
-        console.log(`Making OpenAI call with tool_choice=${toolChoice}, forceToolUse=${forceToolUse}`);
+        // Use "required" for forceToolUse=true, or for tool agents that haven't called tools yet
+        const shouldForceToolUse = forceToolUse || (this.definition.agentType === 'tool' && !hasExecutedTool);
+        const toolChoice = shouldForceToolUse ? "required" : "auto";
+        console.log(`Making OpenAI call with tool_choice=${toolChoice}, forceToolUse=${forceToolUse}, hasExecutedTool=${hasExecutedTool}, shouldForceToolUse=${shouldForceToolUse}`);
         
         response = await client.chat.completions.create({
           model: config.model,
@@ -449,17 +454,35 @@ export class GenericAgent {
           if (hasPreviousToolCalls) {
             console.log('✅ Analysis complete - OpenAI processed tool results and provided final answer');
             console.log('Final analysis content length:', message.content?.length || 0);
-            return message.content || "";
+            return {
+              agentName: this.getName(),
+              result: message.content || "",
+              success: true,
+              timestamp: new Date()
+            };
           } else {
             console.log('⚠️ No tool calls made in first iteration. Message content:', message.content?.substring(0, 200) + '...');
             
-            // For chunk_requester, reject responses without tool calls ONLY on first iteration
+            // For tool agents, try forcing tool use on subsequent iterations
+            if (this.definition.agentType === 'tool' && maxIterations > 1) {
+              console.log(`🔄 Tool agent didn't call tools, retrying with tool_choice=required (${maxIterations - 1} attempts remaining)`);
+              // Continue the loop with forced tool use
+              maxIterations--;
+              continue;
+            }
+            
+            // For other cases or when out of retries
             if (forceToolUse) {
-              console.log('ERROR: chunk_requester failed to call required tools - this should not happen with tool_choice=required');
+              console.log('ERROR: Failed to call required tools - this should not happen with tool_choice=required');
               throw new Error('Required tool call was not made by the LLM');
             }
             
-            return message.content || "";
+            return {
+              agentName: this.getName(),
+              result: message.content || "",
+              success: true,
+              timestamp: new Date()
+            };
           }
         }
         
@@ -479,12 +502,20 @@ export class GenericAgent {
               arguments: parsedArgs
             });
             
-            // Check if this was an indexing operation and wait for completion
+            hasExecutedTool = true; // Mark that we've executed a tool
+            
+            // Check if this was an indexing operation - no additional verification needed
             if (toolCall.function.name === 'index_file' || toolCall.function.name === 'index-file') {
               const collection = parsedArgs.collection;
               if (collection) {
-                console.log(`🔄 Detected indexing operation for collection: ${collection}`);
-                await this.waitForIndexingCompletion(collection);
+                console.log(`✅ Indexing operation completed for collection: ${collection}`);
+                // For indexing operations, return immediately after successful completion
+                return {
+                  agentName: this.getName(),
+                  result: `Successfully indexed file to collection: ${collection}`,
+                  success: true,
+                  timestamp: new Date()
+                };
               }
             }
             
@@ -511,13 +542,18 @@ export class GenericAgent {
           }
         }
       } else { // anthropic
+        // Use "any" for forceToolUse=true, or for tool agents that haven't called tools yet
+        const shouldForceToolUse = forceToolUse || (this.definition.agentType === 'tool' && !hasExecutedTool);
+        const toolChoice = shouldForceToolUse ? { type: "any" } : { type: "auto" };
+        console.log(`Making Anthropic call with tool_choice=${JSON.stringify(toolChoice)}, forceToolUse=${forceToolUse}, hasExecutedTool=${hasExecutedTool}, shouldForceToolUse=${shouldForceToolUse}`);
+        
         response = await client.messages.create({
           model: config.model,
           max_tokens: config.maxTokens || 1000,
           temperature: config.temperature || 0.7,
           messages: conversationHistory,
           tools: tools,
-          tool_choice: forceToolUse ? { type: "any" } : { type: "auto" }
+          tool_choice: toolChoice
         });
         // Check for tool use
         const toolUseContent = response.content.find((content: any) => content.type === 'tool_use');
@@ -529,13 +565,25 @@ export class GenericAgent {
             .join('');
           console.log('No tool calls made by Anthropic. Text content:', textContent);
           
-          // For chunk_requester, reject responses without tool calls
+          // For tool agents, try forcing tool use on subsequent iterations
+          if (this.definition.agentType === 'tool' && maxIterations > 1 && !hasExecutedTool) {
+            console.log(`🔄 Tool agent didn't call tools, retrying with tool_choice=any (${maxIterations - 1} attempts remaining)`);
+            maxIterations--;
+            continue;
+          }
+          
+          // For other cases or when out of retries
           if (forceToolUse) {
-            console.log('ERROR: chunk_requester failed to call required tools - this should not happen with tool_choice=required');
+            console.log('ERROR: Failed to call required tools - this should not happen with tool_choice=any');
             throw new Error('Required tool call was not made by the LLM');
           }
           
-          return textContent;
+          return {
+            agentName: this.getName(),
+            result: textContent,
+            success: true,
+            timestamp: new Date()
+          };
         }
         
         console.log('Anthropic made tool call:', toolUseContent.name);
@@ -554,12 +602,20 @@ export class GenericAgent {
             arguments: toolUseContent.input
           });
           
-          // Check if this was an indexing operation and wait for completion
+          hasExecutedTool = true; // Mark that we've executed a tool
+          
+          // Check if this was an indexing operation - no additional verification needed
           if (toolUseContent.name === 'index_file' || toolUseContent.name === 'index-file') {
             const collection = toolUseContent.input.collection;
             if (collection) {
-              console.log(`🔄 Detected indexing operation for collection: ${collection}`);
-              await this.waitForIndexingCompletion(collection);
+              console.log(`✅ Indexing operation completed for collection: ${collection}`);
+              // For indexing operations, return immediately after successful completion
+              return {
+                agentName: this.getName(),
+                result: `Successfully indexed file to collection: ${collection}`,
+                success: true,
+                timestamp: new Date()
+              };
             }
           }
           
