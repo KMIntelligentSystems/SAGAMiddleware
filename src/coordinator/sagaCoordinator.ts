@@ -10,7 +10,9 @@ import {
   VisualizationTransaction,
   VISUALIZATION_TRANSACTIONS,
   VisualizationWorkflowRequest,
-  CompensationAction
+  CompensationAction,
+  IterationState,
+  IterationConfig
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
@@ -29,6 +31,7 @@ export class SagaCoordinator extends EventEmitter {
   private activeExecutions: Set<string> = new Set();
   private visualizationSagaState: VisualizationSAGAState | null = null;
   private currentExecutingTransactionSet: VisualizationTransaction[] | null = null;
+  private iterationStates: Map<string, IterationState> = new Map();
  // private currentContextSet: ContextSetDefinition | null = null;
 
   constructor() {
@@ -214,11 +217,42 @@ sleep(ms: number) {
       //executeWorkflow above use executeOrder array
       // VISUALIZATION_TRANSACTIONS:VisualizationTransaction
       
+      // Group transactions by iteration groups
+      const iterationGroups = this.groupTransactionsByIteration(transactionsToExecute);
+      const regularTransactions = transactionsToExecute.filter(t => !t.iterationGroup);
+      
       for (const transaction of transactionsToExecute) {
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
-       
-    
-        const result = await this.executeVisualizationTransaction(transaction, request); 
+        
+        let result: AgentResult;
+        
+        // Check if this transaction is part of an iteration group
+        if (transaction.iterationGroup && iterationGroups.has(transaction.iterationGroup)) {
+          // Handle iterative transaction group
+          if (transaction.iterationRole === 'coordinator') {
+            // This is the start of an iteration group - execute the full iterative cycle
+            result = await this.executeIterativeTransactionGroup(
+              iterationGroups.get(transaction.iterationGroup)!,
+              request,
+              {
+                groupId: transaction.iterationGroup,
+                maxIterations: 100, // Default max iterations
+                chunkBatchSize: 1
+              }
+            );
+            
+            // Skip other transactions in this group as they've been processed
+            const groupTransactionIds = iterationGroups.get(transaction.iterationGroup)!.map(t => t.id);
+            counter += groupTransactionIds.length - 1; // Adjust counter for skipped transactions
+          } else {
+            // This transaction is part of a group but not the coordinator - skip it
+            // (it will be executed as part of the coordinator's iteration cycle)
+            continue;
+          }
+        } else {
+          // Regular transaction execution
+          result = await this.executeVisualizationTransaction(transaction, request);
+        } 
         console.log("RRESULT ", result.result)
         
         if (!result.success) {
@@ -495,7 +529,11 @@ sleep(ms: number) {
           
           // For DataFilteringAgent, extract structured query parameters
           if (agentName === 'DataFilteringAgent') {
-            const structuredQuery = this.parseDataFilteringQuery(cleanContent);
+            // Get data source configuration from active context set
+            const currContextSet = this.contextManager.getActiveContextSet();
+            const dataSourceConfig = currContextSet?.dataSources?.[0]; // Use first data source as default
+            
+            const structuredQuery = this.parseDataFilteringQuery(cleanContent, dataSourceConfig);
             console.log(`STRUCTURED QUERY for ${agentName}:`, JSON.stringify(structuredQuery, null, 2));
             return JSON.stringify(structuredQuery);
           }
@@ -516,17 +554,27 @@ sleep(ms: number) {
         // Extract everything after the agent name until the next agent or end
         const afterAgentName = agentMention[0];
         // Try to find a task description or content after the agent name
-        const taskMatch = afterAgentName.match(/task[^:]*:\s*(.+?)(?=\n|$)/i);
+        const taskMatch = afterAgentName.match(/task[^:]*:\s*([\s\S]*?)(?=\n\s*\n|\n\s*[A-Z]|$)/i);
         if (taskMatch) {
           console.log(`🔍 DEBUG: Found task content:`, taskMatch[1]);
           return taskMatch[1].trim();
         }
         
-        // If no specific task pattern, return first meaningful line after agent name
+        // Alternative: look for content after ":" (for "AgentName: content" format)
+        const colonMatch = afterAgentName.match(/:\s*([\s\S]*?)(?=\n\s*\n|\n\s*[A-Z]|$)/i);
+        if (colonMatch) {
+          console.log(`🔍 DEBUG: Found colon content:`, colonMatch[1]);
+          return colonMatch[1].trim();
+        }
+        
+        // If no specific task pattern, return all meaningful content after agent name
         const lines = afterAgentName.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         if (lines.length > 1) {
-          console.log(`🔍 DEBUG: Returning first meaningful line:`, lines[1]);
-          return lines[1];
+          // Join all lines after the agent name line, excluding the agent name itself
+          const contentLines = lines.slice(1);
+          const content = contentLines.join('\n').trim();
+          console.log(`🔍 DEBUG: Returning all content lines:`, content);
+          return content;
         }
       }
       
@@ -538,87 +586,118 @@ sleep(ms: number) {
     }
   }
 
-  private parseDataFilteringQuery(content: string): any {
+  private parseDataFilteringQuery(content: string, dataSourceConfig?: any): any {
     try {
+      // Get collection name from data source config or use default
+      const collectionName = dataSourceConfig?.collection || 
+                           dataSourceConfig?.name || 
+                           "supply_analysis";
+
+      // Get field mappings from data source config or use defaults
+      const fieldMappings = dataSourceConfig?.fieldMappings || {
+        categoryField: "category_type",      // ChromaDB uses category_type, not energy_type
+        timestampField: "datetime",          // ChromaDB uses datetime field
+        installationField: "installation",
+        valueField: "value",
+        unitField: "unit"
+      };
+
       const query: any = {
-        collection: "supply_analysis",
+        collection: collectionName,
         search_text: "",
         metadata_filters: {},
         date_filters: {},
-        limit: 1000,
+        limit: dataSourceConfig?.defaultLimit || 1000,
         include_distances: false
       };
 
-      // Extract semantic search text from the quoted string
-      const semanticSearchMatch = content.match(/Task description for semantic search:\s*["']([^"']+)["']/i);
-      if (semanticSearchMatch) {
-        const searchContent = semanticSearchMatch[1];
-        
-        // Extract the main search description before the colon
-        const mainSearchMatch = searchContent.match(/^([^:]+):/);
-        if (mainSearchMatch) {
-          query.search_text = mainSearchMatch[1].trim();
-        } else {
-          query.search_text = searchContent;
+      // Extract semantic search text from various patterns
+      const searchTextPatterns = [
+        /Search text:\s*[`"']([^`"']+)[`"']/i,
+        /semantic search[^:]*:\s*[`"']([^`"']+)[`"']/i,
+        /Task description for semantic search:\s*["']([^"']+)["']/i,
+        /search for[^:]*:\s*[`"']([^`"']+)[`"']/i
+      ];
+
+      for (const pattern of searchTextPatterns) {
+        const match = content.match(pattern);
+        if (match) {
+          const searchContent = match[1];
+          // Extract the main search term before any colon
+          const mainSearchMatch = searchContent.match(/^([^:]+):/);
+          query.search_text = mainSearchMatch ? mainSearchMatch[1].trim() : searchContent;
+          break;
         }
-      } else {
-        // Fallback: look for any quoted strings
-        const quotedMatch = content.match(/["']([^"']+)["']/);
+      }
+
+      // Fallback: look for any quoted/backticked strings
+      if (!query.search_text) {
+        const quotedMatch = content.match(/[`"']([^`"']+)[`"']/);
         if (quotedMatch) {
           query.search_text = quotedMatch[1];
         }
       }
 
-      // Extract date range with flexible patterns
-      const datePattern = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/g;
-      const dateMatches = content.match(datePattern);
-      
-      if (dateMatches && dateMatches.length >= 2) {
-        // Assume first date is start, second is end
+      // Extract date range with multiple patterns
+      const datePatterns = [
+        /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/g,
+        /(\d{4}-\d{2}-\d{2})/g
+      ];
+
+      let dateMatches: string[] = [];
+      for (const pattern of datePatterns) {
+        const matches = content.match(pattern);
+        if (matches && matches.length > 0) {
+          dateMatches = matches;
+          break;
+        }
+      }
+
+      if (dateMatches.length >= 2) {
         query.date_filters = {
-          field: "timestamp",
+          field: fieldMappings.timestampField,
           start_date: dateMatches[0],
           end_date: dateMatches[1]
         };
-      } else if (dateMatches && dateMatches.length === 1) {
-        // If only one date, try to determine if it's start or end
+      } else if (dateMatches.length === 1) {
+        const dateFilter: any = { field: fieldMappings.timestampField };
         if (content.toLowerCase().includes('start')) {
-          query.date_filters = {
-            field: "timestamp",
-            start_date: dateMatches[0]
-          };
+          dateFilter.start_date = dateMatches[0];
         } else if (content.toLowerCase().includes('end')) {
-          query.date_filters = {
-            field: "timestamp",
-            end_date: dateMatches[0]
-          };
+          dateFilter.end_date = dateMatches[0];
+        } else {
+          // Default to start date if unclear
+          dateFilter.start_date = dateMatches[0];
+        }
+        query.date_filters = dateFilter;
+      }
+
+      // Generic metadata extraction based on data source configuration
+      if (dataSourceConfig?.searchableCategories) {
+        // Use configured categories
+        for (const category of dataSourceConfig.searchableCategories) {
+          if (content.toLowerCase().includes(category.toLowerCase())) {
+            query.metadata_filters[fieldMappings.categoryField] = category;
+            break;
+          }
+        }
+      } else {
+        // Fallback to common energy categories
+        const commonCategories = ['coal', 'gas', 'oil', 'solar', 'wind', 'nuclear', 'energy'];
+        for (const category of commonCategories) {
+          if (content.toLowerCase().includes(category.toLowerCase())) {
+            query.metadata_filters[fieldMappings.categoryField] = category;
+            break;
+          }
         }
       }
 
-      // Extract energy type from search text or content
-      const energyTypes = ['coal', 'gas', 'oil', 'solar', 'wind', 'nuclear', 'energy'];
-      for (const energyType of energyTypes) {
-        if (content.toLowerCase().includes(energyType)) {
-          query.metadata_filters.energy_type = energyType;
-          break;
-        }
-      }
+      // Extract additional metadata patterns from content
+      this.extractGenericMetadataFilters(content, query.metadata_filters, fieldMappings);
 
-      // Extract time aggregation patterns
-      const aggregationTypes = ['hourly', 'daily', 'weekly', 'monthly'];
-      for (const aggType of aggregationTypes) {
-        if (content.toLowerCase().includes(aggType)) {
-          query.metadata_filters.aggregation = aggType;
-          break;
-        }
-      }
-
-      // Extract trends/output patterns
-      if (content.toLowerCase().includes('trend')) {
-        query.metadata_filters.analysis_type = 'trend';
-      }
-      if (content.toLowerCase().includes('output')) {
-        query.metadata_filters.metric_type = 'output';
+      // Apply range filters if specified in data source config
+      if (dataSourceConfig?.rangeFilters) {
+        query.range_filters = this.extractRangeFilters(content, dataSourceConfig.rangeFilters);
       }
 
       return {
@@ -627,16 +706,76 @@ sleep(ms: number) {
       };
     } catch (error) {
       console.warn('Failed to parse data filtering query:', error);
+      // Fallback with minimal configuration
       return {
         tool_name: "structured_query",
         parameters: {
-          collection: "supply_analysis",
-          search_text: content,
+          collection: dataSourceConfig?.collection || "supply_analysis",
+          search_text: content.substring(0, 100), // Truncate for safety
           metadata_filters: {},
           limit: 100
         }
       };
     }
+  }
+
+  private extractGenericMetadataFilters(content: string, metadataFilters: any, fieldMappings: any): void {
+    // Extract aggregation/granularity patterns
+    const aggregationPatterns = ['hourly', 'daily', 'weekly', 'monthly', 'yearly'];
+    for (const aggType of aggregationPatterns) {
+      if (content.toLowerCase().includes(aggType)) {
+        metadataFilters.aggregation = aggType;
+        break;
+      }
+    }
+
+    // Extract analysis type patterns
+    const analysisPatterns = ['trend', 'forecast', 'comparison', 'summary', 'average'];
+    for (const analysisType of analysisPatterns) {
+      if (content.toLowerCase().includes(analysisType)) {
+        metadataFilters.analysis_type = analysisType;
+        break;
+      }
+    }
+
+    // Extract metric type patterns
+    const metricPatterns = ['output', 'generation', 'consumption', 'efficiency', 'capacity'];
+    for (const metricType of metricPatterns) {
+      if (content.toLowerCase().includes(metricType)) {
+        metadataFilters.metric_type = metricType;
+        break;
+      }
+    }
+
+    // Extract installation/source patterns
+    const installationMatch = content.match(/installation[:\s]+([a-zA-Z]+)/i);
+    if (installationMatch && fieldMappings.installationField) {
+      metadataFilters[fieldMappings.installationField] = installationMatch[1];
+    }
+  }
+
+  private extractRangeFilters(content: string, rangeConfig: any): any {
+    const rangeFilters: any = {};
+    
+    // Extract numeric ranges from content
+    const numericRangePattern = /(\w+)[\s:]+(\d+(?:\.\d+)?)\s*(?:to|-)?\s*(\d+(?:\.\d+)?)/gi;
+    let match;
+    
+    while ((match = numericRangePattern.exec(content)) !== null) {
+      const fieldName = match[1].toLowerCase();
+      const minValue = parseFloat(match[2]);
+      const maxValue = parseFloat(match[3]);
+      
+      // Check if this field is configured for range filtering
+      if (rangeConfig[fieldName]) {
+        rangeFilters[rangeConfig[fieldName]] = {
+          min: Math.min(minValue, maxValue),
+          max: Math.max(minValue, maxValue)
+        };
+      }
+    }
+    
+    return rangeFilters;
   }
 
   private parseUserQueryForAgent(userQuery: string, agentName: string): string {
@@ -796,5 +935,268 @@ sleep(ms: number) {
 
   getVisualizationOutput(): any {
     return '';//this.visualizationSagaState?.reportState.finalOutput || null;
+  }
+
+  // ========================================
+  // ITERATIVE TRANSACTION GROUP METHODS
+  // ========================================
+
+  private groupTransactionsByIteration(transactions: VisualizationTransaction[]): Map<string, VisualizationTransaction[]> {
+    const groups = new Map<string, VisualizationTransaction[]>();
+    
+    for (const transaction of transactions) {
+      if (transaction.iterationGroup) {
+        if (!groups.has(transaction.iterationGroup)) {
+          groups.set(transaction.iterationGroup, []);
+        }
+        groups.get(transaction.iterationGroup)!.push(transaction);
+      }
+    }
+    
+    // Sort transactions within each group by role priority
+    const rolePriority = { 'coordinator': 1, 'fetcher': 2, 'processor': 3, 'saver': 4 };
+    for (const [groupId, groupTransactions] of groups.entries()) {
+      groupTransactions.sort((a, b) => {
+        const priorityA = rolePriority[a.iterationRole || 'coordinator'];
+        const priorityB = rolePriority[b.iterationRole || 'coordinator'];
+        return priorityA - priorityB;
+      });
+    }
+    
+    return groups;
+  }
+
+  private async executeIterativeTransactionGroup(
+    groupTransactions: VisualizationTransaction[],
+    request: BrowserGraphRequest,
+    config: IterationConfig
+  ): Promise<AgentResult> {
+    console.log(`🔄 Starting iterative transaction group: ${config.groupId}`);
+    
+    // Initialize iteration state
+    const iterationState: IterationState = {
+      transactionGroupId: config.groupId,
+      currentIteration: 0,
+      chunkIds: [],
+      currentChunkIndex: 0,
+      maxIterations: config.maxIterations || 100,
+      iterationResults: [],
+      metadata: {
+        processedChunks: 0,
+        startTime: new Date()
+      }
+    };
+    
+    this.iterationStates.set(config.groupId, iterationState);
+    
+    try {
+      // Phase 1: Initial setup - coordinator gets collection info and chunk IDs
+      const coordinator = groupTransactions.find(t => t.iterationRole === 'coordinator');
+      const fetcher = groupTransactions.find(t => t.iterationRole === 'fetcher');
+      const saver = groupTransactions.find(t => t.iterationRole === 'saver');
+      
+      if (!coordinator || !fetcher || !saver) {
+        throw new Error(`Incomplete transaction group: missing coordinator, fetcher, or saver`);
+      }
+      
+      console.log(`📋 Phase 1: Coordinator setup - getting collection info`);
+      let coordinatorResult = await this.executeVisualizationTransaction(coordinator, request);
+      if (!coordinatorResult.success) {
+        throw new Error(`Coordinator failed: ${coordinatorResult.error}`);
+      }
+      
+      // Update coordinator context
+      this.contextManager.updateContext(coordinator.agentName, {
+        lastTransactionResult: coordinatorResult.result,
+        transactionId: coordinator.id,
+        timestamp: new Date()
+      });
+      
+      // Phase 2: Fetcher gets all chunk IDs
+      console.log(`📋 Phase 2: Fetcher getting all chunk IDs`);
+      let fetcherResult = await this.executeVisualizationTransaction(fetcher, request);
+      if (!fetcherResult.success) {
+        throw new Error(`Fetcher failed: ${fetcherResult.error}`);
+      }
+      
+      // Extract chunk IDs from fetcher result
+      iterationState.chunkIds = this.extractChunkIds(fetcherResult.result);
+      iterationState.metadata.totalChunks = iterationState.chunkIds.length;
+      
+      console.log(`📋 Found ${iterationState.chunkIds.length} chunks to process`);
+      
+      // Phase 3: Iterative processing
+      console.log(`📋 Phase 3: Starting iterative chunk processing`);
+      
+      for (let i = 0; i < iterationState.chunkIds.length && i < iterationState.maxIterations!; i++) {
+        const chunkId = iterationState.chunkIds[i];
+        iterationState.currentIteration = i + 1;
+        iterationState.currentChunkIndex = i;
+        iterationState.currentChunkId = chunkId;
+        iterationState.metadata.lastIterationTime = new Date();
+        
+        console.log(`🔄 Iteration ${i + 1}/${iterationState.chunkIds.length}: Processing chunk ${chunkId}`);
+        
+        // Step 3a: Fetcher gets specific chunk data
+        const fetcherContext = this.buildIterationContext(fetcher, iterationState, 'fetch_chunk');
+        const chunkResult = await this.executeVisualizationTransactionWithContext(fetcher, request, fetcherContext);
+        
+        if (!chunkResult.success) {
+          console.warn(`⚠️ Chunk ${chunkId} fetch failed: ${chunkResult.error}`);
+          continue;
+        }
+        
+        // Step 3b: Coordinator processes the chunk
+        const coordinatorContext = this.buildIterationContext(coordinator, iterationState, 'process_chunk', chunkResult.result);
+        coordinatorResult = await this.executeVisualizationTransactionWithContext(coordinator, request, coordinatorContext);
+        
+        if (!coordinatorResult.success) {
+          console.warn(`⚠️ Chunk ${chunkId} processing failed: ${coordinatorResult.error}`);
+          continue;
+        }
+        
+        // Step 3c: Saver saves the processed chunk
+        const saverContext = this.buildIterationContext(saver, iterationState, 'save_chunk', coordinatorResult.result);
+        const saveResult = await this.executeVisualizationTransactionWithContext(saver, request, saverContext);
+        
+        if (!saveResult.success) {
+          console.warn(`⚠️ Chunk ${chunkId} save failed: ${saveResult.error}`);
+          continue;
+        }
+        
+        // Store iteration result
+        iterationState.iterationResults.push({
+          iteration: i + 1,
+          chunkId,
+          processed: coordinatorResult.result,
+          saved: saveResult.result
+        });
+        
+        iterationState.metadata.processedChunks++;
+        
+        // Check finalization condition
+        if (config.finalizationCondition && config.finalizationCondition(iterationState)) {
+          console.log(`✅ Finalization condition met at iteration ${i + 1}`);
+          break;
+        }
+      }
+      
+      console.log(`✅ Iterative processing completed: ${iterationState.metadata.processedChunks} chunks processed`);
+      
+      // Return final result
+      return {
+        agentName: `iterative_group_${config.groupId}`,
+        result: {
+          groupId: config.groupId,
+          totalIterations: iterationState.currentIteration,
+          processedChunks: iterationState.metadata.processedChunks,
+          totalChunks: iterationState.metadata.totalChunks,
+          results: iterationState.iterationResults
+        },
+        success: true,
+        timestamp: new Date()
+      };
+      
+    } catch (error) {
+      console.error(`❌ Iterative transaction group failed: ${error}`);
+      return {
+        agentName: `iterative_group_${config.groupId}`,
+        result: null,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date()
+      };
+    } finally {
+      // Cleanup iteration state
+      this.iterationStates.delete(config.groupId);
+    }
+  }
+
+  private extractChunkIds(fetcherResult: any): string[] {
+    try {
+      // Try to extract chunk IDs from different possible formats
+      if (Array.isArray(fetcherResult)) {
+        // If result is already an array of chunk IDs
+        return fetcherResult.filter(id => typeof id === 'string');
+      }
+      
+      if (typeof fetcherResult === 'string') {
+        // Try to parse as JSON
+        try {
+          const parsed = JSON.parse(fetcherResult);
+          if (Array.isArray(parsed)) {
+            return parsed.filter(id => typeof id === 'string');
+          }
+          if (parsed.chunks && Array.isArray(parsed.chunks)) {
+            return parsed.chunks.map((chunk: any) => chunk.id || chunk._id || chunk).filter((id: any) => typeof id === 'string');
+          }
+        } catch {
+          // If not JSON, treat as single chunk ID
+          return [fetcherResult];
+        }
+      }
+      
+      if (fetcherResult && typeof fetcherResult === 'object') {
+        // Look for common chunk ID array properties
+        const possibleArrays = ['chunks', 'ids', 'chunkIds', 'documents', 'results'];
+        for (const prop of possibleArrays) {
+          if (Array.isArray(fetcherResult[prop])) {
+            return fetcherResult[prop].map((item: any) => 
+              typeof item === 'string' ? item : (item.id || item._id || String(item))
+            ).filter((id: any) => id);
+          }
+        }
+      }
+      
+      console.warn('Could not extract chunk IDs from fetcher result:', fetcherResult);
+      return [];
+    } catch (error) {
+      console.error('Error extracting chunk IDs:', error);
+      return [];
+    }
+  }
+
+  private buildIterationContext(
+    transaction: VisualizationTransaction, 
+    iterationState: IterationState, 
+    phase: 'fetch_chunk' | 'process_chunk' | 'save_chunk',
+    additionalData?: any
+  ): Record<string, any> {
+    const baseContext: Record<string, any> = {
+      iterationPhase: phase,
+      currentIteration: iterationState.currentIteration,
+      currentChunkId: iterationState.currentChunkId,
+      currentChunkIndex: iterationState.currentChunkIndex,
+      totalChunks: iterationState.chunkIds.length,
+      collectionName: iterationState.metadata.collectionName,
+      processedChunks: iterationState.metadata.processedChunks
+    };
+    
+    if (additionalData) {
+      baseContext.chunkData = additionalData;
+    }
+    
+    return baseContext;
+  }
+
+  private async executeVisualizationTransactionWithContext(
+    transaction: VisualizationTransaction,
+    request: BrowserGraphRequest,
+    iterationContext: Record<string, any>
+  ): Promise<AgentResult> {
+    const agent = this.agents.get(transaction.agentName);
+    if (!agent) {
+      throw new Error(`Agent ${transaction.agentName} not registered for transaction ${transaction.id}`);
+    }
+    
+    // Build enhanced context that includes iteration data
+    const baseContext = await this.buildVisualizationTransactionContext(transaction, request);
+    const enhancedContext = {
+      ...baseContext,
+      ...iterationContext
+    };
+    
+    // Execute with enhanced context
+    return await agent.execute(enhancedContext);
   }
 }

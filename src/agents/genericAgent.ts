@@ -766,7 +766,16 @@ export class GenericAgent {
             return await mcpClientManager.callTool(serverName, toolCall);
           } catch (error) {
             if (error instanceof Error && error.message.includes('timed out')) {
-              throw new Error(`Tool ${toolCall.name} timed out. This operation may take longer than expected. Consider increasing the timeout or checking if the file exists and is accessible.`);
+              const isIndexingOperation = ['index_file', 'index-file'].includes(toolCall.name);
+              if (isIndexingOperation) {
+                throw new Error(`File indexing operation '${toolCall.name}' timed out after 30 minutes. Large files may require more time to process. Consider:\n` +
+                  `- Breaking large files into smaller chunks\n` +
+                  `- Verifying the file exists and is accessible\n` +
+                  `- Checking MCP RAG server logs for processing errors\n` +
+                  `- Ensuring sufficient system resources (memory/CPU)`);
+              } else {
+                throw new Error(`Tool ${toolCall.name} timed out. This operation may take longer than expected. Consider increasing the timeout or checking if the request parameters are valid.`);
+              }
             }
             throw error;
           }

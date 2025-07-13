@@ -135,10 +135,11 @@ RAG MCP Server started in stdio mode*/
     
     // Operation-specific timeouts
     const OPERATION_TIMEOUTS: Record<string, number> = {
-      'index_file': 600000,    // 5 minutes for file indexing
-      'index-file': 500000,    // Handle both naming conventions
+      'index_file': 1800000,   // 30 minutes for large file indexing
+      'index-file': 1800000,   // 30 minutes (handle both naming conventions)
       'semantic_search': 60000, // 1 minute for searches
       'get_chunks': 30000,     // 30 seconds for chunk retrieval
+      'structured_query': 120000, // 2 minutes for structured queries
       'default': 120000        // 2 minutes default
     };
     
@@ -146,10 +147,29 @@ RAG MCP Server started in stdio mode*/
     
     try {
       console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
+      console.log(`Timeout set to ${timeout}ms (${Math.round(timeout/60000)} minutes)`);
+      
+      // Add progress logging for long-running operations
+      let progressInterval: NodeJS.Timeout | null = null;
+      const isLongRunningOperation = ['index_file', 'index-file'].includes(toolCall.name);
+      
+      if (isLongRunningOperation) {
+        const startTime = Date.now();
+        console.log(`🔄 Starting long-running operation: ${toolCall.name}. This may take several minutes...`);
+        
+        progressInterval = setInterval(() => {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          const remaining = Math.round((timeout - (Date.now() - startTime)) / 1000);
+          console.log(`⏱️ ${toolCall.name} progress: ${elapsed}s elapsed, ~${remaining}s remaining (timeout: ${Math.round(timeout/60000)}min)`);
+        }, 30000); // Log every 30 seconds
+      }
       
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Tool call timed out after ${timeout}ms`)), timeout);
+        setTimeout(() => {
+          if (progressInterval) clearInterval(progressInterval);
+          reject(new Error(`Tool call timed out after ${timeout}ms`));
+        }, timeout);
       });
       
       // Race between the tool call and timeout
@@ -160,6 +180,14 @@ RAG MCP Server started in stdio mode*/
         }),
         timeoutPromise
       ]) as any;
+      
+      // Clear progress logging
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        if (isLongRunningOperation) {
+          console.log(`✅ ${toolCall.name} completed successfully`);
+        }
+      }
       
       // Return the content directly, handling different content types
      console.log(`MCP tool ${toolCall.name} raw response:`, JSON.stringify(response, null, 2));

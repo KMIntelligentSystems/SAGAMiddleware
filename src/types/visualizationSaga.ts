@@ -73,6 +73,36 @@ export interface VisualizationTransaction {
   compensationAgent?: string;
   compensationAction?: string;
   status: 'pending' | 'executing' | 'completed' | 'failed' | 'compensated';
+  iterationGroup?: string; // For grouping transactions that iterate together
+  iterationRole?: 'coordinator' | 'fetcher' | 'processor' | 'saver'; // Role in iteration cycle
+}
+
+// New interfaces for iteration management
+export interface IterationState {
+  transactionGroupId: string;
+  currentIteration: number;
+  chunkIds: string[];
+  currentChunkIndex: number;
+  currentChunkId?: string;
+  maxIterations?: number;
+  iterationResults: any[];
+  finalizationCondition?: string; // Function name or condition
+  metadata: {
+    collectionName?: string;
+    totalChunks?: number;
+    processedChunks: number;
+    startTime: Date;
+    lastIterationTime?: Date;
+  };
+}
+
+export interface IterationConfig {
+  groupId: string;
+  maxIterations?: number;
+  chunkBatchSize?: number;
+  finalizationCondition?: (state: IterationState) => boolean;
+  onIterationComplete?: (iteration: number, result: any) => void;
+  onGroupComplete?: (state: IterationState) => void;
 }
 
 // Configuration for the human-in-the-loop system
@@ -127,15 +157,45 @@ export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
     id: 'tx-2',
     name: 'Index files',
     agentName: 'DataProcessingAgent',
-     dependencies: ['tx-3'],
+     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
+ /* {
+    id: 'tx-3',
+    name: 'Structure Data',
+    agentName: 'DataStructuringAgent',
+    dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending',
+    iterationGroup: 'chunk-processing-group',
+    iterationRole: 'coordinator'
+  },
+  {
+    id: 'tx-3-1',
+    name: 'Fetch Data',
+    agentName: 'DataFetchingChildAgent',
+    dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending',
+    iterationGroup: 'chunk-processing-group',
+    iterationRole: 'fetcher'
+  },
+  {
+    id: 'tx-3-2',
+    name: 'Save Data',
+    agentName: 'DataUpdatingChildAgent',
+    dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending',
+    iterationGroup: 'chunk-processing-group',
+    iterationRole: 'saver'
+  },*/
   {
     id: 'tx-3',
     name: 'Apply RAG Tool',
     agentName: 'DataFilteringAgent',
-    dependencies: ['tx-4'],
+    dependencies: [],
     compensationAction: 'cleanup_thread',
     status: 'pending'
   },
@@ -143,7 +203,7 @@ export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
     id: 'tx-4',
     name: 'Data Visualizer',
     agentName: 'DataManipulationAgent',
-    dependencies: ['tx-3'],
+    dependencies: [],
     compensationAction: 'cleanup_thread',
     status: 'pending'
   }

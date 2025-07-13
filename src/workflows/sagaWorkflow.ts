@@ -172,6 +172,32 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
       },
+     /* {
+        agentName: 'DataStructuringAgent',
+        agentType: 'tool',
+        transactionId: 'tx-3',
+        backstory: 'You are a semantic data architect able to transform  CSV data into a structured format optimized for vector search and retrieval',
+        taskDescription: `You will work in a loop with other agents. When you are called first, you will ask another agent to fetch all the Ids you need to interact with.
+        Then for each Id ask the data fetching agent for the first chunk of data. You will then apply the transformation schema provided to you to transform the chunk. Finally, you will ask an updating agent to update that chunk in the vector store passing it the Id, Chunk and Collection name.
+        Identify searchable semantic categories in a structured format for each chunk of data you receive. Create meta data for ease of retrieval`,
+        taskExpectedOutput: 'Structure the semantic data in accord with a target schema with which you will be provided'
+      },
+       {
+        agentName: 'DataFetchingChildAgent',
+        agentType: 'tool',
+        transactionId: 'tx-3-1',
+        backstory: 'You are a retriever of chunks from a vector store',
+        taskDescription: 'The task of fetching data is a 2 step process: 1. Get all the collection Ids 2. Get each chunk from the collection when requested using passed Id',
+        taskExpectedOutput: 'Provide the data chunk as is.'
+      },
+       {
+        agentName: 'DataUpdatingChildAgent',
+        agentType: 'tool',
+        transactionId: 'tx-3-2',
+        backstory: 'You update data in a vector store given an id and a chunk',
+        taskDescription: 'Update data in a vector store given the id and chunk to update',
+        taskExpectedOutput: 'Provide the object you are given to update the store'
+      },*/
       {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
