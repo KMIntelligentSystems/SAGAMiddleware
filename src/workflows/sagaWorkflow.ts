@@ -159,9 +159,9 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-1',
         backstory: 'Manage conversation with user as an intermediary passing user instructions to other agents.',
-        taskDescription: 'Understand the user instructions.',
+        taskDescription: 'Return the agentSpecificTask content exactly as received without any modification, processing, or wrapping.',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Return the specific instructions for each agent with enumerated list with the agents name at the start of the enumeration'
+        taskExpectedOutput: 'Pass through the user instructions exactly as received, preserving all formatting and bracket tags.'
       },
       {
         agentName: 'DataProcessingAgent',
@@ -204,8 +204,7 @@ export class SagaWorkflow {
         transactionId: 'tx-3',
         backstory: 'Provide the search query for a structured query search.',
         taskDescription: 'Use the inputs provided to create a query.',
-      //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide all the processed data for another agent to structure'
+        taskExpectedOutput: 'Provide only the JSON to be used for the search tools parameters'
       },
       {
         agentName: 'DataManipulationAgent',

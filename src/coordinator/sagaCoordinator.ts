@@ -264,24 +264,7 @@ sleep(ms: number) {
           
           throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
         }
-        //Get previous result to put into the context of the next agent to run. The previous result will have instructions for the next agent
-        if(contextSet && counter < contextSet.llmPrompts.length - 1){
-            const prevContextSet = contextSet as ContextSetDefinition
-            const nextPromptIndex = counter + 1;
-            if (prevContextSet.llmPrompts[nextPromptIndex]) {
-              if(transaction.agentName != 'ConversationAgent'){
-                   prevContextSet.llmPrompts[nextPromptIndex].context = {'currResult': result.result};
-              }
-              const nextContextSet: ContextSetDefinition = {
-                name: '',
-                transactionSetName: '', // Links to a transaction set
-                dataSources: [],
-                llmPrompts: [prevContextSet.llmPrompts[nextPromptIndex] ],
-                userQuery: ''
-              };
-              this.contextManager.setActiveContextSet(nextContextSet);
-            }
-        }
+        // Each agent gets its own instructions from the bracket parsing - no context passing needed
         counter++;
     
     console.log("HERE BEFOR UPDATA CONTEXT")
@@ -441,6 +424,7 @@ sleep(ms: number) {
 
       // If no conversation context available, fall back to parsing the original user query
       if (!agentSpecificTask && request.userQuery) {
+        console.log('request.userQuery  ', request.userQuery)
         agentSpecificTask = this.parseUserQueryForAgent(request.userQuery, transaction.agentName);
       }
     }
@@ -469,116 +453,41 @@ sleep(ms: number) {
       } else {
         return '';
       }
+      console.log('CONVERSATION RESULT   ',conversationResult)
+      console.log('RESULT TEXT FOR PARSING:', resultText);
       
-      // Debug: Log the actual conversation result format
-      console.log(`🔍 DEBUG: Parsing conversation result for ${agentName}`);
-      console.log(`🔍 DEBUG: Result text type:`, typeof resultText);
-      console.log(`🔍 DEBUG: Result text content:`, resultText.substring(0, 500) + (resultText.length > 500 ? '...' : ''));
-      console.log(`🔍 DEBUG: Looking for agent:`, agentName);
-      // Handle both formats: numbered sections and markdown sections
+      // Extract content between bracket tags for this agent
+      // Handle both formats: [AGENT:AgentName] and [AGENT: AgentName] (with space)
+      const startTag1 = `[AGENT:${agentName}]`;
+      const startTag2 = `[AGENT: ${agentName}]`;
+      const endTag = `[/AGENT]`;
       
-      // First try to find numbered sections like "1. Agent name: DataProcessingAgent"
-      const numberedSectionRegex = new RegExp(`\\d+\\.\\s*Agent name:\\s*${agentName}[\\s\\S]*?(?=\\d+\\.\\s*Agent name:|$)`, 'i');
-      console.log(`🔍 DEBUG: Numbered regex:`, numberedSectionRegex.toString());
-      let match = resultText.match(numberedSectionRegex);
-      console.log(`🔍 DEBUG: Numbered regex match:`, match ? match[0].substring(0, 200) + '...' : 'NO MATCH');
+      console.log(`🔍 Looking for tags: "${startTag1}" OR "${startTag2}" and "${endTag}"`);
       
-      if (!match) {
-        // Try markdown format like "**DataProcessingAgent**"
-        const markdownSectionRegex = new RegExp(`\\*\\*${agentName}\\*\\*[\\s\\S]*?(?=\\d+\\.\\s*\\*\\*\\w+Agent\\*\\*|$)`, 'i');
-        console.log(`🔍 DEBUG: Markdown regex:`, markdownSectionRegex.toString());
-        match = resultText.match(markdownSectionRegex);
-        console.log(`🔍 DEBUG: Markdown regex match:`, match ? match[0].substring(0, 200) + '...' : 'NO MATCH');
-      }
-      if (match) {
-        let agentSection = match[0];
-        
-        // Clean up the section by removing markdown formatting and extracting key information
-        agentSection = agentSection.replace(/\*\*|\\\\/g, ''); // Remove markdown bold and escaped characters
-        agentSection = agentSection.replace(/\\n/g, '\n'); // Convert escaped newlines to actual newlines
-        
-        // For numbered sections, extract everything after "Agent name: AgentName"
-        if (agentSection.includes('Agent name:')) {
-          const agentNameIndex = agentSection.indexOf('Agent name:');
-          const afterAgentName = agentSection.substring(agentNameIndex);
-          const lines = afterAgentName.split('\n');
-          
-          let cleanedInstructions = '';
-          for (let i = 1; i < lines.length; i++) { // Skip the "Agent name:" line
-            const trimmedLine = lines[i].trim();
-            if (trimmedLine) {
-              // Clean up the line and add it
-              if (trimmedLine.startsWith('Task description:')) {
-                cleanedInstructions += trimmedLine + '\n';
-              } else if (!trimmedLine.match(/^\d+\.\s*Agent name:/)) {
-                cleanedInstructions += trimmedLine + '\n';
-              }
-            }
-          }
-          
-          console.log(`CLEANED for ${agentName}:`, cleanedInstructions.trim());
-          return cleanedInstructions.trim();
-        } else {
-          // For markdown sections like "**DataProcessingAgent**: content"
-          // Remove the agent name part and extract the content
-          const agentNamePattern = new RegExp(`^${agentName}\\s*:\\s*`, 'i');
-          const content = agentSection.replace(agentNamePattern, '').trim();
-          
-          // Remove any trailing numbered sections that might have been captured
-          const cleanContent = content.replace(/\n\s*\d+\.\s*$/, '').trim();
-          
-          // For DataFilteringAgent, extract structured query parameters
-          if (agentName === 'DataFilteringAgent') {
-            // Get data source configuration from active context set
-            const currContextSet = this.contextManager.getActiveContextSet();
-            const dataSourceConfig = currContextSet?.dataSources?.[0]; // Use first data source as default
-            
-            const structuredQuery = this.parseDataFilteringQuery(cleanContent, dataSourceConfig);
-            console.log(`STRUCTURED QUERY for ${agentName}:`, JSON.stringify(structuredQuery, null, 2));
-            return JSON.stringify(structuredQuery);
-          }
-          
-          console.log(`CLEANED for ${agentName}:`, cleanContent);
-          return cleanContent;
-        }
+      let startIndex = resultText.indexOf(startTag1);
+      let startTagLength = startTag1.length;
+      
+      if (startIndex === -1) {
+        startIndex = resultText.indexOf(startTag2);
+        startTagLength = startTag2.length;
       }
       
-      // If no specific patterns match, try a more flexible approach
-      console.log(`🔍 DEBUG: No regex matches found, trying flexible parsing...`);
+      const endIndex = resultText.indexOf(endTag, startIndex);
       
-      // Look for any mention of the agent name in the text
-      const agentMentionRegex = new RegExp(`${agentName}[\\s\\S]{0,500}`, 'i');
-      const agentMention = resultText.match(agentMentionRegex);
-      if (agentMention) {
-        console.log(`🔍 DEBUG: Found agent mention:`, agentMention[0].substring(0, 200) + '...');
-        // Extract everything after the agent name until the next agent or end
-        const afterAgentName = agentMention[0];
-        // Try to find a task description or content after the agent name
-        const taskMatch = afterAgentName.match(/task[^:]*:\s*([\s\S]*?)(?=\n\s*\n|\n\s*[A-Z]|$)/i);
-        if (taskMatch) {
-          console.log(`🔍 DEBUG: Found task content:`, taskMatch[1]);
-          return taskMatch[1].trim();
-        }
+      console.log(`🔍 Found startIndex: ${startIndex}, endIndex: ${endIndex}`);
+      
+      if (startIndex !== -1 && endIndex !== -1) {
+        // Extract just the content, no bracket tags
+        let content = resultText.substring(startIndex + startTagLength, endIndex).trim();
         
-        // Alternative: look for content after ":" (for "AgentName: content" format)
-        const colonMatch = afterAgentName.match(/:\s*([\s\S]*?)(?=\n\s*\n|\n\s*[A-Z]|$)/i);
-        if (colonMatch) {
-          console.log(`🔍 DEBUG: Found colon content:`, colonMatch[1]);
-          return colonMatch[1].trim();
-        }
+        // Remove any leading period or numbered prefix that might be captured
+        content = content.replace(/^\d+\.\s*/, '').replace(/^\./, '').trim();
         
-        // If no specific task pattern, return all meaningful content after agent name
-        const lines = afterAgentName.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        if (lines.length > 1) {
-          // Join all lines after the agent name line, excluding the agent name itself
-          const contentLines = lines.slice(1);
-          const content = contentLines.join('\n').trim();
-          console.log(`🔍 DEBUG: Returning all content lines:`, content);
-          return content;
-        }
+        console.log(`✅ Extracted content for ${agentName}:`, content);
+        return content;
       }
-      
-      console.log(`🔍 DEBUG: No parsing successful, returning empty string`);
+    
+      console.log(`⚠️ No bracket tags found for ${agentName}`);
       return '';
     } catch (error) {
       console.warn(`Failed to parse conversation result for agent ${agentName}:`, error);
@@ -586,197 +495,6 @@ sleep(ms: number) {
     }
   }
 
-  private parseDataFilteringQuery(content: string, dataSourceConfig?: any): any {
-    try {
-      // Get collection name from data source config or use default
-      const collectionName = dataSourceConfig?.collection || 
-                           dataSourceConfig?.name || 
-                           "supply_analysis";
-
-      // Get field mappings from data source config or use defaults
-      const fieldMappings = dataSourceConfig?.fieldMappings || {
-        categoryField: "category_type",      // ChromaDB uses category_type, not energy_type
-        timestampField: "datetime",          // ChromaDB uses datetime field
-        installationField: "installation",
-        valueField: "value",
-        unitField: "unit"
-      };
-
-      const query: any = {
-        collection: collectionName,
-        search_text: "",
-        metadata_filters: {},
-        date_filters: {},
-        limit: dataSourceConfig?.defaultLimit || 1000,
-        include_distances: false
-      };
-
-      // Extract semantic search text from various patterns
-      const searchTextPatterns = [
-        /Search text:\s*[`"']([^`"']+)[`"']/i,
-        /semantic search[^:]*:\s*[`"']([^`"']+)[`"']/i,
-        /Task description for semantic search:\s*["']([^"']+)["']/i,
-        /search for[^:]*:\s*[`"']([^`"']+)[`"']/i
-      ];
-
-      for (const pattern of searchTextPatterns) {
-        const match = content.match(pattern);
-        if (match) {
-          const searchContent = match[1];
-          // Extract the main search term before any colon
-          const mainSearchMatch = searchContent.match(/^([^:]+):/);
-          query.search_text = mainSearchMatch ? mainSearchMatch[1].trim() : searchContent;
-          break;
-        }
-      }
-
-      // Fallback: look for any quoted/backticked strings
-      if (!query.search_text) {
-        const quotedMatch = content.match(/[`"']([^`"']+)[`"']/);
-        if (quotedMatch) {
-          query.search_text = quotedMatch[1];
-        }
-      }
-
-      // Extract date range with multiple patterns
-      const datePatterns = [
-        /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/g,
-        /(\d{4}-\d{2}-\d{2})/g
-      ];
-
-      let dateMatches: string[] = [];
-      for (const pattern of datePatterns) {
-        const matches = content.match(pattern);
-        if (matches && matches.length > 0) {
-          dateMatches = matches;
-          break;
-        }
-      }
-
-      if (dateMatches.length >= 2) {
-        query.date_filters = {
-          field: fieldMappings.timestampField,
-          start_date: dateMatches[0],
-          end_date: dateMatches[1]
-        };
-      } else if (dateMatches.length === 1) {
-        const dateFilter: any = { field: fieldMappings.timestampField };
-        if (content.toLowerCase().includes('start')) {
-          dateFilter.start_date = dateMatches[0];
-        } else if (content.toLowerCase().includes('end')) {
-          dateFilter.end_date = dateMatches[0];
-        } else {
-          // Default to start date if unclear
-          dateFilter.start_date = dateMatches[0];
-        }
-        query.date_filters = dateFilter;
-      }
-
-      // Generic metadata extraction based on data source configuration
-      if (dataSourceConfig?.searchableCategories) {
-        // Use configured categories
-        for (const category of dataSourceConfig.searchableCategories) {
-          if (content.toLowerCase().includes(category.toLowerCase())) {
-            query.metadata_filters[fieldMappings.categoryField] = category;
-            break;
-          }
-        }
-      } else {
-        // Fallback to common energy categories
-        const commonCategories = ['coal', 'gas', 'oil', 'solar', 'wind', 'nuclear', 'energy'];
-        for (const category of commonCategories) {
-          if (content.toLowerCase().includes(category.toLowerCase())) {
-            query.metadata_filters[fieldMappings.categoryField] = category;
-            break;
-          }
-        }
-      }
-
-      // Extract additional metadata patterns from content
-      this.extractGenericMetadataFilters(content, query.metadata_filters, fieldMappings);
-
-      // Apply range filters if specified in data source config
-      if (dataSourceConfig?.rangeFilters) {
-        query.range_filters = this.extractRangeFilters(content, dataSourceConfig.rangeFilters);
-      }
-
-      return {
-        tool_name: "structured_query",
-        parameters: query
-      };
-    } catch (error) {
-      console.warn('Failed to parse data filtering query:', error);
-      // Fallback with minimal configuration
-      return {
-        tool_name: "structured_query",
-        parameters: {
-          collection: dataSourceConfig?.collection || "supply_analysis",
-          search_text: content.substring(0, 100), // Truncate for safety
-          metadata_filters: {},
-          limit: 100
-        }
-      };
-    }
-  }
-
-  private extractGenericMetadataFilters(content: string, metadataFilters: any, fieldMappings: any): void {
-    // Extract aggregation/granularity patterns
-    const aggregationPatterns = ['hourly', 'daily', 'weekly', 'monthly', 'yearly'];
-    for (const aggType of aggregationPatterns) {
-      if (content.toLowerCase().includes(aggType)) {
-        metadataFilters.aggregation = aggType;
-        break;
-      }
-    }
-
-    // Extract analysis type patterns
-    const analysisPatterns = ['trend', 'forecast', 'comparison', 'summary', 'average'];
-    for (const analysisType of analysisPatterns) {
-      if (content.toLowerCase().includes(analysisType)) {
-        metadataFilters.analysis_type = analysisType;
-        break;
-      }
-    }
-
-    // Extract metric type patterns
-    const metricPatterns = ['output', 'generation', 'consumption', 'efficiency', 'capacity'];
-    for (const metricType of metricPatterns) {
-      if (content.toLowerCase().includes(metricType)) {
-        metadataFilters.metric_type = metricType;
-        break;
-      }
-    }
-
-    // Extract installation/source patterns
-    const installationMatch = content.match(/installation[:\s]+([a-zA-Z]+)/i);
-    if (installationMatch && fieldMappings.installationField) {
-      metadataFilters[fieldMappings.installationField] = installationMatch[1];
-    }
-  }
-
-  private extractRangeFilters(content: string, rangeConfig: any): any {
-    const rangeFilters: any = {};
-    
-    // Extract numeric ranges from content
-    const numericRangePattern = /(\w+)[\s:]+(\d+(?:\.\d+)?)\s*(?:to|-)?\s*(\d+(?:\.\d+)?)/gi;
-    let match;
-    
-    while ((match = numericRangePattern.exec(content)) !== null) {
-      const fieldName = match[1].toLowerCase();
-      const minValue = parseFloat(match[2]);
-      const maxValue = parseFloat(match[3]);
-      
-      // Check if this field is configured for range filtering
-      if (rangeConfig[fieldName]) {
-        rangeFilters[rangeConfig[fieldName]] = {
-          min: Math.min(minValue, maxValue),
-          max: Math.max(minValue, maxValue)
-        };
-      }
-    }
-    
-    return rangeFilters;
-  }
 
   private parseUserQueryForAgent(userQuery: string, agentName: string): string {
     try {
