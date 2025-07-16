@@ -415,11 +415,17 @@ sleep(ms: number) {
     if (transaction.agentName === 'ConversationAgent') {
       // ConversationAgent needs the entire user query for human-in-the-loop conversations
       agentSpecificTask = request.userQuery || '';
-    } else {
+    } 
+    else {
       // For other agents, first try to get instructions from ConversationAgent's working memory
       if (conversationContext && conversationContext.lastTransactionResult) {
         console.log("HERE IN CONVERSATIONCONTEXT")
         agentSpecificTask = this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+        if (transaction.agentName === 'DataManipulationAgent'){
+            const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
+            console.log('FILTERING AGENT   ',JSON.stringify(filteringAgentContext.lastTransactionResult))
+            agentSpecificTask += `**Data to be manipulated**\n` + JSON.stringify(filteringAgentContext.lastTransactionResult);
+        }
       }
 
       // If no conversation context available, fall back to parsing the original user query
@@ -431,8 +437,8 @@ sleep(ms: number) {
     
     // Build final context with text-only variables
     context = {
-      dataSources: dataSourcesText,
-      llmPrompt: llmPromptText,
+     // dataSources: dataSourcesText,
+   //   llmPrompt: llmPromptText,
       agentSpecificTask: agentSpecificTask
       //userQuery: request.userQuery || ''
     };
@@ -484,6 +490,11 @@ sleep(ms: number) {
         content = content.replace(/^\d+\.\s*/, '').replace(/^\./, '').trim();
         
         console.log(`✅ Extracted content for ${agentName}:`, content);
+        /*
+Extracted content for DataFilteringAgent: Task for structured query search. **CRITICAL**: You must return the JSON EXACTLY as provided below. Do not modify field names, do not convert metadata_filters to search_text,
+ do not change the structure in any way. Copy and return this exact JSON: { "collection": "supply_analysis", "metadata_filters": { "category_type": "Coal" }, "date_filters": 
+{ "field": "datetime", "start_date": "2023-11-02T04:00:00.000Z", "end_date": "2023-11-05T23:55:00.000Z" }, "limit": 1000, "include_distances": false } Do not interpret or modify this JSON. Return it exactly as shown.
+        */
         return content;
       }
     
