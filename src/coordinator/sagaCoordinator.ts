@@ -6,10 +6,10 @@ import {
   WorkingMemory
 } from '../types/index.js';
 import { 
-  VisualizationSAGAState, 
-  VisualizationTransaction,
-  VISUALIZATION_TRANSACTIONS,
-  VisualizationWorkflowRequest,
+  SagaState, 
+  SagaTransaction,
+  SAGA_TRANSACTIONS,
+  SagaWorkflowRequest,
   CompensationAction,
   IterationState,
   IterationConfig
@@ -29,8 +29,8 @@ export class SagaCoordinator extends EventEmitter {
   private validationManager: ValidationManager;
   private transactionManager: TransactionManager;
   private activeExecutions: Set<string> = new Set();
-  private visualizationSagaState: VisualizationSAGAState | null = null;
-  private currentExecutingTransactionSet: VisualizationTransaction[] | null = null;
+  private sagaState: SagaState | null = null;
+  private currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
  // private currentContextSet: ContextSetDefinition | null = null;
 
@@ -165,15 +165,15 @@ export class SagaCoordinator extends EventEmitter {
 
 
   // ========================================
-  // VISUALIZATION SAGA METHODS
+  // SAGA METHODS
   // ========================================
 
-  initializeVisualizationSAGA(workflowId: string, request: VisualizationWorkflowRequest, transactionCount?: number): void {
-    this.visualizationSagaState = {
+  initializeSaga(workflowId: string, request: SagaWorkflowRequest, transactionCount?: number): void {
+    this.sagaState = {
       id: workflowId,
       status: 'initializing',
       currentTransaction: 0,
-      totalTransactions: transactionCount || VISUALIZATION_TRANSACTIONS.length,
+      totalTransactions: transactionCount || SAGA_TRANSACTIONS.length,
       
     
       errors: [],
@@ -181,26 +181,26 @@ export class SagaCoordinator extends EventEmitter {
       compensations: []
     };
 
-    console.log(`🎯 Initialized Visualization SAGA: ${workflowId}`);
-    this.emit('visualization_saga_initialized', this.visualizationSagaState);
+    console.log(`🎯 Initialized SAGA: ${workflowId}`);
+    this.emit('saga_initialized', this.sagaState);
   }
 
 sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-  async executeVisualizationSAGA(
-    request: BrowserGraphRequest, //VisualizationWorkflowRequest,
-    workflowId: string = `viz_saga_${Date.now()}`,
-    transactionOrdering?: VisualizationTransaction[],
+  async executeSagaWorkflow(
+    request: BrowserGraphRequest, //SagaWorkflowRequest,
+    workflowId: string = `saga_${Date.now()}`,
+    transactionOrdering?: SagaTransaction[],
     contextSet?: ContextSetDefinition
   ): Promise<AgentResult> {
-    console.log(`🚀 Starting Visualization SAGA: ${workflowId}`);
+    console.log(`🚀 Starting SAGA: ${workflowId}`);
     
     // Use provided transaction ordering or fall back to default
-    const transactionsToExecute = transactionOrdering as VisualizationTransaction[];//|| VISUALIZATION_TRANSACTIONS;
+    const transactionsToExecute = transactionOrdering || SAGA_TRANSACTIONS;
 
-   // this.initializeVisualizationSAGA(workflowId, request, transactionsToExecute.length);
+   // this.initializeSaga(workflowId, request, transactionsToExecute.length);
     
     //const transactionId = await this.transactionManager.startTransaction('visualization_saga');
     let counter = 0;
@@ -215,7 +215,7 @@ sleep(ms: number) {
       
       // Execute transactions in order with compensation capability
       //executeWorkflow above use executeOrder array
-      // VISUALIZATION_TRANSACTIONS:VisualizationTransaction
+      // SAGA_TRANSACTIONS:SagaTransaction
       
       // Group transactions by iteration groups
       const iterationGroups = this.groupTransactionsByIteration(transactionsToExecute);
@@ -226,8 +226,16 @@ sleep(ms: number) {
         
         let result: AgentResult;
         
-        // Check if this transaction is part of an iteration group
-        if (transaction.iterationGroup && iterationGroups.has(transaction.iterationGroup)) {
+        // Check if this transaction has circular dependencies
+        if (this.hasCircularDependency(transaction, transactionsToExecute)) {
+          // Handle circular dependency with agent-driven loop control
+          const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
+          if (circularPartner) {
+            result = await this.executeCircularDependencyLoop(transaction, circularPartner, request);
+          } else {
+            throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
+          }
+        } else if (transaction.iterationGroup && iterationGroups.has(transaction.iterationGroup)) {
           // Handle iterative transaction group
           if (transaction.iterationRole === 'coordinator') {
             // This is the start of an iteration group - execute the full iterative cycle
@@ -251,13 +259,13 @@ sleep(ms: number) {
           }
         } else {
           // Regular transaction execution
-          result = await this.executeVisualizationTransaction(transaction, request);
+          result = await this.executeSagaTransaction(transaction, request);
         } 
         console.log("RRESULT ", result.result)
         
         if (!result.success) {
           console.log(`❌ Transaction failed: ${transaction.name} - ${result.error}`);
-          this.visualizationSagaState!.errors.push(`${transaction.name}: ${result.error}`);
+          this.sagaState!.errors.push(`${transaction.name}: ${result.error}`);
           
           // Execute compensations for completed transactions
           await this.executeCompensations();
@@ -290,10 +298,10 @@ sleep(ms: number) {
   
     //  await this.transactionManager.commitTransaction(transactionId);
       
-      console.log(`🎉 Visualization SAGA completed successfully: ${workflowId}`);
+      console.log(`🎉 SAGA completed successfully: ${workflowId}`);
 
  return {
-        agentName: 'visualization_saga_coordinator',
+        agentName: 'saga_coordinator',
         result: '',
         success: true,
         timestamp: new Date()
@@ -303,10 +311,10 @@ sleep(ms: number) {
       
   //  💥 Visualization SAGA failed: thread_saga_thread_JO596op9tdbjiJaySjJPQe21_1751344836444 - TypeError: Cannot set properties of undefined (setting 'context')
       
-      console.log(`💥 Visualization SAGA failed: ${workflowId} - ${error}`);
+      console.log(`💥 SAGA failed: ${workflowId} - ${error}`);
     
       return {
-        agentName: 'visualization_saga_coordinator',
+        agentName: 'saga_coordinator',
         result: null,
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -319,8 +327,8 @@ sleep(ms: number) {
     }
   }
 
-  private async executeVisualizationTransaction(
-    transaction: VisualizationTransaction, 
+  private async executeSagaTransaction(
+    transaction: SagaTransaction, 
     request: BrowserGraphRequest
   ): Promise<AgentResult> {
     const agent = this.agents.get(transaction.agentName);
@@ -329,7 +337,7 @@ sleep(ms: number) {
     }
 
     // Build context for this transaction
-    const context = await this.buildVisualizationTransactionContext(transaction, request);
+    const context = await this.buildSagaTransactionContext(transaction, request);
     
     // Execute the transaction
     const result = await agent.execute(context);
@@ -338,7 +346,7 @@ sleep(ms: number) {
        // Check dependencies are satisfied (use the current transaction set being executed)
  /*  for (const depId of transaction.dependencies) {
       // Find dependency in the current transaction set being executed
-      const transactionsToExecute = this.currentExecutingTransactionSet || VISUALIZATION_TRANSACTIONS;
+      const transactionsToExecute = this.currentExecutingTransactionSet || SAGA_TRANSACTIONS;
       const depTransaction = transactionsToExecute.find(t => t.id === depId);
       if (depTransaction) {
         const depContext = this.contextManager.getContext(depTransaction.agentName);
@@ -367,9 +375,9 @@ sleep(ms: number) {
     return result;
   }
 
-  private async buildVisualizationTransactionContext(
-    transaction: VisualizationTransaction, 
-    request: VisualizationWorkflowRequest
+  private async buildSagaTransactionContext(
+    transaction: SagaTransaction, 
+    request: SagaWorkflowRequest
   ): Promise<Record<string, any>> {
     const currContextSet: ContextSetDefinition = this.contextManager.getActiveContextSet();
     const conversationContext: WorkingMemory = this.contextManager.getContext('ConversationAgent') as WorkingMemory;
@@ -424,7 +432,7 @@ sleep(ms: number) {
         if (transaction.agentName === 'DataManipulationAgent'){
             const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
             console.log('FILTERING AGENT   ',JSON.stringify(filteringAgentContext.lastTransactionResult))
-            agentSpecificTask += `**Data to be manipulated**\n` + JSON.stringify(filteringAgentContext.lastTransactionResult);
+            agentSpecificTask += `**FIND THE DATASET IN RESULTS**\n` + JSON.stringify(filteringAgentContext.lastTransactionResult);
         }
       }
 
@@ -552,8 +560,8 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     }
   }
 
-  private updateVisualizationSAGAState(transactionId: string, result: AgentResult): void {
-    if (!this.visualizationSagaState) return;
+  private updateSagaState(transactionId: string, result: AgentResult): void {
+    if (!this.sagaState) return;
 
   /*  switch (transactionId) {
       case 'req_init':
@@ -596,20 +604,20 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     // Update overall status
     if (result.success) {
       if (transactionId === 'req_validate') {
-        this.visualizationSagaState.status = 'filtering_data';
+        this.sagaState.status = 'filtering_data';
       } else if (transactionId === 'data_filter') {
-        this.visualizationSagaState.status = 'specifying_chart';
+        this.sagaState.status = 'specifying_chart';
       } else if (transactionId === 'chart_spec') {
-        this.visualizationSagaState.status = 'generating_report';
+        this.sagaState.status = 'generating_report';
       }
     }
   }
 
   private async executeCompensations(): Promise<void> {
-    console.log(`🔄 Executing compensations for failed Visualization SAGA`);
+    console.log(`🔄 Executing compensations for failed SAGA`);
     
     // Execute compensations in reverse order
-    const compensations = [...this.visualizationSagaState!.compensations].reverse();
+    const compensations = [...this.sagaState!.compensations].reverse();
     
     for (const compensation of compensations) {
       if (!compensation.executed) {
@@ -654,24 +662,24 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     }*/
   }
 
-  getVisualizationSAGAState(): VisualizationSAGAState | null {
-    return this.visualizationSagaState ? { ...this.visualizationSagaState } : null;
+  getSagaState(): SagaState | null {
+    return this.sagaState ? { ...this.sagaState } : null;
   }
 
-  getVisualizationRequirements(): any {
-    return '';//this.visualizationSagaState?.requirementsState.extractedRequirements || null;
+  getRequirements(): any {
+    return '';//this.sagaState?.requirementsState.extractedRequirements || null;
   }
 
-  getVisualizationOutput(): any {
-    return '';//this.visualizationSagaState?.reportState.finalOutput || null;
+  getOutput(): any {
+    return '';//this.sagaState?.reportState.finalOutput || null;
   }
 
   // ========================================
   // ITERATIVE TRANSACTION GROUP METHODS
   // ========================================
 
-  private groupTransactionsByIteration(transactions: VisualizationTransaction[]): Map<string, VisualizationTransaction[]> {
-    const groups = new Map<string, VisualizationTransaction[]>();
+  private groupTransactionsByIteration(transactions: SagaTransaction[]): Map<string, SagaTransaction[]> {
+    const groups = new Map<string, SagaTransaction[]>();
     
     for (const transaction of transactions) {
       if (transaction.iterationGroup) {
@@ -683,7 +691,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     }
     
     // Sort transactions within each group by role priority
-    const rolePriority = { 'coordinator': 1, 'fetcher': 2, 'processor': 3, 'saver': 4 };
+    const rolePriority = { 'coordinator': 1, 'fetcher': 2, 'processor': 3, 'saver': 4, 'generator': 5, 'reflector': 5 };
     for (const [groupId, groupTransactions] of groups.entries()) {
       groupTransactions.sort((a, b) => {
         const priorityA = rolePriority[a.iterationRole || 'coordinator'];
@@ -696,7 +704,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
   }
 
   private async executeIterativeTransactionGroup(
-    groupTransactions: VisualizationTransaction[],
+    groupTransactions: SagaTransaction[],
     request: BrowserGraphRequest,
     config: IterationConfig
   ): Promise<AgentResult> {
@@ -729,7 +737,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       }
       
       console.log(`📋 Phase 1: Coordinator setup - getting collection info`);
-      let coordinatorResult = await this.executeVisualizationTransaction(coordinator, request);
+      let coordinatorResult = await this.executeSagaTransaction(coordinator, request);
       if (!coordinatorResult.success) {
         throw new Error(`Coordinator failed: ${coordinatorResult.error}`);
       }
@@ -743,7 +751,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       
       // Phase 2: Fetcher gets all chunk IDs
       console.log(`📋 Phase 2: Fetcher getting all chunk IDs`);
-      let fetcherResult = await this.executeVisualizationTransaction(fetcher, request);
+      let fetcherResult = await this.executeSagaTransaction(fetcher, request);
       if (!fetcherResult.success) {
         throw new Error(`Fetcher failed: ${fetcherResult.error}`);
       }
@@ -768,7 +776,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         
         // Step 3a: Fetcher gets specific chunk data
         const fetcherContext = this.buildIterationContext(fetcher, iterationState, 'fetch_chunk');
-        const chunkResult = await this.executeVisualizationTransactionWithContext(fetcher, request, fetcherContext);
+        const chunkResult = await this.executeSagaTransactionWithContext(fetcher, request, fetcherContext);
         
         if (!chunkResult.success) {
           console.warn(`⚠️ Chunk ${chunkId} fetch failed: ${chunkResult.error}`);
@@ -777,7 +785,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         
         // Step 3b: Coordinator processes the chunk
         const coordinatorContext = this.buildIterationContext(coordinator, iterationState, 'process_chunk', chunkResult.result);
-        coordinatorResult = await this.executeVisualizationTransactionWithContext(coordinator, request, coordinatorContext);
+        coordinatorResult = await this.executeSagaTransactionWithContext(coordinator, request, coordinatorContext);
         
         if (!coordinatorResult.success) {
           console.warn(`⚠️ Chunk ${chunkId} processing failed: ${coordinatorResult.error}`);
@@ -786,7 +794,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         
         // Step 3c: Saver saves the processed chunk
         const saverContext = this.buildIterationContext(saver, iterationState, 'save_chunk', coordinatorResult.result);
-        const saveResult = await this.executeVisualizationTransactionWithContext(saver, request, saverContext);
+        const saveResult = await this.executeSagaTransactionWithContext(saver, request, saverContext);
         
         if (!saveResult.success) {
           console.warn(`⚠️ Chunk ${chunkId} save failed: ${saveResult.error}`);
@@ -841,6 +849,131 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     }
   }
 
+  // Circular dependency detection methods
+  private hasCircularDependency(
+    transaction: SagaTransaction,
+    transactions: SagaTransaction[]
+  ): boolean {
+    // Check if any of this transaction's dependencies also depend on this transaction
+    for (const depId of transaction.dependencies) {
+      const depTransaction = transactions.find(t => t.id === depId);
+      if (depTransaction && depTransaction.dependencies.includes(transaction.id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private findCircularPartner(
+    transaction: SagaTransaction,
+    transactions: SagaTransaction[]
+  ): SagaTransaction | null {
+    for (const depId of transaction.dependencies) {
+      const depTransaction = transactions.find(t => t.id === depId);
+      if (depTransaction && depTransaction.dependencies.includes(transaction.id)) {
+        return depTransaction;
+      }
+    }
+    return null;
+  }
+
+  // Agent-driven circular dependency loop execution
+  private async executeCircularDependencyLoop(
+    generatorTx: SagaTransaction,
+    reflectorTx: SagaTransaction,
+    request: BrowserGraphRequest
+  ): Promise<AgentResult> {
+    
+    console.log(`🔄 Starting circular dependency loop: ${generatorTx.id} ↔ ${reflectorTx.id}`);
+    
+    let iteration = 0;
+    const maxIterations = 10; // Safety limit
+    let generatorResult: AgentResult;
+    let reflectorResult: AgentResult | undefined;
+    
+    // Phase 1: Generator gets initial context from previous agents
+    console.log(`🎯 Phase 1: Generator initial execution (iteration ${iteration})`);
+    generatorResult = await this.executeSagaTransaction(generatorTx, request);
+    
+    // Update generator context
+    this.contextManager.updateContext(generatorTx.agentName, {
+      lastTransactionResult: generatorResult.result,
+      transactionId: generatorTx.id,
+      timestamp: new Date(),
+      circularIteration: iteration
+    });
+    
+    // Check if generator requests feedback
+    if (!this.needsFeedback(generatorResult.result)) {
+      console.log(`✅ Generator completed without feedback request`);
+      return generatorResult;
+    }
+    
+    // Phase 2: Circular feedback loop
+    while (iteration < maxIterations) {
+      iteration++;
+      console.log(`🔄 Circular iteration ${iteration}/${maxIterations}`);
+      
+      // Step 1: Reflector provides feedback
+      console.log(`🤔 Reflector analyzing generator output`);
+      const reflectorContext = await this.buildCircularContext(
+        reflectorTx, generatorResult, iteration, 'reflector', request
+      );
+      
+      reflectorResult = await this.executeSagaTransactionWithContext(
+        reflectorTx, request, reflectorContext
+      );
+      
+      // Check if reflector wants to terminate
+      if (!this.shouldContinueLoop(reflectorResult.result)) {
+        console.log(`✅ Reflector signaled termination at iteration ${iteration}`);
+        break;
+      }
+      
+      // Step 2: Generator processes feedback
+      console.log(`🎯 Generator processing feedback`);
+      const generatorContext = await this.buildCircularContext(
+        generatorTx, reflectorResult, iteration, 'generator', request
+      );
+      
+      generatorResult = await this.executeSagaTransactionWithContext(
+        generatorTx, request, generatorContext
+      );
+      
+      // Update contexts for next iteration
+      this.contextManager.updateContext(generatorTx.agentName, {
+        lastTransactionResult: generatorResult.result,
+        transactionId: generatorTx.id,
+        timestamp: new Date(),
+        circularIteration: iteration,
+        partnerFeedback: reflectorResult.result
+      });
+      
+      this.contextManager.updateContext(reflectorTx.agentName, {
+        lastTransactionResult: reflectorResult.result,
+        transactionId: reflectorTx.id,
+        timestamp: new Date(),
+        circularIteration: iteration,
+        partnerOutput: generatorResult.result
+      });
+    }
+    
+    console.log(`🏁 Circular dependency loop completed after ${iteration} iterations`);
+    
+    // Return final generator result
+    return {
+      ...generatorResult,
+      result: {
+        ...generatorResult.result,
+        circularDependencyMetadata: {
+          totalIterations: iteration,
+          finalIteration: true,
+          reflectorFeedback: reflectorResult ? reflectorResult.result : null
+        }
+      }
+    };
+  }
+
   private extractChunkIds(fetcherResult: any): string[] {
     try {
       // Try to extract chunk IDs from different possible formats
@@ -886,7 +1019,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
   }
 
   private buildIterationContext(
-    transaction: VisualizationTransaction, 
+    transaction: SagaTransaction, 
     iterationState: IterationState, 
     phase: 'fetch_chunk' | 'process_chunk' | 'save_chunk',
     additionalData?: any
@@ -908,8 +1041,8 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     return baseContext;
   }
 
-  private async executeVisualizationTransactionWithContext(
-    transaction: VisualizationTransaction,
+  private async executeSagaTransactionWithContext(
+    transaction: SagaTransaction,
     request: BrowserGraphRequest,
     iterationContext: Record<string, any>
   ): Promise<AgentResult> {
@@ -919,7 +1052,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     }
     
     // Build enhanced context that includes iteration data
-    const baseContext = await this.buildVisualizationTransactionContext(transaction, request);
+    const baseContext = await this.buildSagaTransactionContext(transaction, request);
     const enhancedContext = {
       ...baseContext,
       ...iterationContext
@@ -927,5 +1060,153 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     
     // Execute with enhanced context
     return await agent.execute(enhancedContext);
+  }
+
+  // Circular dependency context building and JSON parsing methods
+  private async buildCircularContext(
+    transaction: SagaTransaction,
+    partnerResult: AgentResult,
+    iteration: number,
+    role: 'generator' | 'reflector',
+    request: BrowserGraphRequest
+  ): Promise<Record<string, any>> {
+    
+    // Get base context (includes original agentSpecificTask)
+    const baseContext = await this.buildSagaTransactionContext(transaction, request);
+    
+    // Enhance the agentSpecificTask with circular context
+    let enhancedTask = baseContext.agentSpecificTask || '';
+    
+    if (role === 'generator') {
+      // Generator receives feedback and enhances its task
+      const feedback = this.parseReflectorFeedback(partnerResult.result);
+      enhancedTask = this.enhanceGeneratorTask(enhancedTask, feedback, iteration);
+    } else {
+      // Reflector receives output and enhances its task
+      const generatorOutput = this.parseGeneratorOutput(partnerResult.result);
+      enhancedTask = this.enhanceReflectorTask(enhancedTask, generatorOutput, iteration);
+    }
+    
+    return {
+      ...baseContext,
+      agentSpecificTask: enhancedTask, // Enhanced task flows through normal mechanism
+      circularDependency: {
+        iteration,
+        role,
+        partner: {
+          agentName: partnerResult.agentName,
+          result: partnerResult.result,
+          timestamp: partnerResult.timestamp
+        }
+      }
+    };
+  }
+
+  private enhanceGeneratorTask(
+    originalTask: string, 
+    feedback: any, 
+    iteration: number
+  ): string {
+    if (!feedback || Object.keys(feedback).length === 0) {
+      // Initial run - add reflection request to the task
+      return `${originalTask}
+
+CIRCULAR DEPENDENCY PROTOCOL:
+After completing your task, include a JSON object in your response with this structure:
+{
+  "taskResult": { /* your task output */ },
+  "reflectionRequest": {
+    "needsFeedback": true,
+    "feedbackType": "task_review",
+    "specificQuestions": [
+      "Does the output meet the task requirements?",
+      "Are there any quality issues?",
+      "Should any aspects be improved?"
+    ],
+    "taskContext": "${originalTask.replace(/"/g, '\\"')}",
+    "iteration": ${iteration}
+  }
+}`;
+    }
+    
+    // Subsequent runs - incorporate feedback
+    return `${originalTask}
+
+FEEDBACK FROM REFLECTOR (Iteration ${iteration}):
+Quality Assessment: ${feedback.quality_assessment || 'N/A'}
+Suggestions: ${JSON.stringify(feedback.suggestions || [])}
+Strengths: ${JSON.stringify(feedback.strengths || [])}
+Issues: ${JSON.stringify(feedback.issues || [])}
+
+Please address this feedback and improve your task output. Include the same JSON structure in your response with updated iteration number.`;
+  }
+
+  private enhanceReflectorTask(
+    originalTask: string, 
+    generatorOutput: any, 
+    iteration: number
+  ): string {
+    const taskContext = generatorOutput.reflectionRequest?.taskContext || 'Unknown task';
+    
+    return `${originalTask}
+
+GENERATOR OUTPUT TO REVIEW (Iteration ${iteration}):
+Task Context: ${taskContext}
+Output: ${JSON.stringify(generatorOutput.taskResult, null, 2)}
+
+Your specific questions to address:
+${generatorOutput.reflectionRequest?.specificQuestions?.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n') || ''}
+
+Please provide feedback on this output. Include a JSON object in your response with this structure:
+{
+  "feedback": {
+    "quality_assessment": "excellent/good/fair/poor",
+    "suggestions": ["suggestion1", "suggestion2"],
+    "strengths": ["strength1", "strength2"],
+    "issues": ["issue1", "issue2"]
+  },
+  "loopControl": {
+    "continue": true/false,
+    "reason": "explanation for decision",
+    "iteration": ${iteration}
+  }
+}`;
+  }
+
+  // JSON parsing helpers
+  private needsFeedback(result: any): boolean {
+    try {
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      return parsed.reflectionRequest?.needsFeedback === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private shouldContinueLoop(result: any): boolean {
+    try {
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      return parsed.loopControl?.continue === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parseReflectorFeedback(result: any): any {
+    try {
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      return parsed.feedback || {};
+    } catch {
+      return {};
+    }
+  }
+
+  private parseGeneratorOutput(result: any): any {
+    try {
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      return parsed.taskResult ? parsed : { taskResult: parsed };
+    } catch {
+      return {};
+    }
   }
 }

@@ -1,7 +1,7 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer, dataPreprocessor } from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import { VisualizationWorkflowRequest, VisualizationSAGAState, HumanInLoopConfig, VISUALIZATION_TRANSACTIONS } from '../types/visualizationSaga.js';
+import { SagaWorkflowRequest, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig } from '../types/index.js';
@@ -121,7 +121,7 @@ export class SagaWorkflow {
     this.transactionRegistry.registerDefaultTransactionSet({
       name: 'visualization',
       description: 'Default visualization SAGA transaction set',
-      transactions: VISUALIZATION_TRANSACTIONS,
+      transactions: SAGA_TRANSACTIONS,
     });
     
     // Set as active transaction set
@@ -327,24 +327,24 @@ export class SagaWorkflow {
     }
   
     private setupEventListeners(): void {
-      this.coordinator.on('visualization_saga_initialized', (state: VisualizationSAGAState) => {
+      this.coordinator.on('saga_initialized', (state: SagaState) => {
         console.log(`🎯 [SAGA] Initialized: ${state.id} (${state.totalTransactions} transactions)`);
       });
   
-      this.coordinator.on('visualization_transaction_started', (event: any) => {
+      this.coordinator.on('transaction_started', (event: any) => {
         console.log(`🔄 [SAGA] Transaction started: ${event.name} (${event.transaction})`);
       });
   
-      this.coordinator.on('visualization_transaction_completed', (event: any) => {
+      this.coordinator.on('transaction_completed', (event: any) => {
         console.log(`✅ [SAGA] Transaction completed: ${event.name}`);
       });
   
-      this.coordinator.on('visualization_saga_completed', (state: VisualizationSAGAState) => {
+      this.coordinator.on('saga_completed', (state: SagaState) => {
         const duration = state.endTime ? state.endTime.getTime() - state.startTime.getTime() : 0;
         console.log(`🎉 [SAGA] Completed: ${state.id} in ${Math.round(duration / 1000)}s`);
       });
   
-      this.coordinator.on('visualization_saga_failed', (event: any) => {
+      this.coordinator.on('saga_failed', (event: any) => {
         console.log(`💥 [SAGA] Failed: ${event.error}`);
       });
   
@@ -565,7 +565,7 @@ export class SagaWorkflow {
       
       
       // Execute SAGA through coordinator
-      const result = await this.coordinator.executeVisualizationSAGA(
+      const result = await this.coordinator.executeSagaWorkflow(
         browserRequest,
         `thread_saga_${threadId}_${Date.now()}`,
         activeTransactionSet.transactions,
@@ -634,7 +634,7 @@ export class SagaWorkflow {
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
       
       // Pass transaction ordering and context to coordinator
-      const result = await this.coordinator.executeVisualizationSAGA(
+      const result = await this.coordinator.executeSagaWorkflow(
         browserRequest, 
         `simple_saga_${Date.now()}`,
         activeTransactionSet.transactions,

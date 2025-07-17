@@ -1,7 +1,7 @@
 // SAGA state management for visualization workflow
 import { HumanInLoopSAGAState, HumanApprovalStage, HumanDecision } from './humanInLoopSaga.js';
 
-export interface VisualizationSAGAState {
+export interface SagaState {
   id: string;
   status: 'initializing' | 'gathering_requirements' | 'filtering_data' | 'specifying_chart' | 'generating_report' | 'coding_visualization' | 'awaiting_human_approval' | 'completed' | 'failed';
   currentTransaction: number;
@@ -65,7 +65,7 @@ export interface CompensationAction {
   timestamp: Date;
 }
 
-export interface VisualizationTransaction {
+export interface SagaTransaction {
   id: string;
   name: string;
   agentName: string;
@@ -74,7 +74,7 @@ export interface VisualizationTransaction {
   compensationAction?: string;
   status: 'pending' | 'executing' | 'completed' | 'failed' | 'compensated';
   iterationGroup?: string; // For grouping transactions that iterate together
-  iterationRole?: 'coordinator' | 'fetcher' | 'processor' | 'saver'; // Role in iteration cycle
+  iterationRole?: 'coordinator' | 'fetcher' | 'processor' | 'saver' | 'generator' | 'reflector'; // Role in iteration cycle
 }
 
 // New interfaces for iteration management
@@ -143,7 +143,7 @@ export interface HumanInLoopConfig {
 }
 
 // Transaction definitions for visualization SAGA
-export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
+export const SAGA_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
   {
     id: 'tx-1',
@@ -200,16 +200,24 @@ export const VISUALIZATION_TRANSACTIONS: VisualizationTransaction[] = [
     status: 'pending'
   },
   {
-    id: 'tx-4',
-    name: 'Data Visualizer',
+    id: 'tx-4-1',
+    name: 'Data Generator',
     agentName: 'DataManipulationAgent',
-    dependencies: [],
+    dependencies: ['tx-3', 'tx-4-2'], // Linear dependency from tx-3 + circular dependency with tx-4-2
     compensationAction: 'cleanup_thread',
     status: 'pending'
-  }
+  },
+  {
+    id: 'tx-4-2',
+    name: 'Data Reflector',
+    agentName: 'DataReflectionAgent',
+    dependencies: ['tx-4-1'], // Circular dependency with tx-4-1
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  },
 ];
 
-export interface VisualizationWorkflowRequest {
+export interface SagaWorkflowRequest {
   userQuery?: string;
   threadId?: string;
   visualizationRequest?: any;

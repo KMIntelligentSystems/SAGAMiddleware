@@ -1,5 +1,5 @@
 import { io as SocketIOClient } from 'socket.io-client';
-import { VisualizationWorkflowRequest, VisualizationSAGAState } from '../types/visualizationSaga.js';
+import { SagaWorkflowRequest, SagaState } from '../types/visualizationSaga.js';
 import { EventMessage, ServiceRegistration, SAGAEventType, SAGAEventData } from './types.js';
 
 export class SAGAEventBusClient {
@@ -42,12 +42,12 @@ export class SAGAEventBusClient {
         serviceName: 'visualization-saga-processor',
         version: '1.0.0',
         capabilities: [
-          'executeVisualizationSAGA',
-          'getVisualizationState',
-          'executeSimpleVisualizationSAGA',
-          'executeComplexVisualizationSAGA',
-          'executeConversationBasedSAGA',
-          'executeBatchProcessingSAGA'
+          'executeSagaWorkflow',
+          'getSagaState',
+          'executeSimpleSagaWorkflow',
+          'executeComplexSagaWorkflow',
+          'executeConversationBasedSagaWorkflow',
+          'executeBatchProcessingSagaWorkflow'
         ]
       };
       this.socket.emit('register_service', registration);
