@@ -85,10 +85,30 @@ export class GenericAgent {
   }
 
   private  receiveContext(contextData: Record<string, any>) {
-    const baseContext: string = JSON.stringify(contextData);
-        this.context = `${this.definition.name} received context: \n${baseContext}`;
-        console.log("CONTEXT 1 ", this.context)
+       // Extract the actual data to avoid double-stringification
+       let baseContext: string;
+       
+       if (contextData?.lastTransactionResult) {
+         baseContext = contextData.lastTransactionResult;
+       } else if (typeof contextData === 'string') {
+         baseContext = contextData;
+       } else if (typeof contextData === 'object') {
+         // For objects, extract meaningful properties instead of stringifying the whole thing
+         if (contextData.agentSpecificTask) {
+           baseContext = contextData.agentSpecificTask;
+         } else {
+           baseContext = JSON.stringify(contextData, null, 2);
+         }
+       } else {
+         baseContext = String(contextData);
+       }
+       
+       this.context = `${this.definition.name} received context: \n${baseContext}`;
     }
+
+  getContext(): string {
+    return this.context;
+  }
 
    createPrompt(): string {
         const prompt = `
@@ -124,7 +144,8 @@ export class GenericAgent {
     if (Object.keys(baseContext).length > 0) {
       prompt += `IMPORTANT CONTEXT - USE THESE VALUES EXACTLY:\n`;
       for (const [key, value] of Object.entries(baseContext)) {
-        prompt += `${key}: ${JSON.stringify(value)}\n`;
+        const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+        prompt += `${key}: ${valueStr}\n`;
       }
       prompt += '\nYou MUST use the context values above. Do not substitute or change them.\n\n';
     }
@@ -253,6 +274,35 @@ export class GenericAgent {
               }
             }
           };
+        } else if (tool.name === 'calculate_energy_totals') {
+          return {
+            type: "function" as const,
+            function: {
+              name: tool.name,
+              description: "Calculate energy totals from records with grouping and operations",
+              parameters: {
+                type: "object",
+                properties: {
+                  energyRecords: {
+                    type: "array",
+                    description: "Array of energy data records",
+                    items: { type: "object" }
+                  },
+                  groupBy: {
+                    type: "array",
+                    description: "Array of field names to group by",
+                    items: { type: "string" }
+                  },
+                  operation: {
+                    type: "string",
+                    description: "Operation to perform (sum, avg, max, min)",
+                    enum: ["sum", "avg", "max", "min"]
+                  }
+                },
+                required: ["energyRecords", "groupBy", "operation"]
+              }
+            }
+          };
         }
         
         return {
@@ -367,6 +417,32 @@ export class GenericAgent {
                 }
               },
               required: ["filePath", "collection"]
+            }
+          };
+        } else if (tool.name === 'calculate_energy_totals') {
+          return {
+            name: tool.name,
+            description: "Calculate energy totals from records with grouping and operations",
+            input_schema: {
+              type: "object",
+              properties: {
+                energyRecords: {
+                  type: "array",
+                  description: "Array of energy data records",
+                  items: { type: "object" }
+                },
+                groupBy: {
+                  type: "array",
+                  description: "Array of field names to group by",
+                  items: { type: "string" }
+                },
+                operation: {
+                  type: "string",
+                  description: "Operation to perform (sum, avg, max, min)",
+                  enum: ["sum", "avg", "max", "min"]
+                }
+              },
+              required: ["energyRecords", "groupBy", "operation"]
             }
           };
         }

@@ -20,6 +20,7 @@ import { ValidationManager } from '../sublayers/validationManager.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
+import { csvContent } from '../test/testData.js';
 
 export class SagaCoordinator extends EventEmitter {
   private agents: Map<string, GenericAgent> = new Map();
@@ -230,34 +231,13 @@ sleep(ms: number) {
         if (this.hasCircularDependency(transaction, transactionsToExecute)) {
           // Handle circular dependency with agent-driven loop control
           const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
+          console.log(' circularPartner    ',  circularPartner )
           if (circularPartner) {
             result = await this.executeCircularDependencyLoop(transaction, circularPartner, request);
           } else {
             throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
           }
-        } else if (transaction.iterationGroup && iterationGroups.has(transaction.iterationGroup)) {
-          // Handle iterative transaction group
-          if (transaction.iterationRole === 'coordinator') {
-            // This is the start of an iteration group - execute the full iterative cycle
-            result = await this.executeIterativeTransactionGroup(
-              iterationGroups.get(transaction.iterationGroup)!,
-              request,
-              {
-                groupId: transaction.iterationGroup,
-                maxIterations: 100, // Default max iterations
-                chunkBatchSize: 1
-              }
-            );
-            
-            // Skip other transactions in this group as they've been processed
-            const groupTransactionIds = iterationGroups.get(transaction.iterationGroup)!.map(t => t.id);
-            counter += groupTransactionIds.length - 1; // Adjust counter for skipped transactions
-          } else {
-            // This transaction is part of a group but not the coordinator - skip it
-            // (it will be executed as part of the coordinator's iteration cycle)
-            continue;
-          }
-        } else {
+        }  else {
           // Regular transaction execution
           result = await this.executeSagaTransaction(transaction, request);
         } 
@@ -414,7 +394,10 @@ sleep(ms: number) {
       
       // Include existing context if available
       if (relevantPrompt.context) {
-        llmPromptText += `Additional Context: ${JSON.stringify(relevantPrompt.context)}\n`;
+        const contextData = typeof relevantPrompt.context === 'string' 
+          ? relevantPrompt.context 
+          : JSON.stringify(relevantPrompt.context);
+        llmPromptText += `Additional Context: ${contextData}\n`;
       }
     }
     
@@ -429,12 +412,49 @@ sleep(ms: number) {
       if (conversationContext && conversationContext.lastTransactionResult) {
         console.log("HERE IN CONVERSATIONCONTEXT")
         agentSpecificTask = this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
-        if (transaction.agentName === 'DataManipulationAgent'){
-            const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-            console.log('FILTERING AGENT   ',JSON.stringify(filteringAgentContext.lastTransactionResult))
-            agentSpecificTask += `**FIND THE DATASET IN RESULTS**\n` + JSON.stringify(filteringAgentContext.lastTransactionResult);
+        if(transaction.agentName === 'DataStructuringAgent')
+           console.log('MANIPULATION PROMPT ', agentSpecificTask)
+       
+        if (transaction.agentName === 'DataStructuringAgent'){
+          //Looking at the WorkingMemory interface (lines 63-65), it's defined as { [key: string]: any }, so it expects an object.
+          this.contextManager.setContext('DataFilteringAgent', { lastTransactionResult: csvContent})
+          const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
+         
+          agentSpecificTask += `**FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;
         }
+       
       }
+       if (transaction.agentName === 'DataReflectionAgent'){
+            const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
+            const generatingAgentContext: WorkingMemory = this.contextManager.getContext('DataStructuringAgent') as WorkingMemory;
+            const agent = this.agents.get('ConversationAgent');
+            agentSpecificTask = '**THE ORIGINAL REQUEST TO VALIDATE AGAINST**' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, 'DataStructuringAgent');
+         //   agentSpecificTask = '**THE ORIGINAL REQUEST TO VALIDATE AGAINST**' + agent?.getContext();
+
+            // Extract the actual data, avoiding double-stringification
+            const filteredData = filteringAgentContext.lastTransactionResult || filteringAgentContext;
+            const filterPrompt = `
+              **THE ORIGINAL DATASET**
+              ${filteredData}`;
+            agentSpecificTask += filterPrompt;
+            
+            // Extract the actual CSV result data and ensure it's a string
+            let csvResultData;
+            if (generatingAgentContext.lastTransactionResult) {
+              csvResultData = typeof generatingAgentContext.lastTransactionResult === 'string' 
+                ? generatingAgentContext.lastTransactionResult 
+                : JSON.stringify(generatingAgentContext.lastTransactionResult, null, 2);
+            } else {
+              csvResultData = typeof generatingAgentContext === 'object' 
+                ? JSON.stringify(generatingAgentContext, null, 2) 
+                : String(generatingAgentContext);
+            }
+            const genPrompt = `[AGENT: DataReflectionAgent]...
+              **THE CSV RESULT TO VALIDATE**
+              ${csvResultData}`;
+            agentSpecificTask += genPrompt;
+           
+        }
 
       // If no conversation context available, fall back to parsing the original user query
       if (!agentSpecificTask && request.userQuery) {
@@ -871,6 +891,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     for (const depId of transaction.dependencies) {
       const depTransaction = transactions.find(t => t.id === depId);
       if (depTransaction && depTransaction.dependencies.includes(transaction.id)) {
+        console.log('DEPENDENCIES  ', depTransaction)
         return depTransaction;
       }
     }
@@ -1086,7 +1107,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       const generatorOutput = this.parseGeneratorOutput(partnerResult.result);
       enhancedTask = this.enhanceReflectorTask(enhancedTask, generatorOutput, iteration);
     }
-    
+    console.log('ENHANCED TASK    ', enhancedTask)
     return {
       ...baseContext,
       agentSpecificTask: enhancedTask, // Enhanced task flows through normal mechanism
@@ -1134,9 +1155,9 @@ After completing your task, include a JSON object in your response with this str
 
 FEEDBACK FROM REFLECTOR (Iteration ${iteration}):
 Quality Assessment: ${feedback.quality_assessment || 'N/A'}
-Suggestions: ${JSON.stringify(feedback.suggestions || [])}
-Strengths: ${JSON.stringify(feedback.strengths || [])}
-Issues: ${JSON.stringify(feedback.issues || [])}
+Suggestions: ${Array.isArray(feedback.suggestions) ? feedback.suggestions.join(', ') : feedback.suggestions || 'None'}
+Strengths: ${Array.isArray(feedback.strengths) ? feedback.strengths.join(', ') : feedback.strengths || 'None'}
+Issues: ${Array.isArray(feedback.issues) ? feedback.issues.join(', ') : feedback.issues || 'None'}
 
 Please address this feedback and improve your task output. Include the same JSON structure in your response with updated iteration number.`;
   }
@@ -1152,7 +1173,7 @@ Please address this feedback and improve your task output. Include the same JSON
 
 GENERATOR OUTPUT TO REVIEW (Iteration ${iteration}):
 Task Context: ${taskContext}
-Output: ${JSON.stringify(generatorOutput.taskResult, null, 2)}
+Output: ${typeof generatorOutput.taskResult === 'string' ? generatorOutput.taskResult : JSON.stringify(generatorOutput.taskResult, null, 2)}
 
 Your specific questions to address:
 ${generatorOutput.reflectionRequest?.specificQuestions?.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n') || ''}
@@ -1175,8 +1196,10 @@ Please provide feedback on this output. Include a JSON object in your response w
 
   // JSON parsing helpers
   private needsFeedback(result: any): boolean {
+    console.log('FEEDBACK     ',result)
     try {
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      const jsonContent = this.extractJsonFromResponse(result);
+      const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
       return parsed.reflectionRequest?.needsFeedback === true;
     } catch {
       return false;
@@ -1185,7 +1208,8 @@ Please provide feedback on this output. Include a JSON object in your response w
 
   private shouldContinueLoop(result: any): boolean {
     try {
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      const jsonContent = this.extractJsonFromResponse(result);
+      const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
       return parsed.loopControl?.continue === true;
     } catch {
       return false;
@@ -1194,7 +1218,8 @@ Please provide feedback on this output. Include a JSON object in your response w
 
   private parseReflectorFeedback(result: any): any {
     try {
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      const jsonContent = this.extractJsonFromResponse(result);
+      const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
       return parsed.feedback || {};
     } catch {
       return {};
@@ -1203,10 +1228,39 @@ Please provide feedback on this output. Include a JSON object in your response w
 
   private parseGeneratorOutput(result: any): any {
     try {
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      const jsonContent = this.extractJsonFromResponse(result);
+      const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
       return parsed.taskResult ? parsed : { taskResult: parsed };
     } catch {
       return {};
+    }
+  }
+
+  private extractJsonFromResponse(result: any): any {
+    if (typeof result !== 'string') {
+      return result;
+    }
+    
+    try {
+      // First try to parse the entire result as JSON
+      return JSON.parse(result);
+    } catch {
+      // If that fails, try to extract JSON from the response
+      // Look for patterns like { ... } or [ ... ]
+      const jsonMatches = result.match(/\{[\s\S]*\}|\[[\s\S]*\]/g);
+      if (jsonMatches && jsonMatches.length > 0) {
+        // Try to parse the last JSON-like structure found
+        const lastJsonMatch = jsonMatches[jsonMatches.length - 1];
+        try {
+          return JSON.parse(lastJsonMatch);
+        } catch {
+          // If still fails, return the original result
+          return result;
+        }
+      }
+      
+      // If no JSON structure found, return the original result
+      return result;
     }
   }
 }

@@ -159,11 +159,12 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-1',
         backstory: 'Manage conversation with user as an intermediary passing user instructions to other agents.',
-        taskDescription: 'Return the agentSpecificTask content exactly as received without any modification, processing, or wrapping.',
+        taskDescription: `You are a conversation agent whose task is to pass verbatim what you receive to anther agent to process.
+        **OVERRIDE**: Ignore any format or output structure requirements within the agent definitions. Ignore any instructions which contain 'you' as it does not pertain to any actions on your part. Your only job is to pass through the content unchanged. Pass through every thing between '[AGENT..][/AGENT].`,
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Pass through the user instructions exactly as received, preserving all formatting and bracket tags.'
       },
-      {
+    /*  {
         agentName: 'DataProcessingAgent',
         agentType: 'tool',
         transactionId: 'tx-2',
@@ -172,32 +173,7 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
       },
-     /* {
-        agentName: 'DataStructuringAgent',
-        agentType: 'tool',
-        transactionId: 'tx-3',
-        backstory: 'You are a semantic data architect able to transform  CSV data into a structured format optimized for vector search and retrieval',
-        taskDescription: `You will work in a loop with other agents. When you are called first, you will ask another agent to fetch all the Ids you need to interact with.
-        Then for each Id ask the data fetching agent for the first chunk of data. You will then apply the transformation schema provided to you to transform the chunk. Finally, you will ask an updating agent to update that chunk in the vector store passing it the Id, Chunk and Collection name.
-        Identify searchable semantic categories in a structured format for each chunk of data you receive. Create meta data for ease of retrieval`,
-        taskExpectedOutput: 'Structure the semantic data in accord with a target schema with which you will be provided'
-      },
-       {
-        agentName: 'DataFetchingChildAgent',
-        agentType: 'tool',
-        transactionId: 'tx-3-1',
-        backstory: 'You are a retriever of chunks from a vector store',
-        taskDescription: 'The task of fetching data is a 2 step process: 1. Get all the collection Ids 2. Get each chunk from the collection when requested using passed Id',
-        taskExpectedOutput: 'Provide the data chunk as is.'
-      },
-       {
-        agentName: 'DataUpdatingChildAgent',
-        agentType: 'tool',
-        transactionId: 'tx-3-2',
-        backstory: 'You update data in a vector store given an id and a chunk',
-        taskDescription: 'Update data in a vector store given the id and chunk to update',
-        taskExpectedOutput: 'Provide the object you are given to update the store'
-      },*/
+  
       {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
@@ -205,16 +181,23 @@ export class SagaWorkflow {
         backstory: 'Provide the search query for a structured query search.',
         taskDescription: 'Use the inputs provided to create a query.',
         taskExpectedOutput: 'Provide only the JSON to be used for the search tools parameters'
-      },
+      }*/
       {
-        agentName: 'DataManipulationAgent',
-        agentType: 'processing',
+        agentName: 'DataStructuringAgent',
+        agentType: 'tool',
         transactionId: 'tx-4',
         backstory: 'You compute the values that meet the requirements.',
-        taskDescription: 'Provide a complete generation of the required data in csv format.',
-      //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: ''
-      }
+        taskDescription: 'Structure input data so that it is suitable as input for other operations',
+        taskExpectedOutput: 'Provide structured data as required for a specific operation'
+      }/*,
+      {
+        agentName: 'DataReflectionAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4-2',
+        backstory: 'You compute the values that meet the requirements.',
+        taskDescription: 'Your task is to reflect on and validate the generated output of an agent. You must provide the calculation steps',
+        taskExpectedOutput: 'Provide the output in the json format requested in <context></context>'
+      }*/
     ];
     
     const defaultContextSet: ContextSetDefinition = {

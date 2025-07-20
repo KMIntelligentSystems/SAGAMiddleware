@@ -149,11 +149,11 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-1',
     name: 'Start Conversation',
     agentName: 'ConversationAgent',
-    dependencies: ['tx-2'],
+    dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
-  {
+ /* {
     id: 'tx-2',
     name: 'Index files',
     agentName: 'DataProcessingAgent',
@@ -161,36 +161,6 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
- /* {
-    id: 'tx-3',
-    name: 'Structure Data',
-    agentName: 'DataStructuringAgent',
-    dependencies: [],
-    compensationAction: 'cleanup_conversation_state',
-    status: 'pending',
-    iterationGroup: 'chunk-processing-group',
-    iterationRole: 'coordinator'
-  },
-  {
-    id: 'tx-3-1',
-    name: 'Fetch Data',
-    agentName: 'DataFetchingChildAgent',
-    dependencies: [],
-    compensationAction: 'cleanup_conversation_state',
-    status: 'pending',
-    iterationGroup: 'chunk-processing-group',
-    iterationRole: 'fetcher'
-  },
-  {
-    id: 'tx-3-2',
-    name: 'Save Data',
-    agentName: 'DataUpdatingChildAgent',
-    dependencies: [],
-    compensationAction: 'cleanup_conversation_state',
-    status: 'pending',
-    iterationGroup: 'chunk-processing-group',
-    iterationRole: 'saver'
-  },*/
   {
     id: 'tx-3',
     name: 'Apply RAG Tool',
@@ -198,15 +168,15 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     dependencies: [],
     compensationAction: 'cleanup_thread',
     status: 'pending'
-  },
+  },*/
   {
-    id: 'tx-4-1',
+    id: 'tx-4',
     name: 'Data Generator',
-    agentName: 'DataManipulationAgent',
-    dependencies: ['tx-3', 'tx-4-2'], // Linear dependency from tx-3 + circular dependency with tx-4-2
+    agentName: 'DataStructuringAgent',
+    dependencies: [], //['tx-3', 'tx-4-2']
     compensationAction: 'cleanup_thread',
     status: 'pending'
-  },
+  }/*,
   {
     id: 'tx-4-2',
     name: 'Data Reflector',
@@ -214,7 +184,7 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     dependencies: ['tx-4-1'], // Circular dependency with tx-4-1
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
+  },*/
 ];
 
 export interface SagaWorkflowRequest {
