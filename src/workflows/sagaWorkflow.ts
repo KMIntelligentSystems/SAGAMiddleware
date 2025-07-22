@@ -184,20 +184,20 @@ export class SagaWorkflow {
       }*/
       {
         agentName: 'DataStructuringAgent',
-        agentType: 'tool',
-        transactionId: 'tx-4',
+        agentType: 'processing',
+        transactionId: 'tx-4-1',
         backstory: 'You compute the values that meet the requirements.',
         taskDescription: 'Structure input data so that it is suitable as input for other operations',
         taskExpectedOutput: 'Provide structured data as required for a specific operation'
-      }/*,
+      },
       {
-        agentName: 'DataReflectionAgent',
+        agentName: 'DataReflectingAgent',
         agentType: 'processing',
         transactionId: 'tx-4-2',
         backstory: 'You compute the values that meet the requirements.',
-        taskDescription: 'Your task is to reflect on and validate the generated output of an agent. You must provide the calculation steps',
-        taskExpectedOutput: 'Provide the output in the json format requested in <context></context>'
-      }*/
+        taskDescription: 'Your task is to reflect on the input you receive and pose questions',
+        taskExpectedOutput: 'Provide questions in a structured way'
+      }
     ];
     
     const defaultContextSet: ContextSetDefinition = {
