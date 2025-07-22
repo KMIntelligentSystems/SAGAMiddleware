@@ -164,7 +164,60 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Pass through the user instructions exactly as received, preserving all formatting and bracket tags.'
       },
-    /*  {
+      {
+        agentName: 'DataFilteringAgent',
+        agentType: 'tool',
+        transactionId: 'tx-3',
+        backstory: 'Filter and chunk data for processing pipeline.',
+        taskDescription: 'Process data in manageable chunks and pass to next agent in sequence. Provide data chunks to DataPresentingAgent.',
+        taskExpectedOutput: 'Structured data chunks ready for presentation processing'
+      },
+      {
+        agentName: 'DataPresentingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4',
+        backstory: 'Present data chunks in appropriate format for extraction.',
+        taskDescription: 'Receive data chunks from DataFilteringAgent and format them for DataExtractingAgent processing.',
+        taskExpectedOutput: 'Well-formatted data ready for extraction operations'
+      },
+      {
+        agentName: 'DataExtractingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4-1',
+        backstory: 'Provide the search query for a structured query search.',
+        taskDescription: 'Use the inputs provided to create Clean JSON. Only parse JSON and validate required fields exist',
+        taskExpectedOutput: 'Provide  Flat list of validated records'
+      },
+      {
+        agentName: 'DataNormalizingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4-2',
+        backstory: 'Provide the search query for a structured query search.',
+        taskDescription: 'Convert datetime to date strings',
+        taskExpectedOutput: 'Provide same records with added "date" field (YYYY-MM-DD)'
+      },
+      {
+        agentName: 'DataGroupingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4-3',
+        backstory: 'Provide the search query for a structured query search.',
+        taskDescription: 'Group by the parameters you are provided in <context>. Only focus on the grouped logic using the input parameters',
+        taskExpectedOutput: 'Provide grouped structure grouped by the input parameters'
+      },
+      {
+        agentName:  'DataFinalizingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4-4',
+        backstory: 'Provide the search query for a structured query search.',
+        taskDescription: 'Extract values array for each group. Focus only on array extraction. The parameters for the extraction are in <context>',
+        taskExpectedOutput: 'Provide Final structure using the input parameters'
+      }
+    /* 
+Task: Extract values array for each group
+Input: Grouped records
+Output: Final structure {date, installation, values[]}
+Focus: Only array extraction
+    {
         agentName: 'DataProcessingAgent',
         agentType: 'tool',
         transactionId: 'tx-2',
@@ -172,16 +225,16 @@ export class SagaWorkflow {
         taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
-      },
+      },*/
   
-      {
+    /*  {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
         transactionId: 'tx-3',
         backstory: 'Provide the search query for a structured query search.',
         taskDescription: 'Use the inputs provided to create a query.',
         taskExpectedOutput: 'Provide only the JSON to be used for the search tools parameters'
-      }*/
+      }
       {
         agentName: 'DataStructuringAgent',
         agentType: 'processing',
@@ -197,7 +250,7 @@ export class SagaWorkflow {
         backstory: 'You compute the values that meet the requirements.',
         taskDescription: 'Your task is to reflect on the input you receive and pose questions',
         taskExpectedOutput: 'Provide questions in a structured way'
-      }
+      }*/
     ];
     
     const defaultContextSet: ContextSetDefinition = {
@@ -275,7 +328,7 @@ export class SagaWorkflow {
       // Create LLM config based on agent type
       const llmConfig: LLMConfig = {
         provider: 'openai',
-        model: promptParams.model || (agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o'),
+        model: promptParams.model || (agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o-mini'),
         temperature: promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),
         maxTokens: promptParams.maxTokens || (agentType === 'tool' ? 2000 : 1500),
         apiKey: process.env.OPENAI_API_KEY
