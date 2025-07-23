@@ -189,23 +189,23 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-3',
     name: 'Apply RAG Tool',
     agentName: 'DataFilteringAgent',
-    dependencies: ['tx-4-4'], // Depends on DataFinalizingAgent to create the cycle
+    dependencies: ['tx-4-1'], // First in chain - no dependencies
     compensationAction: 'cleanup_thread',
     status: 'pending'
   },
-  {
+ /* {
     id: 'tx-4',
     name: 'Data presenter',
     agentName: 'DataPresentingAgent',
     dependencies: ['tx-3'], // Depends on DataFilteringAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
+  },*/
   {
     id: 'tx-4-1',
     name: 'Data Extractor',
     agentName: 'DataExtractingAgent',
-    dependencies: ['tx-4'], // Depends on DataPresentingAgent
+    dependencies: ['tx-4-2'], // Depends on DataPresentingAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
@@ -213,7 +213,7 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-4-2',
     name: 'Data Normalizer',
     agentName:  'DataNormalizingAgent',
-    dependencies: ['tx-4-1'], // Depends on DataExtractingAgent
+    dependencies: ['tx-4-3'], // Depends on DataExtractingAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
@@ -221,15 +221,15 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-4-3',
     name: 'Data Grouper',
     agentName:  'DataGroupingAgent',
-    dependencies: ['tx-4-2'], // Depends on DataNormalizingAgent
+    dependencies: ['tx-4-4'], // Depends on DataNormalizingAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
    {
     id: 'tx-4-4',
     name: 'Data Finalizer',
-    agentName:  'DataFinalizingAgent',
-    dependencies: ['tx-4-3'], // Depends on DataGroupingAgent
+    agentName:  'DataAggregatingAgent',
+    dependencies: ['tx-3'], // Depends on DataGroupingAgent and cycles back to DataFilteringAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   }

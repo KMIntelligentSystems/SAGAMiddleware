@@ -87,7 +87,15 @@ export class GenericAgent {
 
   private  receiveContext(contextData: Record<string, any>) {
        // Extract the actual data to avoid double-stringification
-       let baseContext: string;
+           /*
+         ...baseContext,
+      agentSpecificTask: enhancedTask,
+      extendedCycleDependency: {
+        ...cycleMetadata,
+        previousResult: previousResult.result,
+        currentChunk: cycleMetadata.currentChunk
+        */
+       let baseContext: string = '';
        
        if (contextData?.lastTransactionResult) {
          baseContext = contextData.lastTransactionResult;
@@ -97,10 +105,14 @@ export class GenericAgent {
          // For objects, extract meaningful properties instead of stringifying the whole thing
          if (contextData.agentSpecificTask) {
            baseContext = contextData.agentSpecificTask;
-         } else {
+         } 
+         else {
            baseContext = JSON.stringify(contextData, null, 2);
          }
-       } else {
+        if(contextData?.extendedCycleDependency?.previousResult){
+           baseContext += `**INPUTS FOR YOUR TASK**\n, ${JSON.stringify(contextData?.extendedCycleDependency?.previousResult)}`;
+         }
+       }  else {
          baseContext = String(contextData);
        }
        

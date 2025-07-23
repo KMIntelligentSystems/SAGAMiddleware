@@ -223,9 +223,9 @@ sleep(ms: number) {
      // const regularTransactions = transactionsToExecute.filter(t => !t.iterationGroup);
 
       //**********For use with testdata.js
-      this.contextManager.setContext('DataFilteringAgent', { lastTransactionResult: csvContent})
+   /*   this.contextManager.setContext('DataFilteringAgent', { lastTransactionResult: csvContent})
         const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-        let filteredData = `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;
+        let filteredData = `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;*/
       
       const processedInCycle = new Set<string>(); // Track transactions already processed in cycles
       
@@ -273,6 +273,7 @@ sleep(ms: number) {
           }
         } else {
           // Regular transaction execution
+          console.log('HERE IN PARSE  ')
           result = await this.executeSagaTransaction(transaction, request);
         } 
         console.log("RRESULT ", result.result)
@@ -357,35 +358,6 @@ sleep(ms: number) {
     const result = await agent.execute(context);
     console.log("RESULT ", result.result)
     
-       // Check dependencies are satisfied (use the current transaction set being executed)
- /*  for (const depId of transaction.dependencies) {
-      // Find dependency in the current transaction set being executed
-      const transactionsToExecute = this.currentExecutingTransactionSet || SAGA_TRANSACTIONS;
-      const depTransaction = transactionsToExecute.find(t => t.id === depId);
-      if (depTransaction) {
-        const depContext = this.contextManager.getContext(depTransaction.agentName);
-        console.log("DEPS   ", depContext)
-        if (!depContext?.lastTransactionResult) {
-          throw new Error(`Dependency ${depId} not satisfied for transaction ${transaction.id}`);
-        }
-      }
-    }*/
-
-
-    // Update SAGA state based on transaction
-  /*  this.updateVisualizationSAGAState(transaction.id, result);
-    
-    // Record compensation action if transaction succeeded
-    if (result.success && transaction.compensationAction) {
-      this.visualizationSagaState!.compensations.push({
-        transactionId: transaction.id,
-        agentName: transaction.agentName,
-        action: transaction.compensationAction as any,
-        executed: false,
-        timestamp: new Date()
-      });
-    }*/
-//await new Promise(resolve => setTimeout(resolve, 500));
     return result;
   }
 
@@ -395,7 +367,6 @@ sleep(ms: number) {
   ): Promise<Record<string, any>> {
     const currContextSet: ContextSetDefinition = this.contextManager.getActiveContextSet();
     const conversationContext: WorkingMemory = this.contextManager.getContext('ConversationAgent') as WorkingMemory;
-    const reflectingAgent = this.agents.get('DataReflectingAgent');
     let context: Record<string, any> = {};
     
     // 1. Extract data sources information to string (if not empty)
@@ -444,80 +415,10 @@ sleep(ms: number) {
     else {
       // For other agents, first try to get instructions from ConversationAgent's working memory
       if (conversationContext && conversationContext.lastTransactionResult) {
-        console.log("HERE IN CONVERSATIONCONTEXT")
+        console.log("HERE IN CONVERSATIONCONTEXT", transaction.agentName)
         agentSpecificTask = this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
 
-        if (transaction.agentName === 'DataStructuringAgent'){
-          const newPrompt =  reflectingAgent?.getContext();
-          if(!newPrompt){
-            console.log('HERE 1 STRUCTURING   ')
-             const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-           agentSpecificTask += `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;
-          } 
-          else {
-             console.log('HERE 2 STRUCTURING   ')
-            agentSpecificTask = newPrompt;
-          }
-         
-        }
-
-          if (transaction.agentName === 'DataReflectingAgent'){
- console.log('HERE REFLECTING  ')
-          const structuringAgentContext: WorkingMemory = this.contextManager.getContext('DataStructuringAgent') as WorkingMemory;
-          
-           agentSpecificTask += `              **THE RESULTS TO ASK QUESTIONS ABOUT**\n` + JSON.stringify(structuringAgentContext.lastTransactionResult);
-        }
-       
-    /*   if (transaction.agentName === 'DataStructuringAgent'){
-          //Looking at the WorkingMemory interface (lines 63-65), it's defined as { [key: string]: any }, so it expects an object.
-          this.contextManager.setContext('DataFilteringAgent', { lastTransactionResult: csvContent})
-          const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-          const reflectingAgentContext: WorkingMemory = this.contextManager.getContext('DataReflectingAgent') as WorkingMemory;
-          const generatingAgentContext: WorkingMemory = this.contextManager.getContext('DataStructuringAgent') as WorkingMemory;
-
-          if(reflectingAgentContext && reflectingAgentContext.lastTransactionResult){
-            agentSpecificTask += `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;
-            agentSpecificTask += `              **PHASE 2 QUESTIONS**\n` + reflectingAgentContext.lastTransactionResult;
-            agentSpecificTask += `              **ANSWER QUESTIONS OF PHASE 1 RESULT:**\n` + generatingAgentContext.lastTransactionResult;
-          } else {
-             agentSpecificTask += `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;
-          }
-          
-
-        }*/
-       
       }
-      /* if (transaction.agentName === 'DataReflectingAgent'){
-            const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-            const generatingAgentContext: WorkingMemory = this.contextManager.getContext('DataStructuringAgent') as WorkingMemory;
-            const agent = this.agents.get('ConversationAgent');
-         //   agentSpecificTask = '**THE ORIGINAL REQUEST TO VALIDATE AGAINST**' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, 'DataStructuringAgent');
-         //   agentSpecificTask = '**THE ORIGINAL REQUEST TO VALIDATE AGAINST**' + agent?.getContext();
-
-            // Extract the actual data, avoiding double-stringification
-            const filteredData = filteringAgentContext.lastTransactionResult || filteringAgentContext;
-            const filterPrompt = `
-              **THE ORIGINAL DATASET**
-              ${filteredData}`;
-        //    agentSpecificTask += filterPrompt;
-            
-            // Extract the actual CSV result data and ensure it's a string
-            let csvResultData;
-            if (generatingAgentContext.lastTransactionResult) {
-              csvResultData = typeof generatingAgentContext.lastTransactionResult === 'string' 
-                ? generatingAgentContext.lastTransactionResult 
-                : JSON.stringify(generatingAgentContext.lastTransactionResult, null, 2);
-            } else {
-              csvResultData = typeof generatingAgentContext === 'object' 
-                ? JSON.stringify(generatingAgentContext, null, 2) 
-                : String(generatingAgentContext);
-            }
-            const genPrompt = `[AGENT: DataReflectingAgent]...
-              **THE INPUT TO QUESTION**
-              ${csvResultData}`;
-            agentSpecificTask += genPrompt;
-           
-        }*/
 
       // If no conversation context available, fall back to parsing the original user query
       if (!agentSpecificTask && request.userQuery) {
@@ -532,7 +433,7 @@ sleep(ms: number) {
    //   llmPrompt: llmPromptText,
       agentSpecificTask: agentSpecificTask
       //userQuery: request.userQuery || ''
-    };
+    }
     
     console.log(`📊 Built context for ${transaction.agentName}: agent task ${agentSpecificTask})`);
     
@@ -969,8 +870,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     // Use DFS to detect cycles of any length
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
-    console.log('DPENDENCY  ', transaction)
-    //id: 'tx-4-1'
+    
     const hasCycle = (txId: string): boolean => {
     //txId =  tx-4-2
       if (recursionStack.has(txId)) {
@@ -985,24 +885,15 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       //txId =  tx-4-2
       visited.add(txId);
       recursionStack.add(txId);
-      console.log('RECURSION  ', recursionStack)
-      //RECURSION   Set(4) { 'tx-4-1', 'tx-4-2', 'tx-4-3', 'tx-4-4' }
-      
+    
       const tx = transactions.find(t => t.id === txId);
-      console.log('TX  ',tx)
-      //id: 'tx-4-1'
+     
       if (tx) {
-        for (const depId of tx.dependencies) {
-        console.log('DEPID  ', depId)
-        //DEPID   tx-4-2
-
-          // Only follow dependencies that exist in our transaction set
-          if (transactions.some(t => t.id === depId)) {
-          console.log('T_ID', transaction.id)
-          //T_ID tx-4-1
-            if (hasCycle(depId)) {
-              return true;
-            }
+        // Find transactions that depend on this one (forward traversal)
+        const dependents = transactions.filter(t => t.dependencies.includes(txId));
+        for (const dependent of dependents) {
+          if (hasCycle(dependent.id)) {
+            return true;
           }
         }
       }
@@ -1332,30 +1223,7 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
   ): Promise<AgentResult> {
     
     console.log(`🔄 Starting extended cycle loop with ${cycleTransactions.length} agents`);
-    
-    // Initialize chunk processor from DataFilteringAgent context
-    const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-    const csvContent = filteringAgentContext?.lastTransactionResult || '';
-    
-    if (!csvContent) {
-      console.error('❌ No csvContent found in DataFilteringAgent context');
-      return {
-        agentName: 'extended_cycle_coordinator',
-        result: null,
-        success: false,
-        error: 'No data found in DataFilteringAgent context for chunking',
-        timestamp: new Date()
-      };
-    }
-    
-    const chunkProcessor = this.initializeChunkProcessor(csvContent);
-    console.log(`📦 Initialized chunk processor with ${chunkProcessor.chunks.length} chunks`);
-    
-    let iteration = 0;
-    const maxIterations = chunkProcessor.chunks.length; // Process all chunks
-    let hasMoreChunks = chunkProcessor.hasMoreChunks();
-    
-    // Sort transactions by dependency order to get proper execution sequence
+ 
     const orderedCycle = this.sortCycleTransactionsByDependencyOrder(cycleTransactions);
     
     console.log(`📋 Cycle execution order: ${orderedCycle.map(t => `${t.id}(${t.agentName})`).join(' → ')}`);
@@ -1367,48 +1235,37 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
       timestamp: new Date()
     };
     
-    // Main cycle processing loop - one iteration per chunk
-    while (hasMoreChunks && iteration < maxIterations) {
-      iteration++;
-      const currentChunk = chunkProcessor.getNextChunk();
-      
-      if (!currentChunk) {
-        console.log(`📦 No more chunks available, ending cycle`);
-        break;
-      }
-      
-      console.log(`🔄 Cycle iteration ${iteration}/${maxIterations} - Processing chunk: ${currentChunk.id}`);
-      
       // Execute each agent in the cycle sequence for this chunk
       for (let i = 0; i < orderedCycle.length; i++) {
         const transaction = orderedCycle[i];
-        console.log(`🎯 Executing ${transaction.agentName} (${i + 1}/${orderedCycle.length}) for chunk ${currentChunk.id}`);
+       console.log(`🎯 Executing XXX ${transaction.agentName} LENGTH ${orderedCycle.length}) for chunk`);
         
         // Special handling for DataFilteringAgent - provide the current chunk only at cycle start
         if (transaction.agentName === 'DataFilteringAgent' && i === 0) {
           // Update DataFilteringAgent context with current chunk for first execution
           this.contextManager.updateContext('DataFilteringAgent', {
-            lastTransactionResult: JSON.stringify(currentChunk),
+            lastTransactionResult: '',//JSON.stringify(currentChunk),
             transactionId: transaction.id,
             timestamp: new Date(),
-            currentChunk: currentChunk
+            currentChunk: 1 //currentChunk
           });
-          console.log(`📦 Updated DataFilteringAgent context with raw chunk: ${currentChunk.id}`);
+         
         }
         
         // Build context with cycle metadata and chunk information
+      
         const cycleContext = await this.buildCycleTransactionContext(
           transaction, 
           request, 
           finalResult,
           {
-            iteration,
+            iteration: 0,
             cyclePosition: i,
             totalInCycle: orderedCycle.length,
             isFirstInCycle: i === 0,
             isLastInCycle: i === orderedCycle.length - 1,
             cycleTransactions: orderedCycle,
-            currentChunk: currentChunk
+            currentChunk: 1
           }
         );
         
@@ -1425,7 +1282,7 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
           lastTransactionResult: finalResult.result,
           transactionId: transaction.id,
           timestamp: new Date(),
-          cycleIteration: iteration,
+          cycleIteration: 'iteration',
           cyclePosition: i
         });
         
@@ -1439,25 +1296,25 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
             transactionId: `from_${transaction.id}`,
             timestamp: new Date(),
             receivedFrom: transaction.agentName,
-            cycleIteration: iteration
+            cycleIteration: 'iteration'
           });
           console.log(`🔗 Passed ${transaction.agentName} output to ${nextAgent.agentName} context`);
         }
         
-        console.log(`✅ ${transaction.agentName} completed processing chunk ${currentChunk.id} (iteration ${iteration})`);
+        console.log(`✅ ${transaction.agentName} completed processing chunk `);
       }
       
       // Update hasMoreChunks for next iteration
-      hasMoreChunks = chunkProcessor.hasMoreChunks();
+  /*    hasMoreChunks = chunkProcessor.hasMoreChunks();
       
       if (hasMoreChunks) {
         console.log(`📦 More chunks available, continuing to next chunk`);
       } else {
         console.log(`✅ All chunks processed, cycle complete`);
-      }
-    }
+      }*/
+    //}
     
-    console.log(`🏁 Extended cycle loop completed after ${iteration} iterations`);
+ 
     
     // Return final result with cycle metadata
     return {
@@ -1465,7 +1322,7 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
       result: {
         ...finalResult.result,
         extendedCycleMetadata: {
-          totalIterations: iteration,
+          totalIterations: '',//iteration,
           finalIteration: true,
           cycleAgents: orderedCycle.map(t => t.agentName),
           cycleLength: orderedCycle.length
@@ -1578,7 +1435,7 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
       enhancedTask += `- You are the LAST agent in this cycle iteration\n`;
       enhancedTask += `- Finalize processing for this chunk\n`;
       if (hasReceivedData) {
-        enhancedTask += `- Input received from ${agentContext.receivedFrom}: ${agentContext.lastTransactionResult}\n`;
+        enhancedTask += `- Input received from ${agentContext.receivedFrom}: ${JSON.stringify(agentContext.lastTransactionResult)}\n`;
       } else {
         enhancedTask += `- Input from previous agent: ${JSON.stringify(previousResult.result)}\n`;
       }
@@ -1586,7 +1443,7 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
       enhancedTask += `- You are a MIDDLE agent in this cycle iteration\n`;
       enhancedTask += `- Process input from previous agent and prepare for next agent\n`;
       if (hasReceivedData) {
-        enhancedTask += `- Input received from ${agentContext.receivedFrom}: ${agentContext.lastTransactionResult}\n`;
+        enhancedTask += `- Input received from ${agentContext.receivedFrom}: ${JSON.stringify(agentContext.lastTransactionResult)}\n`;
       } else {
         enhancedTask += `- Input from previous agent: ${JSON.stringify(previousResult.result)}\n`;
       }
@@ -1818,19 +1675,6 @@ iance.\n' +
       ...baseContext,
       ...iterationContext
     };
-    
-    // Extract partner result if available and prepend header
-    let partnerQuestions;
-    if (iterationContext.circularDependency?.partner?.result) {
-      if(iterationContext.circularDependency?.role === 'generator'){
-        partnerQuestions = `**QUESTIONS TO BE ANSWERED**\n${JSON.stringify(iterationContext.circularDependency.partner.result)}`;
-      } 
-      else if(iterationContext.circularDependency?.role === 'reflector'){
-        partnerQuestions = `**ASK QUESTIONS ABOUT THIS DATASET**\n${JSON.stringify(iterationContext.circularDependency.partner.result)}`;
-      }
-      
-      enhancedContext.partnerQuestions = partnerQuestions;
-    }
     
     // Execute with enhanced context
     return await agent.execute(enhancedContext);
