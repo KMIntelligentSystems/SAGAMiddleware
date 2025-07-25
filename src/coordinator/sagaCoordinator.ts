@@ -273,10 +273,8 @@ sleep(ms: number) {
           }
         } else {
           // Regular transaction execution
-          console.log('HERE IN PARSE  ')
           result = await this.executeSagaTransaction(transaction, request);
         } 
-        console.log("RRESULT ", result.result)
         
         if (!result.success) {
           console.log(`❌ Transaction failed: ${transaction.name} - ${result.error}`);
@@ -289,8 +287,7 @@ sleep(ms: number) {
         }
         // Each agent gets its own instructions from the bracket parsing - no context passing needed
         counter++;
-    
-    console.log("HERE BEFOR UPDATA CONTEXT")
+
         // Update context with transaction result
         this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: result.result,
@@ -451,8 +448,6 @@ sleep(ms: number) {
       } else {
         return '';
       }
-      console.log('CONVERSATION RESULT   ',conversationResult)
-      console.log('RESULT TEXT FOR PARSING:', resultText);
       
       // Extract content between bracket tags for this agent
       // Handle both formats: [AGENT:AgentName] and [AGENT: AgentName] (with space)
@@ -855,7 +850,6 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     for (const depId of transaction.dependencies) {
       const depTransaction = transactions.find(t => t.id === depId);
       if (depTransaction && depTransaction.dependencies.includes(transaction.id)) {
-        console.log('DEPENDENCIES  ', depTransaction)
         return depTransaction;
       }
     }
@@ -1021,19 +1015,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       const reflectorContext = await this.buildCircularContext(
         reflectorTx, generatorResult, iteration, 'reflector', request
       );
-      /*
-EFLECTOR CONTEXT    {
-  agentSpecificTask: `Task description: your task is to reflect on the output of a generating agent and to ask the generating agent questions about its results. The generating agent is tasked with examining large dataset and extracting data into the structure ou
-tlined above. As an LLM it can be prone to errors. The idea is that you as a reflecting agent can ask questions about the data to prompt the generating agent to examine its output. If it returns consistent output on 1 or more iterations of your interaction with 
-the generating agent then indicate satisfaction. **YOUR ROLE**: You are a questioning agent. You must ask questions. Do not make judgements or assessments. The input you receive will be of the form: {date: "2023-11-04", installation: "ERGTO1", values: [all value
-s for this installation on this date are numeric values]} for all required dates, installations and array of values for that installation and date. **IMPORTANT** Get the generating agent's data from this JSON: "circularDependency": { "partner": { "agentName": "D
-ataStructuringAgent", "result": { "agentName": "DataStructuringAgent", "result"} }} Get the specific data from last "result". Look at the data and pose questions to challenge the generator in its result. You are not interested in semantics of the data, but more 
-in the numerical pattern. What are the steps that generated the numerical data arrays? What algorithm is used? Is there an alternative algorithm to validate the initial results?              **THE RESULTS TO ASK QUESTIONS ABOUT**\n` +
-    '{"agentName":"DataStructuringAgent","result":"```json\\n{\\n  \\"2023-11-04\\": {\\n    \\"ERGTO1\\": [0, 0, 0, 0],\\n    \\"RPCG\\": [14.6, 14.6, 14.6, 13.3, 13.3, 12, -2.2, -2.2, -2.2, -2.2]\\n  },\\n  \\"2023-11-03\\": {\\n    \\"ERGTO1\\": [0, 0],\\n   
- \\"RPCG\\": [13.5, 13.3]\\n  }\\n}\\n```","success":true,"timestamp":"2025-07-22T00:01:34.214Z"}',
-  circularDependency: {
-      */
-      console.log('REFLECTOR CONTEXT   ', reflectorContext)
+
       reflectorResult = await this.executeSagaTransactionWithContext(
         reflectorTx, request, reflectorContext
       );
@@ -1054,39 +1036,12 @@ in the numerical pattern. What are the steps that generated the numerical data a
         generatorTx, reflectorResult, iteration, 'generator', request
       );
 
-      console.log('GENERATOR CONTEXT  ', generatorContext)
-      /*
-GENERATOR CONTEXT   {
-  agentSpecificTask: `Task description: your task is to reflect on the output of a generating agent and to ask the generating agent questions about its results. The generating agent is tasked with examining large dataset and extracting data into the structure ou
-tlined above. As an LLM it can be prone to errors. The idea is that you as a reflecting agent can ask questions about the data to prompt the generating agent to examine its output. If it returns consistent output on 1 or more iterations of your interaction with 
-the generating agent then indicate satisfaction. **YOUR ROLE**: You are a questioning agent. You must ask questions. Do not make judgements or assessments. The input you receive will be of the form: {date: "2023-11-04", installation: "ERGTO1", values: [all value
-s for this installation on this date are numeric values]} for all required dates, installations and array of values for that installation and date. **IMPORTANT** Get the generating agent's data from this JSON: "circularDependency": { "partner": { "agentName": "D
-ataStructuringAgent", "result": { "agentName": "DataStructuringAgent", "result"} }} Get the specific data from last "result". Look at the data and pose questions to challenge the generator in its result. You are not interested in semantics of the data, but more 
-in the numerical pattern. What are the steps that generated the numerical data arrays? What algorithm is used? Is there an alternative algorithm to validate the initial results?              **THE RESULTS TO ASK QUESTIONS ABOUT**\n` +
-    '{"agentName":"DataStructuringAgent","result":"```json\\n{\\n  \\"2023-11-04\\": {\\n    \\"ERGTO1\\": [0, 0, 0, 0],\\n    \\"RPCG\\": [14.6, 14.6, 14.6, 13.3, 13.3, 12, -2.2, -2.2, -2.2, -2.2]\\n  },\\n  \\"2023-11-03\\": {\\n    \\"ERGTO1\\": [0, 0],\\n   
- \\"RPCG\\": [13.5, 13.3]\\n  }\\n}\\n```","success":true,"timestamp":"2025-07-21T23:21:08.572Z"}',
-  circularDependency: {
-    iteration: 2,
-    role: 'generator',
-    partner: {
-      agentName: 'DataStructuringAgent',
-      result: [Object],
-      timestamp: 2025-07-21T23:21:11.785Z
-    }
-  }
-      */
+
       generatorResult = await this.executeSagaTransactionWithContext(
         generatorTx, request, generatorContext
       );
 
-      console.log('GENERATOR RESULT  ', JSON.stringify(generatorResult))
-      /*
-GENERATOR RESULT   {"agentName":"DataReflectingAgent","result":{"agentName":"DataReflectingAgent","result":"1. What specific steps were taken to generate the numerical data arrays for the installations on the given dates?\n2. Can you clarify the algorithm used t
-o derive the values for each installation? \n3. How were the values for \"ERGTO1\" determined, especially given that they are all zeros for the provided dates?\n4. For the \"RPCG\" installation, what factors contributed to the fluctuations in values, particularl
-y the sudden drop to -2.2?\n5. Is there a method in place to validate the consistency of the data across multiple iterations? If so, what does that entail?\n6. Have alternative algorithms been considered to cross-check the results obtained? If yes, what are they
-?\n7. How do you handle outliers or anomalies in the data, such as the negative values for \"RPCG\"?\n8. What criteria were used to select the specific dates and installations included in this dataset?","success":true,"timestamp":"2025-07-21T23:12:35.959Z"},"suc
-cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
-      */
+
       
       // Update contexts for next iteration
       this.contextManager.updateContext(generatorTx.agentName, {
@@ -1222,11 +1177,11 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
     request: BrowserGraphRequest
   ): Promise<AgentResult> {
     
-    console.log(`🔄 Starting extended cycle loop with ${cycleTransactions.length} agents`);
+ //   console.log(`🔄 Starting extended cycle loop with ${cycleTransactions.length} agents`);
  
-    const orderedCycle = this.sortCycleTransactionsByDependencyOrder(cycleTransactions);
+   // const orderedCycle = this.sortCycleTransactionsByDependencyOrder(cycleTransactions);
     
-    console.log(`📋 Cycle execution order: ${orderedCycle.map(t => `${t.id}(${t.agentName})`).join(' → ')}`);
+  //  console.log(`📋 Cycle execution order: ${orderedCycle.map(t => `${t.id}(${t.agentName})`).join(' → ')}`);
     
     let finalResult: AgentResult = {
       agentName: 'cycle_start',
@@ -1235,37 +1190,59 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
       timestamp: new Date()
     };
     
+    // Initialize pagination state
+    let lastStartRow = 0;
+    let hasMoreChunks = true;
+    let iteration = 0;
+    let allProcessedData: any[] = [];
+    let cycleCounter =  cycleTransactions.length;
+    
+    // Continue processing until all chunks are retrieved
+    while (hasMoreChunks) {
+      console.log(`🔄 Starting cycle iteration ${iteration + 1}, lastStartRow: ${lastStartRow}`);
+      
       // Execute each agent in the cycle sequence for this chunk
-      for (let i = 0; i < orderedCycle.length; i++) {
-        const transaction = orderedCycle[i];
-       console.log(`🎯 Executing XXX ${transaction.agentName} LENGTH ${orderedCycle.length}) for chunk`);
+      for (let i = 0; i < cycleCounter; i++) {
+        const transaction = cycleTransactions[i];
+    //    console.log(`🎯 Executing ${transaction.agentName} (${i + 1}/${orderedCycle.length}) for iteration ${iteration + 1}`);
         
-        // Special handling for DataFilteringAgent - provide the current chunk only at cycle start
+        // Special handling for DataFilteringAgent - provide pagination context
         if (transaction.agentName === 'DataFilteringAgent' && i === 0) {
-          // Update DataFilteringAgent context with current chunk for first execution
-          this.contextManager.updateContext('DataFilteringAgent', {
-            lastTransactionResult: '',//JSON.stringify(currentChunk),
+          // Get the existing prompt from context (comes from user via conversation agent)
+          const existingContext = this.contextManager.getContext('DataFilteringAgent');
+          let basePrompt = existingContext?.lastTransactionResult || '';
+          
+          // Determine the offset value to use
+          const currentOffset = iteration === 0 ? 0 : lastStartRow;
+          
+          // Replace the {current_offset} placeholder with the actual offset value
+          const updatedPrompt = basePrompt.replace(/{current_offset}/g, currentOffset.toString());
+          
+          // Set DataFilteringAgent context with pagination state and updated prompt
+          this.contextManager.setContext('DataFilteringAgent', {
+            lastTransactionResult: updatedPrompt,
             transactionId: transaction.id,
             timestamp: new Date(),
-            currentChunk: 1 //currentChunk
+            lastStartRow: lastStartRow,
+            iteration: iteration,
+            collection: 'supply_analysis'
           });
-         
         }
         
-        // Build context with cycle metadata and chunk information
-      
+        // Build context with cycle metadata and pagination information
         const cycleContext = await this.buildCycleTransactionContext(
           transaction, 
           request, 
           finalResult,
           {
-            iteration: 0,
+            iteration: iteration,
             cyclePosition: i,
-            totalInCycle: orderedCycle.length,
+            totalInCycle: cycleTransactions.length,
             isFirstInCycle: i === 0,
-            isLastInCycle: i === orderedCycle.length - 1,
-            cycleTransactions: orderedCycle,
-            currentChunk: 1
+            isLastInCycle: i === cycleTransactions.length - 1,
+            cycleTransactions: cycleTransactions,
+            lastStartRow: lastStartRow,
+            hasMoreChunks: hasMoreChunks
           }
         );
         
@@ -1277,59 +1254,211 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
           return finalResult;
         }
         
+        // Extract pagination info from DataFilteringAgent result
+        if (transaction.agentName === 'DataFilteringAgent' && finalResult.result) {
+          const result = finalResult.result;
+          console.log('RESULT  FILTERINGDATA', result);
+          console.log('RESULT TYPE:', typeof result);
+          
+          try {
+            let resultString = '';
+            
+            // Extract the actual result content, not the entire object
+            if (typeof result === 'string') {
+              resultString = result;
+            } else if (typeof result === 'object' && result !== null) {
+              // If result is an object, it might be the AgentResult object
+              // We need to extract the actual result content
+              if ('result' in result && typeof result.result === 'string') {
+                resultString = result.result;
+              } else {
+                resultString = JSON.stringify(result);
+              }
+            } else {
+              resultString = String(result);
+            }
+            
+            console.log('RESULT STRING LENGTH:', resultString.length);
+            console.log('RESULT STRING PREVIEW:', resultString.substring(0, 200) + '...');
+            
+            // Remove markdown formatting if present
+            let cleanJson = resultString.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            
+            // Try to extract just the JSON content if it's mixed with other text
+            const jsonMatch = cleanJson.match(/^(\{[\s\S]*\})(?:\s*$|",)/);
+            if (jsonMatch) {
+              cleanJson = jsonMatch[1];
+            }
+            
+            console.log('CLEAN JSON LENGTH:', cleanJson.length);
+            console.log('CLEAN JSON PREVIEW:', cleanJson.substring(0, 200) + '...');
+            console.log('CLEAN JSON ENDING:', cleanJson.substring(cleanJson.length - 100));
+            
+            // Try to parse as JSON first
+            try {
+              const parsedResult = JSON.parse(cleanJson);
+              console.log('PARSED RESULT KEYS:', Object.keys(parsedResult));
+              
+              // Look for metadata in data_chunks array
+              if (parsedResult.data_chunks && Array.isArray(parsedResult.data_chunks) && parsedResult.data_chunks.length > 0) {
+                const firstChunk = parsedResult.data_chunks[0];
+                if (firstChunk.metadata && typeof firstChunk.metadata.startRow === 'number') {
+                  lastStartRow = parseInt(firstChunk.metadata.endRow) || lastStartRow;
+                  hasMoreChunks = parsedResult.data_chunks.length > 0 && firstChunk.metadata.rowsInChunk > 0;
+                  console.log(`📊 DataFilteringAgent pagination: endRow=${firstChunk.metadata.endRow}, startRow=${firstChunk.metadata.startRow}, rowsInChunk=${firstChunk.metadata.rowsInChunk}, hasMoreChunks=${hasMoreChunks}`);
+                } else {
+                  hasMoreChunks = false;
+                  console.log(`📊 DataFilteringAgent: No valid metadata in first chunk, ending pagination`);
+                }
+              } else {
+                hasMoreChunks = false;
+                console.log(`📊 DataFilteringAgent: No data_chunks found, ending pagination`);
+              }
+            } catch (jsonError) {
+              console.log('JSON parse failed, trying regex:', jsonError instanceof Error ? jsonError.message : String(jsonError));
+              
+              // Fallback to regex pattern matching - find the highest endRow from all chunks
+              const metadataMatches = [...resultString.matchAll(/"metadata":\s*\{[^}]*"startRow":\s*(\d+)[^}]*"endRow":\s*(\d+)[^}]*"rowsInChunk":\s*(\d+)[^}]*\}/g)];
+              
+              if (metadataMatches.length > 0) {
+                // Find the chunk with the highest endRow to determine pagination
+                let maxEndRow = 0;
+                let hasValidChunks = false;
+                
+                for (const match of metadataMatches) {
+                  const startRow = parseInt(match[1]);
+                  const endRow = parseInt(match[2]);
+                  const rowsInChunk = parseInt(match[3]);
+                  
+                  console.log(`Found chunk: startRow=${startRow}, endRow=${endRow}, rowsInChunk=${rowsInChunk}`);
+                  
+                  if (endRow > maxEndRow) {
+                    maxEndRow = endRow;
+                  }
+                  if (rowsInChunk > 0) {
+                    hasValidChunks = true;
+                  }
+                }
+                
+                lastStartRow = maxEndRow;
+                hasMoreChunks = hasValidChunks;
+                console.log(`📊 DataFilteringAgent pagination (regex): maxEndRow=${maxEndRow}, hasValidChunks=${hasValidChunks}, hasMoreChunks=${hasMoreChunks}`);
+              } else {
+                hasMoreChunks = false;
+                console.log(`📊 DataFilteringAgent: Could not extract metadata, ending pagination`);
+              }
+            }
+          } catch (error) {
+            console.error(`Error parsing DataFilteringAgent result:`, error);
+            hasMoreChunks = false;
+          }
+        }
+        
         // Update current agent context with its result
         this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: finalResult.result,
           transactionId: transaction.id,
           timestamp: new Date(),
-          cycleIteration: 'iteration',
+          cycleIteration: iteration,
           cyclePosition: i
         });
         
         // Update next agent's context with current agent's output (for chain processing)
-        const nextAgentIndex = (i + 1) % orderedCycle.length;
-        const nextAgent = orderedCycle[nextAgentIndex];
-        
-        if (nextAgent && i < orderedCycle.length - 1) { // Don't update for the last agent in cycle
-          this.contextManager.updateContext(nextAgent.agentName, {
-            lastTransactionResult: finalResult.result,
-            transactionId: `from_${transaction.id}`,
-            timestamp: new Date(),
-            receivedFrom: transaction.agentName,
-            cycleIteration: 'iteration'
-          });
-          console.log(`🔗 Passed ${transaction.agentName} output to ${nextAgent.agentName} context`);
+        const nextAgentIndex = (i + 1) % cycleTransactions.length;
+        const nextAgent = cycleTransactions[nextAgentIndex];
+        console.log('NEXT AGENT', nextAgent)
+        if (nextAgent && i < cycleTransactions.length) { // Don't update for the last agent in cycle
+          // Special handling for DataFilteringAgent - preserve original conversation prompt
+          if (nextAgent.agentName === 'DataFilteringAgent' && iteration > 0) {
+            // For DataFilteringAgent on subsequent cycles, don't overwrite the conversation context
+            // Just update pagination metadata without changing lastTransactionResult
+            const existingContext = this.contextManager.getContext(nextAgent.agentName);
+            console.log('EXISTING FILTER CONTEXT', existingContext)
+            this.contextManager.updateContext(nextAgent.agentName, {
+              ...existingContext,
+              transactionId: `from_${transaction.id}`,
+              timestamp: new Date(),
+              receivedFrom: transaction.agentName,
+              cycleIteration: iteration,
+              // Keep original lastTransactionResult for conversation prompt parsing
+              lastTransactionResult: existingContext?.lastTransactionResult || ''
+            });
+            console.log(`🔗 Preserved original prompt for ${nextAgent.agentName} on cycle ${iteration}`);
+          } else {
+            // Normal context passing for other agents
+            this.contextManager.updateContext(nextAgent.agentName, {
+              lastTransactionResult: finalResult.result,
+              transactionId: `from_${transaction.id}`,
+              timestamp: new Date(),
+              receivedFrom: transaction.agentName,
+              cycleIteration: iteration
+            });
+            console.log(`🔗 Passed ${transaction.agentName} output to ${nextAgent.agentName} context`);
+          }
         }
         
-        console.log(`✅ ${transaction.agentName} completed processing chunk `);
+        console.log(`✅ ${transaction.agentName} completed processing iteration ${iteration + 1}`);
       }
       
-      // Update hasMoreChunks for next iteration
-  /*    hasMoreChunks = chunkProcessor.hasMoreChunks();
+      // Collect processed data from the final agent (DataAggregatingAgent)
+      if (finalResult.result && finalResult.result.data) {
+        allProcessedData = allProcessedData.concat(finalResult.result.data);
+        console.log(`📦 Collected ${finalResult.result.data.length} records, total: ${allProcessedData.length}`);
+      }
+      
+      iteration++;
       
       if (hasMoreChunks) {
-        console.log(`📦 More chunks available, continuing to next chunk`);
+        console.log(`📦 More chunks available, continuing to iteration ${iteration + 1}`);
       } else {
-        console.log(`✅ All chunks processed, cycle complete`);
-      }*/
-    //}
+        console.log(`✅ All chunks processed, cycle complete after ${iteration} iterations`);
+      }
+    }
     
- 
-    
-    // Return final result with cycle metadata
+    // Return final result with all processed data and cycle metadata
     return {
       ...finalResult,
       result: {
         ...finalResult.result,
+        data: allProcessedData,
         extendedCycleMetadata: {
-          totalIterations: '',//iteration,
+          totalIterations: iteration,
           finalIteration: true,
-          cycleAgents: orderedCycle.map(t => t.agentName),
-          cycleLength: orderedCycle.length
+          cycleAgents: cycleTransactions.map(t => t.agentName),
+          cycleLength: cycleTransactions.length,
+          totalRecordsProcessed: allProcessedData.length,
+          lastStartRow: lastStartRow
         }
       }
     };
   }
+
+  private createDataFilteringPrompt(offset: number = 0) {  // Default to 0
+      return `[AGENT: DataExtractingAgent]
+    Task: Extract energy generation records using offset ${offset}.
+
+    Execute the structured_query tool with this exact JSON:
+    {
+      "collection": "supply_analysis",
+      "metadata_filters": { 
+        "category_type": "Coal"
+      },
+      "date_filters": { 
+        "field": "datetime", 
+        "start_date": "2023-11-02T04:00:00.000Z",
+        "end_date": "2023-11-05T23:55:00.000Z"
+      },
+      "limit": 100,
+      "offset": ${offset},
+      "order_by": "id",
+      "order_direction": "asc",
+      "include_distances": false
+    }
+
+    [rest of prompt...]
+
+    [/AGENT]`;
+}
 
   // Helper method to sort cycle transactions by dependency order
   private sortCycleTransactionsByDependencyOrder(transactions: SagaTransaction[]): SagaTransaction[] {
@@ -1398,6 +1527,8 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
       isLastInCycle: boolean;
       cycleTransactions: SagaTransaction[];
       currentChunk?: any;
+      lastStartRow?: number;
+      hasMoreChunks?: boolean;
     }
   ): Promise<Record<string, any>> {
     
@@ -1423,11 +1554,20 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
     const agentContext = this.contextManager.getContext(transaction.agentName);
     const hasReceivedData = agentContext?.receivedFrom && agentContext?.receivedFrom !== transaction.agentName;
     
+    // Add pagination information for DataFilteringAgent
+    if (transaction.agentName === 'DataFilteringAgent' && cycleMetadata.lastStartRow !== undefined) {
+      enhancedTask += `- Pagination: Continue from startRow ${cycleMetadata.lastStartRow}\n`;
+      enhancedTask += `- Use structured_query with: where: { startRow: { $gt: ${cycleMetadata.lastStartRow} } }, order_by: "startRow"\n`;
+    }
+    
     if (cycleMetadata.isFirstInCycle) {
       enhancedTask += `- You are the FIRST agent in this cycle iteration\n`;
-      if (transaction.agentName === 'DataFilteringAgent' && cycleMetadata.currentChunk) {
-        enhancedTask += `- Process the current data chunk and prepare it for the next agent\n`;
-        enhancedTask += `- Raw chunk content: ${cycleMetadata.currentChunk.content}\n`;
+      if (transaction.agentName === 'DataFilteringAgent') {
+        if (cycleMetadata.iteration === 0) {
+          enhancedTask += `- This is the initial data retrieval, start from beginning\n`;
+        } else {
+          enhancedTask += `- Continue pagination from where previous iteration left off\n`;
+        }
       } else {
         enhancedTask += `- Initialize or continue processing for this cycle\n`;
       }
@@ -1456,7 +1596,14 @@ cess":true,"timestamp":"2025-07-21T23:12:31.860Z"}
         ...cycleMetadata,
         previousResult: previousResult.result,
         currentChunk: cycleMetadata.currentChunk
-      }
+      },
+      // Add pagination context for DataFilteringAgent
+      ...(transaction.agentName === 'DataFilteringAgent' && {
+        collection: 'supply_analysis',
+        lastStartRow: cycleMetadata.lastStartRow || 0,
+        maxChunks: 50,
+        paginationEnabled: true
+      })
     };
   }
 

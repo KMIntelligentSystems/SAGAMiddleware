@@ -153,7 +153,7 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
- /* {
+  {
     id: 'tx-2',
     name: 'Index files',
     agentName: 'DataProcessingAgent',
@@ -161,7 +161,7 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
-  {
+ /* {
     id: 'tx-3',
     name: 'Apply RAG Tool',
     agentName: 'DataFilteringAgent',

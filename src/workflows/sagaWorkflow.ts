@@ -164,6 +164,15 @@ export class SagaWorkflow {
         taskExpectedOutput: 'Pass through the information as received, preserving all formatting and bracket tags.'
       },
       {
+        agentName: 'DataProcessingAgent',
+        agentType: 'tool',
+        transactionId: 'tx-2',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
+      },
+      {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
         transactionId: 'tx-3',
