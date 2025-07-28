@@ -151,7 +151,7 @@ export class DataPreprocessor {
       job.status = 'completed';
       job.endTime = new Date();
       
-      // Get the actual chunk count
+      // Get the actual chunk countc
       const status = await this.checkCollectionStatus(collection);
       job.chunkCount = status.chunkCount;
       

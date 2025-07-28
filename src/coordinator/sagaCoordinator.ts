@@ -196,7 +196,7 @@ sleep(ms: number) {
     transactionOrdering?: SagaTransaction[],
     contextSet?: ContextSetDefinition
   ): Promise<AgentResult> {
-    console.log(`🚀 Starting SAGA: ${workflowId}`);
+    console.log(`🚀 SC: ${workflowId}`);
     
     // Use provided transaction ordering or fall back to default
     const transactionsToExecute = transactionOrdering || SAGA_TRANSACTIONS;
@@ -1191,7 +1191,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     };
     
     // Initialize pagination state
-    let lastStartRow = 0;
+    let page = 1;
     let hasMoreChunks = true;
     let iteration = 0;
     let allProcessedData: any[] = [];
@@ -1199,7 +1199,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     
     // Continue processing until all chunks are retrieved
     while (hasMoreChunks) {
-      console.log(`🔄 Starting cycle iteration ${iteration + 1}, lastStartRow: ${lastStartRow}`);
+      console.log(`🔄 Starting cycle iteration ${iteration + 1}, page: ${page}`);
       
       // Execute each agent in the cycle sequence for this chunk
       for (let i = 0; i < cycleCounter; i++) {
@@ -1212,18 +1212,24 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           const existingContext = this.contextManager.getContext('DataFilteringAgent');
           let basePrompt = existingContext?.lastTransactionResult || '';
           
-          // Determine the offset value to use
-          const currentOffset = iteration === 0 ? 0 : lastStartRow;
+          // Ensure basePrompt is a string
+          if (typeof basePrompt !== 'string') {
+            console.log('BasePrompt type:', typeof basePrompt, 'Value:', basePrompt);
+            basePrompt = String(basePrompt);
+          }
           
-          // Replace the {current_offset} placeholder with the actual offset value
-          const updatedPrompt = basePrompt.replace(/{current_offset}/g, currentOffset.toString());
+          // Determine the offset value to use
+          const currentOffset = iteration === 0 ? 1 : page;
+          
+          // Replace the {page} placeholder with the actual page number
+          const updatedPrompt = basePrompt.replace(/{page}/g, page.toString());
           
           // Set DataFilteringAgent context with pagination state and updated prompt
           this.contextManager.setContext('DataFilteringAgent', {
             lastTransactionResult: updatedPrompt,
             transactionId: transaction.id,
             timestamp: new Date(),
-            lastStartRow: lastStartRow,
+            page: page,
             iteration: iteration,
             collection: 'supply_analysis'
           });
@@ -1241,13 +1247,16 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
             isFirstInCycle: i === 0,
             isLastInCycle: i === cycleTransactions.length - 1,
             cycleTransactions: cycleTransactions,
-            lastStartRow: lastStartRow,
+            page: page,
             hasMoreChunks: hasMoreChunks
           }
         );
         
         // Execute the transaction with cycle context
         finalResult = await this.executeSagaTransactionWithContext(transaction, request, cycleContext);
+        console.log('RAW FINAL RESULT:', finalResult);
+  console.log('RAW FINAL RESULT TYPE:', typeof finalResult.result);
+  console.log('RAW FINAL RESULT LENGTH:', finalResult.result?.length);
         
         if (!finalResult.success) {
           console.error(`❌ Cycle transaction failed: ${transaction.agentName} - ${finalResult.error}`);
@@ -1256,7 +1265,13 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         
         // Extract pagination info from DataFilteringAgent result
         if (transaction.agentName === 'DataFilteringAgent' && finalResult.result) {
-          const result = finalResult.result;
+          // Handle nested AgentResult structure
+          let result = finalResult.result;
+          
+          // If result is a nested AgentResult object, extract the actual result string
+          if (typeof result === 'object' && result !== null && 'result' in result) {
+            result = result.result;
+          }
           console.log('RESULT  FILTERINGDATA', result);
           console.log('RESULT TYPE:', typeof result);
           
@@ -1277,42 +1292,45 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
             } else {
               resultString = String(result);
             }
-            
-            console.log('RESULT STRING LENGTH:', resultString.length);
-            console.log('RESULT STRING PREVIEW:', resultString.substring(0, 200) + '...');
+
             
             // Remove markdown formatting if present
             let cleanJson = resultString.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
             
             // Try to extract just the JSON content if it's mixed with other text
-            const jsonMatch = cleanJson.match(/^(\{[\s\S]*\})(?:\s*$|",)/);
-            if (jsonMatch) {
-              cleanJson = jsonMatch[1];
+            // Look for the first { and last } to extract complete JSON
+            const firstBrace = cleanJson.indexOf('{');
+            const lastBrace = cleanJson.lastIndexOf('}');
+            
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
             }
             
             console.log('CLEAN JSON LENGTH:', cleanJson.length);
-            console.log('CLEAN JSON PREVIEW:', cleanJson.substring(0, 200) + '...');
-            console.log('CLEAN JSON ENDING:', cleanJson.substring(cleanJson.length - 100));
+            console.log('CLEAN JSON PREVIEW:', cleanJson);
+          
             
             // Try to parse as JSON first
             try {
               const parsedResult = JSON.parse(cleanJson);
               console.log('PARSED RESULT KEYS:', Object.keys(parsedResult));
+              //PARSED RESULT KEYS: [ 'results', 'page', 'total_pages', 'total_count' ]
               
-              // Look for metadata in data_chunks array
-              if (parsedResult.data_chunks && Array.isArray(parsedResult.data_chunks) && parsedResult.data_chunks.length > 0) {
-                const firstChunk = parsedResult.data_chunks[0];
-                if (firstChunk.metadata && typeof firstChunk.metadata.startRow === 'number') {
-                  lastStartRow = parseInt(firstChunk.metadata.endRow) || lastStartRow;
-                  hasMoreChunks = parsedResult.data_chunks.length > 0 && firstChunk.metadata.rowsInChunk > 0;
-                  console.log(`📊 DataFilteringAgent pagination: endRow=${firstChunk.metadata.endRow}, startRow=${firstChunk.metadata.startRow}, rowsInChunk=${firstChunk.metadata.rowsInChunk}, hasMoreChunks=${hasMoreChunks}`);
-                } else {
-                  hasMoreChunks = false;
-                  console.log(`📊 DataFilteringAgent: No valid metadata in first chunk, ending pagination`);
-                }
+              // Look for pagination info in the parsed result
+              if (parsedResult.results && Array.isArray(parsedResult.results) && parsedResult.results.length > 0) {
+                console.log('ENTERED RESULTS ARRAY')
+                
+                // Extract pagination info directly from the root level
+                const currentPage = parseInt(parsedResult.page) || 1;
+                const totalPages = parseInt(parsedResult.total_pages) || 1;
+                
+                page = currentPage + 1;
+                hasMoreChunks = currentPage < totalPages;
+                
+                console.log(`📊 DataFilteringAgent pagination: page=${currentPage}, total_pages=${totalPages}, resultsReturned=${parsedResult.results.length}, hasMoreChunks=${hasMoreChunks}`);
               } else {
                 hasMoreChunks = false;
-                console.log(`📊 DataFilteringAgent: No data_chunks found, ending pagination`);
+                console.log(`📊 DataFilteringAgent: No results found, ending pagination`);
               }
             } catch (jsonError) {
               console.log('JSON parse failed, trying regex:', jsonError instanceof Error ? jsonError.message : String(jsonError));
@@ -1340,7 +1358,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
                   }
                 }
                 
-                lastStartRow = maxEndRow;
+                page = maxEndRow;
                 hasMoreChunks = hasValidChunks;
                 console.log(`📊 DataFilteringAgent pagination (regex): maxEndRow=${maxEndRow}, hasValidChunks=${hasValidChunks}, hasMoreChunks=${hasMoreChunks}`);
               } else {
@@ -1367,7 +1385,23 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         const nextAgentIndex = (i + 1) % cycleTransactions.length;
         const nextAgent = cycleTransactions[nextAgentIndex];
         console.log('NEXT AGENT', nextAgent)
-        if (nextAgent && i < cycleTransactions.length) { // Don't update for the last agent in cycle
+        if (nextAgent && i < cycleTransactions.length - 1) {
+          if(nextAgent.agentName != 'DataFilteringAgent'){
+            {
+              // Normal context passing for other agents
+              this.contextManager.updateContext(nextAgent.agentName, {
+                lastTransactionResult: finalResult.result,
+                transactionId: `from_${transaction.id}`,
+                timestamp: new Date(),
+                receivedFrom: transaction.agentName,
+                cycleIteration: iteration
+              });
+              console.log(`🔗 Passed ${transaction.agentName} output to ${nextAgent.agentName} context`);
+            }
+        }
+          console.log(`✅ ${transaction.agentName} completed processing iteration ${iteration }`);
+        }
+     /*   if (nextAgent && i < cycleTransactions.length - 1) { // Don't update for the last agent in cycle
           // Special handling for DataFilteringAgent - preserve original conversation prompt
           if (nextAgent.agentName === 'DataFilteringAgent' && iteration > 0) {
             // For DataFilteringAgent on subsequent cycles, don't overwrite the conversation context
@@ -1395,9 +1429,9 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
             });
             console.log(`🔗 Passed ${transaction.agentName} output to ${nextAgent.agentName} context`);
           }
-        }
+        }*/
         
-        console.log(`✅ ${transaction.agentName} completed processing iteration ${iteration + 1}`);
+      //  console.log(`✅ ${transaction.agentName} completed processing iteration ${iteration + 1}`);
       }
       
       // Collect processed data from the final agent (DataAggregatingAgent)
@@ -1427,7 +1461,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           cycleAgents: cycleTransactions.map(t => t.agentName),
           cycleLength: cycleTransactions.length,
           totalRecordsProcessed: allProcessedData.length,
-          lastStartRow: lastStartRow
+          page: page
         }
       }
     };
@@ -1527,7 +1561,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       isLastInCycle: boolean;
       cycleTransactions: SagaTransaction[];
       currentChunk?: any;
-      lastStartRow?: number;
+      page?: number;
       hasMoreChunks?: boolean;
     }
   ): Promise<Record<string, any>> {
@@ -1555,9 +1589,9 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     const hasReceivedData = agentContext?.receivedFrom && agentContext?.receivedFrom !== transaction.agentName;
     
     // Add pagination information for DataFilteringAgent
-    if (transaction.agentName === 'DataFilteringAgent' && cycleMetadata.lastStartRow !== undefined) {
-      enhancedTask += `- Pagination: Continue from startRow ${cycleMetadata.lastStartRow}\n`;
-      enhancedTask += `- Use structured_query with: where: { startRow: { $gt: ${cycleMetadata.lastStartRow} } }, order_by: "startRow"\n`;
+    if (transaction.agentName === 'DataFilteringAgent' && cycleMetadata.page !== undefined) {
+      enhancedTask += `- Pagination: Continue from page ${cycleMetadata.page}\n`;
+      enhancedTask += `- Use structured_query with page: ${cycleMetadata.page}\n`;
     }
     
     if (cycleMetadata.isFirstInCycle) {
@@ -1600,7 +1634,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       // Add pagination context for DataFilteringAgent
       ...(transaction.agentName === 'DataFilteringAgent' && {
         collection: 'supply_analysis',
-        lastStartRow: cycleMetadata.lastStartRow || 0,
+        page: cycleMetadata.page || 1,
         maxChunks: 50,
         paginationEnabled: true
       })

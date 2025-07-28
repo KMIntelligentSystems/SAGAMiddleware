@@ -110,7 +110,7 @@ export class GenericAgent {
            baseContext = JSON.stringify(contextData, null, 2);
          }
         if(contextData?.extendedCycleDependency?.previousResult){
-           baseContext += `**INPUTS FOR YOUR TASK**\n, ${JSON.stringify(contextData?.extendedCycleDependency?.previousResult)}`;
+          // baseContext += `**INPUTS FOR YOUR TASK**\n, ${JSON.stringify(contextData?.extendedCycleDependency?.previousResult)}`;
          }
        }  else {
          baseContext = String(contextData);
@@ -534,10 +534,13 @@ export class GenericAgent {
           tools: tools,
           tool_choice: toolChoice,
           temperature: config.temperature || 0.7,
-          max_tokens: config.maxTokens || 1000
+          max_tokens: 1000
         });
         
         const message = response.choices[0].message;
+
+        console.log('MESSAGES   ', conversationHistory)
+         console.log('MESSAGE CONTENT',response)
         
         // Check if we've already made tool calls in previous iterations (before adding current message)
         const hasPreviousToolCalls = conversationHistory.some(msg => msg.role === 'tool');
@@ -549,6 +552,7 @@ export class GenericAgent {
           if (hasPreviousToolCalls) {
             console.log('✅ Analysis complete - OpenAI processed tool results and provided final answer');
             console.log('Final analysis content length:', message.content?.length || 0);
+            
             return {
               agentName: this.getName(),
               result: message.content || "",
@@ -571,7 +575,7 @@ export class GenericAgent {
               console.log('ERROR: Failed to call required tools - this should not happen with tool_choice=required');
               throw new Error('Required tool call was not made by the LLM');
             }
-            
+           
             return {
               agentName: this.getName(),
               result: message.content || "",
@@ -597,11 +601,12 @@ export class GenericAgent {
               arguments: parsedArgs
             });
             
+            console.log('TOOL RESULT   ',toolResult)
             hasExecutedTool = true; // Mark that we've executed a tool
             
             // Check if this was an indexing operation - no additional verification needed
             if (toolCall.function.name === 'index_file' || toolCall.function.name === 'index-file') {
-              const collection = parsedArgs.collection;
+              const collection = parsedArgs.collection
               if (collection) {
                 console.log(`✅ Indexing operation completed for collection: ${collection}`);
                 // For indexing operations, return immediately after successful completion
@@ -614,19 +619,27 @@ export class GenericAgent {
               }
             }
             
+            // Check if this is a data retrieval operation - return raw data without further processing
+            if (toolCall.function.name === 'get_chunks' || toolCall.function.name === 'search_chunks' || toolCall.function.name === 'structured_query') {
+              const resultContent = JSON.stringify(toolResult);
+              console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
+              console.log(`Raw result length: ${resultContent.length} characters`);
+              
+              return {
+                agentName: this.getName(),
+                result: resultContent,
+                success: true,
+                timestamp: new Date()
+              };
+            }
+            
             const resultContent = JSON.stringify(toolResult);
             console.log(`Tool result length: ${resultContent.length} characters`);
-            
-            // Truncate large results to prevent context overflow
-            const maxResultLength = 10000; // Limit to ~10k chars
-            const truncatedContent = resultContent.length > maxResultLength 
-              ? resultContent.substring(0, maxResultLength) + `\n\n[TRUNCATED - Original length: ${resultContent.length} chars]`
-              : resultContent;
             
             conversationHistory.push({
               role: "tool",
               tool_call_id: toolCall.id,
-              content: truncatedContent
+              content: resultContent
             });
           } catch (error) {
             conversationHistory.push({
@@ -714,9 +727,22 @@ export class GenericAgent {
             }
           }
           
+          // Check if this is a data retrieval operation - return raw data without further processing
+          if (toolUseContent.name === 'get_chunks' || toolUseContent.name === 'search_chunks' || toolUseContent.name === 'structured_query') {
+            console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
+            console.log(`Raw result length: ${JSON.stringify(toolResult).length} characters`);
+            
+            return {
+              agentName: this.getName(),
+              result: JSON.stringify(toolResult),
+              success: true,
+              timestamp: new Date()
+            };
+          }
+          
           const resultContent = JSON.stringify(toolResult);
           // Truncate large results to prevent context overflow
-          const maxResultLength = 10000; // Limit to ~10k chars
+          const maxResultLength = 100000; // Limit to ~100k chars (increased from 10k to handle large JSON responses)
           const truncatedContent = resultContent.length > maxResultLength 
             ? resultContent.substring(0, maxResultLength) + `\n\n[TRUNCATED - Original length: ${resultContent.length} chars]`
             : resultContent;
