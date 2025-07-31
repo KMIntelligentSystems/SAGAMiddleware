@@ -12,11 +12,13 @@ import {
   SagaWorkflowRequest,
   CompensationAction,
   IterationState,
-  IterationConfig
+  IterationConfig,
+  sagaPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { ValidationManager } from '../sublayers/validationManager.js';
+import { globalDataProcessor } from '../processing/dataResultProcessor.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
@@ -228,6 +230,8 @@ sleep(ms: number) {
         let filteredData = `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;*/
       
       const processedInCycle = new Set<string>(); // Track transactions already processed in cycles
+      const sagaCoordinatorAgent = this.agents.get('sagaCoordinatorAgent');
+       sagaCoordinatorAgent?.setContext(sagaPrompt)
       
       for (const transaction of transactionsToExecute) {
         // Skip transactions that were already processed as part of a cycle
@@ -289,11 +293,22 @@ sleep(ms: number) {
         counter++;
 
         // Update context with transaction result
-        this.contextManager.updateContext(transaction.agentName, {
+        if(transaction.agentName == 'SagaCoordinatorAgent'){
+          console.log('SAGA RESULT ', result.result)
+            this.contextManager.updateContext('ConversationAgent', {
           lastTransactionResult: result.result,
           transactionId: transaction.id,
           timestamp: new Date()
         });
+        }
+        else{
+            this.contextManager.updateContext(transaction.agentName, {
+          lastTransactionResult: result.result,
+          transactionId: transaction.id,
+          timestamp: new Date()
+        });
+        }
+      
 
         console.log(`✅ Transaction completed: ${transaction.name}`);
           // All transactions completed successfully
@@ -409,6 +424,12 @@ sleep(ms: number) {
       // ConversationAgent needs the entire user query for human-in-the-loop conversations
       agentSpecificTask = request.userQuery || '';
     } 
+    else if(transaction.agentName === 'SagaCoordinatorAgent')
+    {
+       agentSpecificTask = sagaPrompt;
+       agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+     
+    }
     else {
       // For other agents, first try to get instructions from ConversationAgent's working memory
       if (conversationContext && conversationContext.lastTransactionResult) {
@@ -1380,6 +1401,16 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           cycleIteration: iteration,
           cyclePosition: i
         });
+
+        // Process and store result only for the last agent in the cycle
+        if (i === cycleTransactions.length - 1) {
+          console.log('RAW FINAL RESULT:', finalResult);
+          const processedData = globalDataProcessor.parseResult(finalResult, transaction.agentName);
+          
+          const cycleKey = `cycle_${iteration}_final`;
+          globalDataProcessor.storeResult(cycleKey, processedData);
+          console.log(`💾 Stored final cycle result: ${cycleKey}`);
+        }
         
         // Update next agent's context with current agent's output (for chain processing)
         const nextAgentIndex = (i + 1) % cycleTransactions.length;

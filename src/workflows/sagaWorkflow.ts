@@ -161,9 +161,9 @@ export class SagaWorkflow {
         backstory: 'Manage conversation with user as an intermediary passing user instructions to other agents.',
         taskDescription: `You are a passthrough agent. You will recieve information in <context></context>, pass the information between the tags as is.`,
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Pass through the information as received, preserving all formatting and bracket tags.'
+        taskExpectedOutput: 'Pass through the information as received, preserving all formatting and bracket tags. You must provide the opening and closing tags as received: [AGENT...][/AGENT]'
       },
-      {
+     {
         agentName: 'DataProcessingAgent',
         agentType: 'tool',
         transactionId: 'tx-2',
@@ -172,22 +172,24 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
       },
+     {
+        agentName: 'SagaCoordinatorAgent',
+        agentType: 'processing',
+        transactionId: 'tx-3',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'Provide the agent prompts as stipulated by user requirments for a set of agents.',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Provide the agent prompts to be used by the defined agents '
+      },
       {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
-        transactionId: 'tx-3',
+        transactionId: 'tx-4',
         backstory: 'Filter and chunk data for processing pipeline.',
-        taskDescription: 'Process data in manageable chunks and pass to next agent in sequence. Provide data chunks to DataPresentingAgent.',
+        taskDescription: 'Process data in manageable chunks and pass to next agent in sequence. Provide data chunks to DataExtractingAgent.',
         taskExpectedOutput: 'Structured data chunks ready for presentation processing'
       },
-     /* {
-        agentName: 'DataPresentingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-4',
-        backstory: 'Present data chunks in appropriate format for extraction.',
-        taskDescription: 'Receive data chunks from DataFilteringAgent and format them for DataExtractingAgent processing.',
-        taskExpectedOutput: 'Well-formatted data ready for extraction operations'
-      },*/
+   
       {
         agentName: 'DataExtractingAgent',
         agentType: 'processing',

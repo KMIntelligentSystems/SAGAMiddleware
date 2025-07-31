@@ -85,7 +85,7 @@ export class GenericAgent {
     }
   }
 
-  private  receiveContext(contextData: Record<string, any>) {
+    receiveContext(contextData: Record<string, any>) {
        // Extract the actual data to avoid double-stringification
            /*
          ...baseContext,
@@ -127,6 +127,10 @@ export class GenericAgent {
 
   getContext(): string {
     return this.context;
+  }
+
+  setContext(ctx: string){
+    this.context = ctx;
   }
 
    createPrompt(): string {
