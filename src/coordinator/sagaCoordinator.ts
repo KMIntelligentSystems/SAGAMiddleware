@@ -13,7 +13,8 @@ import {
   CompensationAction,
   IterationState,
   IterationConfig,
-  sagaPrompt
+  sagaPrompt,
+  transactionGroupPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
@@ -35,6 +36,7 @@ export class SagaCoordinator extends EventEmitter {
   private sagaState: SagaState | null = null;
   private currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
+  private  conversationAgentCompleted = false;
  // private currentContextSet: ContextSetDefinition | null = null;
 
   constructor() {
@@ -227,7 +229,7 @@ sleep(ms: number) {
       //**********For use with testdata.js
    /*   this.contextManager.setContext('DataFilteringAgent', { lastTransactionResult: csvContent})
         const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-        let filteredData = `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;*/
+        le t filteredData = `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;*/
       
       const processedInCycle = new Set<string>(); // Track transactions already processed in cycles
       const sagaCoordinatorAgent = this.agents.get('sagaCoordinatorAgent');
@@ -244,29 +246,80 @@ sleep(ms: number) {
         
         let result: AgentResult;
         
-        // Check if this transaction has dependencies
-        if (this.hasExtendedCycleDependency(transaction, transactionsToExecute)) {
-          // Handle extended cycle (N-agent cycle)
-          const cyclePartners = this.findCyclePartners(transaction, transactionsToExecute);
-          console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
-          if (cyclePartners.length > 0) {
-            result = await this.executeExtendedCycleLoop(cyclePartners, request);
-            
-            // Mark all cycle transactions as processed to avoid re-execution
-            for (const cycleTx of cyclePartners) {
-              processedInCycle.add(cycleTx.id);
-              this.contextManager.updateContext(cycleTx.agentName, {
-                lastTransactionResult: result.result,
-                transactionId: cycleTx.id,
-                timestamp: new Date(),
-                processedInCycle: true
-              });
-            }
-            
-          } else {
-            throw new Error(`Extended cycle detected but no partners found for ${transaction.id}`);
+        // Check if transaction has dependencies where ALL dependents have no dependencies
+        let hasLinearDependency = false;
+        let allDependentsHaveEmptyDependencies = false;
+        if (transaction.dependencies.length > 0) {
+          const dependentTransactions = transactionsToExecute.filter(tx => 
+            transaction.dependencies.includes(tx.id)
+          );
+            allDependentsHaveEmptyDependencies = dependentTransactions.every(depTx => 
+            depTx.dependencies.length === 0
+          );
+          //tx-4 ->tx-2 -> []
+          if (allDependentsHaveEmptyDependencies) {
+            result = await this.executeSagaTransaction(transaction, request);
           }
-        } else if (this.hasCircularDependency(transaction, transactionsToExecute)) {
+          
+          if (transaction.dependencies.length > 0 && !allDependentsHaveEmptyDependencies){
+            // Check for linear chain: ['tx-2'] -> ['tx-5'] -> ['tx-6'] -> []
+            const linearChainInfo = this.analyzeLinearChain(transaction, transactionsToExecute);
+            
+            if (linearChainInfo.isSelfReferencing) {
+              // Special case: 'tx-2' -> 'tx-5' -> 'tx-5' (iterative saving)
+              console.log('🔄 Self-referencing linear chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> '));
+              result = await this.executeSelfReferencingChain(linearChainInfo.chain, request);
+              
+              // Mark all chain transactions as processed
+              for (const chainTx of linearChainInfo.chain) {
+                processedInCycle.add(chainTx.id);
+              }
+            } else if (linearChainInfo.isLinearChain) {
+              // Regular linear chain ending in []: just set flag
+              console.log('📏 Linear chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> ') + ' -> []');
+              hasLinearDependency = true;
+            } else {
+              hasLinearDependency = true;
+            }
+          } 
+
+          if (transaction.dependencies.length > 0 &&  !allDependentsHaveEmptyDependencies && !hasLinearDependency && this.hasExtendedCycleDependency(transaction, transactionsToExecute)) {
+            // Handle extended cycle (N-agent cycle)
+            const cyclePartners = this.findCyclePartners(transaction, transactionsToExecute);
+            console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
+            if (cyclePartners.length > 0) {
+              result = await this.executeExtendedCycleLoop(cyclePartners, request);
+              
+              // Mark all cycle transactions as processed to avoid re-execution
+              for (const cycleTx of cyclePartners) {
+                processedInCycle.add(cycleTx.id);
+                this.contextManager.updateContext(cycleTx.agentName, {
+                  lastTransactionResult: result.result,
+                  transactionId: cycleTx.id,
+                  timestamp: new Date(),
+                  processedInCycle: true
+                });
+              }
+              this.contextManager.updateContext('TransactionGroupingAgent', {'cycleCompleted': true})
+              
+              
+            } else {
+              throw new Error(`Extended cycle detected but no partners found for ${transaction.id}`);
+            }
+          } else if (this.hasCircularDependency(transaction, transactionsToExecute)) {
+            // Handle traditional 2-agent circular dependency
+            const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
+            console.log('🔄  Circularpartner:', circularPartner?.agentName);
+            if (circularPartner) {
+              result = await this.executeCircularDependencyLoop(transaction, circularPartner, request);
+            } else {
+              throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
+            }
+          } else {
+            // Regular transaction execution
+            result = await this.executeSagaTransaction(transaction, request);
+          }
+        } /*else if (this.hasCircularDependency(transaction, transactionsToExecute)) {
           // Handle traditional 2-agent circular dependency
           const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
           console.log('🔄  Circularpartner:', circularPartner?.agentName);
@@ -275,7 +328,8 @@ sleep(ms: number) {
           } else {
             throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
           }
-        } else {
+        }*/ 
+       else {
           // Regular transaction execution
           result = await this.executeSagaTransaction(transaction, request);
         } 
@@ -293,7 +347,7 @@ sleep(ms: number) {
         counter++;
 
         // Update context with transaction result
-        if(transaction.agentName == 'SagaCoordinatorAgent'){
+        if(transaction.agentName == 'DataCoordinatingAgent'){
           console.log('SAGA RESULT ', result.result)
             this.contextManager.updateContext('ConversationAgent', {
           lastTransactionResult: result.result,
@@ -380,6 +434,7 @@ sleep(ms: number) {
     const currContextSet: ContextSetDefinition = this.contextManager.getActiveContextSet();
     const conversationContext: WorkingMemory = this.contextManager.getContext('ConversationAgent') as WorkingMemory;
     let context: Record<string, any> = {};
+   
     
     // 1. Extract data sources information to string (if not empty)
     let dataSourcesText = '';
@@ -424,10 +479,29 @@ sleep(ms: number) {
       // ConversationAgent needs the entire user query for human-in-the-loop conversations
       agentSpecificTask = request.userQuery || '';
     } 
-    else if(transaction.agentName === 'SagaCoordinatorAgent')
+     else if(transaction.agentName === 'TransactionGroupingAgent')//
+    {
+      if(!this.conversationAgentCompleted){
+        agentSpecificTask = transactionGroupPrompt;
+        agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+        this.conversationAgentCompleted = true;
+      }
+      else {
+        const filteringAgentResult: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
+         agentSpecificTask = 'Finalization of DataFilteringAgent ' + JSON.stringify(filteringAgentResult.lastTransactionResult);
+         agentSpecificTask += 'User Requirements for saving processed data:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+         //const foundTransaction = SAGA_TRANSACTIONS.find(transaction => transaction.agentName === 'TransactionGroupingAgent');
+       // foundTransaction?.dependencies.push('tx-5');
+
+      }
+      
+     
+    }
+    //Was [AGENT dataCoordAgent froom prompt is it is]
+    else if(transaction.agentName === 'DataCoordinatingAgent')
     {
        agentSpecificTask = sagaPrompt;
-       agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+       agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, 'TransactionGroupingAgent');
      
     }
     else {
@@ -979,6 +1053,210 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     return cycleTransactions;
   }
 
+  /**
+   * Analyzes dependency chain starting from a transaction
+   * Returns info about linear chains and self-referencing chains
+   */
+  private analyzeLinearChain(
+    transaction: SagaTransaction,
+    transactions: SagaTransaction[]
+  ): { chain: SagaTransaction[], isLinearChain: boolean, isSelfReferencing: boolean } {
+    const chain: SagaTransaction[] = [];
+    const visited = new Set<string>();
+    let isSelfReferencing = false;
+    
+    const buildChain = (currentTx: SagaTransaction): void => {
+      if (visited.has(currentTx.id)) {
+        // Check if this is a self-reference (tx depends on itself)
+        if (currentTx.id === transaction.id && chain.length > 1) {
+          isSelfReferencing = true;
+        }
+        return;
+      }
+      
+      visited.add(currentTx.id);
+      chain.push(currentTx);
+      
+      // If this transaction has dependencies, follow the chain
+      if (currentTx.dependencies.length > 0) {
+        // For linear chain, we expect only one dependency path
+        if (currentTx.dependencies.length === 1) {
+          const dependencyId = currentTx.dependencies[0];
+          const dependencyTx = transactions.find(t => t.id === dependencyId);
+          
+          if (dependencyTx) {
+            // Check for self-reference: 'tx-5' -> 'tx-5'
+            if (dependencyTx.id === currentTx.id) {
+              isSelfReferencing = true;
+              return;
+            }
+            
+            // Continue building chain
+            if (dependencyTx.dependencies.length <= 1) {
+              buildChain(dependencyTx);
+            }
+          }
+        }
+      }
+    };
+    
+    buildChain(transaction);
+    
+    let isLinearChain = false;
+    
+    // Check for regular linear chain ending with empty dependencies
+    if (chain.length > 1 && !isSelfReferencing) {
+      const lastTransaction = chain[chain.length - 1];
+      if (lastTransaction.dependencies.length === 0) {
+        isLinearChain = true;
+      }
+    }
+    
+    return {
+      chain,
+      isLinearChain,
+      isSelfReferencing
+    };
+  }
+
+  /**
+   * Executes self-referencing chains for iterative processing
+   * Example: 'tx-2' -> 'tx-5' -> 'tx-5' (iterative saving)
+   */
+  private async executeSelfReferencingChain(
+    chainTransactions: SagaTransaction[],
+    request: BrowserGraphRequest
+  ): Promise<AgentResult> {
+    console.log(`🔄 Starting self-referencing chain with ${chainTransactions.length} agents`);
+    
+    // Find the self-referencing transaction (the one that iterates)
+    const iteratingTransaction = chainTransactions.find(tx => 
+      tx.dependencies.length === 1 && tx.dependencies[0] === tx.id
+    );
+    
+    if (!iteratingTransaction) {
+      console.error('❌ No self-referencing transaction found in chain');
+      return {
+        agentName: 'self_referencing_chain',
+        result: null,
+        success: false,
+        error: 'No self-referencing transaction found',
+        timestamp: new Date()
+      };
+    }
+    
+    // Execute the chain up to the self-referencing transaction first
+    const preIterationTransactions = chainTransactions.filter(tx => tx.id !== iteratingTransaction.id);
+    
+    console.log(`📋 Pre-iteration transactions: ${preIterationTransactions.map(t => `${t.id}(${t.agentName})`).join(' → ')}`);
+    console.log(`🔄 Iterating transaction: ${iteratingTransaction.id}(${iteratingTransaction.agentName})`);
+    
+    let finalResult: AgentResult = {
+      agentName: 'chain_start',
+      result: null,
+      success: true,
+      timestamp: new Date()
+    };
+    
+    // Execute pre-iteration transactions in reverse order (dependencies first)
+    const executionOrder = [...preIterationTransactions].reverse();
+    for (const transaction of executionOrder) {
+      console.log(`🎯 Executing pre-iteration: ${transaction.agentName}`);
+      
+      const result = await this.executeSagaTransaction(transaction, request);
+      if (!result.success) {
+        console.error(`❌ Pre-iteration transaction failed: ${transaction.agentName}`);
+        return result;
+      }
+      
+      this.contextManager.updateContext(transaction.agentName, {
+        lastTransactionResult: result.result,
+        transactionId: transaction.id,
+        timestamp: new Date()
+      });
+      
+      finalResult = result;
+    }
+    
+    // Now execute the self-referencing transaction iteratively
+    let iteration = 0;
+    let hasMoreData = true;
+    let allProcessedData: any[] = [];
+    
+    while (hasMoreData && iteration < 10) { // Safety limit
+      console.log(`🔄 Iteration ${iteration + 1} for ${iteratingTransaction.agentName}`);
+      
+      // Set iteration context
+      this.contextManager.updateContext(iteratingTransaction.agentName, {
+        lastTransactionResult: finalResult.result,
+        transactionId: iteratingTransaction.id,
+        timestamp: new Date(),
+        iteration: iteration,
+        isSelfReferencing: true
+      });
+      
+      const result = await this.executeSagaTransaction(iteratingTransaction, request);
+      if (!result.success) {
+        console.error(`❌ Self-referencing iteration ${iteration + 1} failed: ${iteratingTransaction.agentName}`);
+        break;
+      }
+      
+      // Check if there's more data to process (implementation specific)
+      // This would need to be customized based on the specific use case
+      hasMoreData = this.shouldContinueIteration(result, iteration);
+      
+      if (result.result && result.result.data) {
+        allProcessedData = allProcessedData.concat(result.result.data);
+      }
+      
+      finalResult = result;
+      iteration++;
+    }
+    
+    console.log(`✅ Self-referencing chain completed after ${iteration} iterations`);
+    
+    return {
+      ...finalResult,
+      result: {
+        ...finalResult.result,
+        data: allProcessedData,
+        selfReferencingMetadata: {
+          totalIterations: iteration,
+          iteratingAgent: iteratingTransaction.agentName,
+          preIterationAgents: preIterationTransactions.map(t => t.agentName),
+          totalRecordsProcessed: allProcessedData.length
+        }
+      }
+    };
+  }
+
+  /**
+   * Determines if self-referencing iteration should continue
+   */
+  private shouldContinueIteration(result: AgentResult, iteration: number): boolean {
+    // Implementation specific logic to determine if more iterations are needed
+    // For saving operations, this might check if there's more data to save
+    // For now, implement basic logic based on result content
+    
+    if (!result.result) return false;
+    
+    // Check if result indicates more data available
+    if (typeof result.result === 'object' && result.result.hasMore !== undefined) {
+      return result.result.hasMore;
+    }
+    
+    // Check if result is empty or indicates completion
+    if (typeof result.result === 'string') {
+      const lowerResult = result.result.toLowerCase();
+      if (lowerResult.includes('completed') || lowerResult.includes('finished') || lowerResult.includes('no more')) {
+        return false;
+      }
+    }
+    
+    // Default: continue for a few iterations if no clear signal
+    return iteration < 3;
+  }
+
   // Agent-driven circular dependency loop execution
   private async executeCircularDependencyLoop(
     generatorTx: SagaTransaction,
@@ -1346,7 +1624,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
                 const totalPages = parseInt(parsedResult.total_pages) || 1;
                 
                 page = currentPage + 1;
-                hasMoreChunks = currentPage < totalPages;
+                hasMoreChunks = false;//currentPage < totalPages;
                 
                 console.log(`📊 DataFilteringAgent pagination: page=${currentPage}, total_pages=${totalPages}, resultsReturned=${parsedResult.results.length}, hasMoreChunks=${hasMoreChunks}`);
               } else {

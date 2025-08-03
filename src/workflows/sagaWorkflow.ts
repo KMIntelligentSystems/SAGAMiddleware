@@ -163,17 +163,26 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Pass through the information as received, preserving all formatting and bracket tags. You must provide the opening and closing tags as received: [AGENT...][/AGENT]'
       },
-     {
-        agentName: 'DataProcessingAgent',
+       {
+        agentName: 'TransactionGroupingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-2',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'Pass information from user requirements to a set of data operation agents.',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set'
+      },
+    /* {
+        agentName: 'DataProcessingAgent',TransactionGroupingAgent
         agentType: 'tool',
         transactionId: 'tx-2',
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
-      },
+      },*/
      {
-        agentName: 'SagaCoordinatorAgent',
+        agentName: 'DataCoordinatingAgent',
         agentType: 'processing',
         transactionId: 'tx-3',
         backstory: 'Provide files for indexing using tool calls.',
@@ -221,6 +230,14 @@ export class SagaWorkflow {
         backstory: 'Provide the search query for a structured query search.',
         taskDescription: 'Extract values array for each group. Focus only on array extraction. The parameters for the extraction are in <context>',
         taskExpectedOutput: 'Provide Final structure using the input parameters'
+      },
+      {
+        agentName:  'DataSavingAgent',
+        agentType: 'tool',
+        transactionId: 'tx-5',
+        backstory: 'Provide the search query for a structured query search.',
+        taskDescription: 'Iteratively call a tool to store data to an external repository ',
+        taskExpectedOutput: 'Provide the data unchanged'
       }
     /* 
 Task: Extract values array for each group
