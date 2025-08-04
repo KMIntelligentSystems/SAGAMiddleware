@@ -428,7 +428,7 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-4',
     name: 'Apply RAG Tool',
     agentName: 'DataFilteringAgent',
-    dependencies: ['tx-4-1','tx-2'],
+    dependencies: ['tx-4-1'],
     compensationAction: 'cleanup_thread',
     status: 'pending'
   },
@@ -463,8 +463,11 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     dependencies: ['tx-4'],// Depends on DataGroupingAgent and cycles back to DataFilteringAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
-   { id: 'tx-2',
+  }
+];
+
+export const SAGA_CONTINUATION: SagaTransaction[] = [
+  { id: 'tx-2',
     name: 'Index files',
     agentName: 'TransactionGroupingAgent',
      dependencies: ['tx-5'],
@@ -478,9 +481,103 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     dependencies: ['tx-5'],// Depends on DataGroupingAgent and cycles back to DataFilteringAgent
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  }
-];
+  }];
 
+// Multi-Set Transaction Architecture Interfaces
+
+export interface TransactionSet {
+  id: string;
+  name: string;
+  description: string;
+  transactions: SagaTransaction[];
+  dependencies?: string[]; // Other set IDs this set depends on
+  executionCondition?: (context: any) => boolean; // Optional condition for execution
+  transitionRules?: SetTransitionRule[]; // How to transition to next sets
+}
+
+export interface SetTransitionRule {
+  sourceSetId: string;
+  targetSetId: string;
+  transitionCondition?: (result: any) => boolean;
+  contextMapping?: { [sourceKey: string]: string }; // Map context keys between sets
+}
+
+export interface TransactionSetCollection {
+  id: string;
+  name: string;
+  description: string;
+  sets: TransactionSet[];
+  executionOrder: string[]; // Ordered list of set IDs to execute
+  globalTransitionRules?: SetTransitionRule[];
+  metadata?: {
+    version: string;
+    author?: string;
+    created: Date;
+    lastModified?: Date;
+  };
+}
+
+export interface SetExecutionContext {
+  setId: string;
+  setName: string;
+  executionOrder: number;
+  totalSets: number;
+  previousSetResults?: { [setId: string]: any };
+  sharedContext?: { [key: string]: any };
+}
+
+export interface SetExecutionResult {
+  setId: string;
+  success: boolean;
+  result: any;
+  error?: string;
+  executionTime: number;
+  transactionResults: { [transactionId: string]: any };
+  metadata: {
+    startTime: Date;
+    endTime: Date;
+    transactionsExecuted: number;
+    transactionsFailed: number;
+  };
+}
+
+// Default Transaction Set Collection
+export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
+  id: 'default-saga-collection',
+  name: 'Default SAGA Workflow',
+  description: 'Standard data processing and saving workflow',
+  sets: [
+    {
+      id: 'data-processing-set',
+      name: 'Data Processing Pipeline',
+      description: 'Initial conversation, coordination, and cyclic data processing',
+      transactions: SAGA_TRANSACTIONS,
+      transitionRules: [
+        {
+          sourceSetId: 'data-processing-set',
+          targetSetId: 'data-saving-set',
+          transitionCondition: (result) => result?.success === true,
+          contextMapping: {
+            'processedData': 'inputData',
+            'processingMetadata': 'metadata'
+          }
+        }
+      ]
+    },
+    {
+      id: 'data-saving-set',
+      name: 'Data Saving Pipeline',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      transactions: SAGA_CONTINUATION,
+      dependencies: ['data-processing-set']
+    }
+  ],
+  executionOrder: ['data-processing-set', 'data-saving-set'],
+  metadata: {
+    version: '1.0.0',
+    created: new Date()
+  }
+};
 
 export interface SagaWorkflowRequest {
   userQuery?: string;

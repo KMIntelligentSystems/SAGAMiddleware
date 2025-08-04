@@ -14,7 +14,10 @@ import {
   IterationState,
   IterationConfig,
   sagaPrompt,
-  transactionGroupPrompt
+  transactionGroupPrompt,
+  TransactionSetCollection,
+  SetExecutionResult,
+  TransactionSet
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
@@ -194,6 +197,135 @@ sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+  async executeTransactionSetCollection(
+    request: BrowserGraphRequest,
+    collection: TransactionSetCollection,
+    workflowId: string = `collection_${Date.now()}`,
+    contextSet?: ContextSetDefinition
+  ): Promise<AgentResult> {
+    console.log(`🚀 Executing Transaction Set Collection: ${collection.name} (${collection.id})`);
+    
+    let overallResult: AgentResult = {
+      agentName: 'saga_coordinator_collection',
+      result: {
+        workflowId,
+        collectionId: collection.id,
+        setResults: {} as { [setId: string]: SetExecutionResult }
+      },
+      success: true,
+      timestamp: new Date()
+    };
+
+    const setExecutionResults: { [setId: string]: SetExecutionResult } = {};
+    const sharedContext: { [key: string]: any } = {};
+
+    try {
+      // Process sets in the specified execution order
+      for (const setId of collection.executionOrder) {
+        const transactionSet = collection.sets.find(s => s.id === setId);
+        if (!transactionSet) {
+          throw new Error(`Transaction set '${setId}' not found in collection`);
+        }
+
+        console.log(`📋 Processing set: ${transactionSet.name} (${setId})`);
+
+        // Check set dependencies
+        if (!this.canExecuteSet(transactionSet, setExecutionResults)) {
+          console.log(`⏭️ Skipping set ${setId} - dependencies not met`);
+          continue;
+        }
+
+        // Check execution condition if present
+        if (transactionSet.executionCondition && 
+            !transactionSet.executionCondition(sharedContext)) {
+          console.log(`⏭️ Skipping set ${setId} - execution condition failed`);
+          continue;
+        }
+
+        const setStartTime = new Date();
+        
+        try {
+          // Execute the transaction set using existing workflow logic
+          const setResult = await this.executeSagaWorkflow(
+            request,
+            `${workflowId}_${setId}`,
+            transactionSet.transactions,
+            contextSet
+          );
+
+          const setEndTime = new Date();
+          const executionResult: SetExecutionResult = {
+            setId: transactionSet.id,
+            success: setResult.success,
+            result: setResult.result,
+            executionTime: setEndTime.getTime() - setStartTime.getTime(),
+            transactionResults: {},
+            metadata: {
+              startTime: setStartTime,
+              endTime: setEndTime,
+              transactionsExecuted: transactionSet.transactions.length,
+              transactionsFailed: setResult.success ? 0 : 1
+            }
+          };
+
+          if (setResult.error) {
+            executionResult.error = setResult.error;
+          }
+
+          setExecutionResults[setId] = executionResult;
+
+          // Process transition rules and context mapping
+          await this.processSetTransitions(transactionSet, executionResult, sharedContext);
+
+          // If set failed, stop execution (no errorHandling property exists)
+          if (!setResult.success) {
+            overallResult.success = false;
+            overallResult.error = `Set ${setId} failed: ${setResult.error}`;
+            break;
+          }
+
+        } catch (error) {
+          const setEndTime = new Date();
+          const executionResult: SetExecutionResult = {
+            setId: transactionSet.id,
+            success: false,
+            result: null,
+            error: error instanceof Error ? error.message : String(error),
+            executionTime: setEndTime.getTime() - setStartTime.getTime(),
+            transactionResults: {},
+            metadata: {
+              startTime: setStartTime,
+              endTime: setEndTime,
+              transactionsExecuted: 0,
+              transactionsFailed: 1
+            }
+          };
+
+          setExecutionResults[setId] = executionResult;
+          
+          overallResult.success = false;
+          overallResult.error = `Set ${setId} failed with error: ${error}`;
+          break;
+        }
+      }
+
+      // Aggregate results
+      overallResult.result = {
+        ...overallResult.result,
+        collectionResult: sharedContext,
+        setResults: setExecutionResults
+      };
+
+    } catch (error) {
+      overallResult.success = false;
+      overallResult.error = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Collection execution failed: ${error}`);
+    }
+
+    console.log(`✅ Collection execution completed. Success: ${overallResult.success}`);
+    return overallResult;
+  }
+
   async executeSagaWorkflow(
     request: BrowserGraphRequest, //SagaWorkflowRequest,
     workflowId: string = `saga_${Date.now()}`,
@@ -279,10 +411,14 @@ sleep(ms: number) {
               console.log('📏 Linear chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> ') + ' -> []');
               hasLinearDependency = true;
             } else {
-              hasLinearDependency = true;
+              // Not a linear chain (could be part of cycle or other complex dependency)
+              console.log(`⚠️ Transaction ${transaction.id} has dependencies but is not a linear chain - likely part of cycle`);
+              hasLinearDependency = false;
             }
           } 
-
+console.log('ALL ZERO ',allDependentsHaveEmptyDependencies)
+console.log('ALL ZEROWITH',hasLinearDependency)
+console.log('AGETN  ', transaction.id)
           if (transaction.dependencies.length > 0 &&  !allDependentsHaveEmptyDependencies && !hasLinearDependency && this.hasExtendedCycleDependency(transaction, transactionsToExecute)) {
             // Handle extended cycle (N-agent cycle)
             const cyclePartners = this.findCyclePartners(transaction, transactionsToExecute);
@@ -405,6 +541,53 @@ sleep(ms: number) {
       // Clear the current executing transaction set and context set
       this.currentExecutingTransactionSet = null;
    //   this.currentContextSet = null;
+    }
+  }
+
+  private canExecuteSet(
+    transactionSet: TransactionSet,
+    completedSetResults: { [setId: string]: SetExecutionResult }
+  ): boolean {
+    // Check if all dependencies are satisfied
+    if (transactionSet.dependencies && transactionSet.dependencies.length > 0) {
+      for (const depId of transactionSet.dependencies) {
+        const depResult = completedSetResults[depId];
+        if (!depResult || !depResult.success) {
+          console.log(`❌ Dependency ${depId} not satisfied for set ${transactionSet.id}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private async processSetTransitions(
+    transactionSet: TransactionSet,
+    executionResult: SetExecutionResult,
+    sharedContext: { [key: string]: any }
+  ): Promise<void> {
+    // Process transition rules from this set
+    if (transactionSet.transitionRules && transactionSet.transitionRules.length > 0) {
+      for (const rule of transactionSet.transitionRules) {
+        if (rule.sourceSetId === transactionSet.id) {
+          // Check transition condition
+          if (rule.transitionCondition && rule.transitionCondition(executionResult)) {
+            console.log(`🔄 Transition condition met for ${rule.sourceSetId} -> ${rule.targetSetId}`);
+            
+            // Apply context mapping if defined
+            if (rule.contextMapping) {
+              for (const [sourceKey, targetKey] of Object.entries(rule.contextMapping)) {
+                if (executionResult.result && 
+                    typeof executionResult.result === 'object' && 
+                    executionResult.result[sourceKey] !== undefined) {
+                  sharedContext[targetKey as string] = executionResult.result[sourceKey];
+                  console.log(`📋 Mapped context: ${sourceKey} -> ${targetKey}`);
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -1065,12 +1248,33 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     const visited = new Set<string>();
     let isSelfReferencing = false;
     
+    // First check for direct self-reference (tx depends directly on itself)
+    if (transaction.dependencies.length === 1 && transaction.dependencies[0] === transaction.id) {
+      isSelfReferencing = true;
+      chain.push(transaction);
+      return {
+        chain,
+        isLinearChain: false,
+        isSelfReferencing: true
+      };
+    }
+    
+    // Check if this transaction is part of a cycle in the entire transaction set
+    // If it is, it cannot be considered a linear chain
+    const isPartOfCycle = this.hasExtendedCycleDependency(transaction, transactions);
+    if (isPartOfCycle) {
+      console.log(`🔗 Transaction ${transaction.id} is part of a cycle - not treating as linear chain`);
+      return {
+        chain: [transaction],
+        isLinearChain: false,
+        isSelfReferencing: false
+      };
+    }
+    
     const buildChain = (currentTx: SagaTransaction): void => {
       if (visited.has(currentTx.id)) {
-        // Check if this is a self-reference (tx depends on itself)
-        if (currentTx.id === transaction.id && chain.length > 1) {
-          isSelfReferencing = true;
-        }
+        // This indicates a cycle back to a previously visited transaction
+        // But not necessarily self-referencing unless it's a direct self-dependency
         return;
       }
       
@@ -1085,7 +1289,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           const dependencyTx = transactions.find(t => t.id === dependencyId);
           
           if (dependencyTx) {
-            // Check for self-reference: 'tx-5' -> 'tx-5'
+            // Check for direct self-reference: 'tx-5' -> 'tx-5'
             if (dependencyTx.id === currentTx.id) {
               isSelfReferencing = true;
               return;

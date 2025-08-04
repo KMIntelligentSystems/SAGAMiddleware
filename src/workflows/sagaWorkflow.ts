@@ -1,7 +1,7 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer, dataPreprocessor } from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import { SagaWorkflowRequest, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS } from '../types/visualizationSaga.js';
+import { SagaWorkflowRequest, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig } from '../types/index.js';
@@ -627,11 +627,11 @@ Focus: Only array extraction
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
       
       
-      // Execute SAGA through coordinator
-      const result = await this.coordinator.executeSagaWorkflow(
+      // Execute SAGA through coordinator using the new executeTransactionSetCollection method
+      const result = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
+        DEFAULT_SAGA_COLLECTION,
         `thread_saga_${threadId}_${Date.now()}`,
-        activeTransactionSet.transactions,
         activeContextSet
       );
       console.log('HEERERERWQRWER')
