@@ -22,7 +22,7 @@ import {
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { ValidationManager } from '../sublayers/validationManager.js';
-import { globalDataProcessor } from '../processing/dataResultProcessor.js';
+import { globalDataProcessor, ProcessedDataWithKey } from '../processing/dataResultProcessor.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
@@ -482,9 +482,16 @@ console.log('AGETN  ', transaction.id)
         // Each agent gets its own instructions from the bracket parsing - no context passing needed
         counter++;
 
-        // Update context with transaction result
+        // Update context with transaction result from TRANSACTIONGROUPINGAGENT
+        //that agent provides good copy of ConversationAgent
         if(transaction.agentName == 'DataCoordinatingAgent'){
           console.log('SAGA RESULT ', result.result)
+          const initialConversation = this.contextManager.getContext('ConversationAgent');
+              this.contextManager.updateContext('TransactionGroupingAgent', {
+          lastTransactionResult: initialConversation?.lastTransactionResult,
+          transactionId: transaction.id,
+          timestamp: new Date()
+        });
             this.contextManager.updateContext('ConversationAgent', {
           lastTransactionResult: result.result,
           transactionId: transaction.id,
@@ -671,8 +678,11 @@ console.log('AGETN  ', transaction.id)
       }
       else {
         const filteringAgentResult: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-         agentSpecificTask = 'Finalization of DataFilteringAgent ' + JSON.stringify(filteringAgentResult.lastTransactionResult);
-         agentSpecificTask += 'User Requirements for saving processed data:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
+         agentSpecificTask ='Your task is to provide the DataSavingAgent requirements as provided by the user. You will find the data saving requirents and pass explicit instructions to the DataSavingAgent';
+         //Finalization of DataFilteringAgent ' + JSON.stringify(filteringAgentResult.lastTransactionResult);
+         agentSpecificTask += '**CRITICAL**\n concentrate only on Data Savings: as this is critical to the next agent. The data operations before the Data Savings have been completed and are no longer relevant to data saving'
+         const initialContext = this.contextManager.getContext('TransactionGroupingAgent')
+         agentSpecificTask += 'User Requirements for saving processed data:' + JSON.stringify(initialContext?.lastTransactionResult); //this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
          //const foundTransaction = SAGA_TRANSACTIONS.find(transaction => transaction.agentName === 'TransactionGroupingAgent');
        // foundTransaction?.dependencies.push('tx-5');
 
@@ -1382,21 +1392,32 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       finalResult = result;
     }
     
-    // Now execute the self-referencing transaction iteratively
+    // Get all results from global storage and create optimal chunks for processing
+    const allStoredResults = globalDataProcessor.getAllResults();
+    const resultEntries = Array.from(allStoredResults.entries());
+    
+    console.log(`📊 Found ${resultEntries.length} records in global storage to process`);
+    
+    // Create chunks of 2 records each for optimal processing
+    const dataChunks: ProcessedDataWithKey[][] = globalDataProcessor.createOptimalChunks(resultEntries, 2);
+    
+    // Now execute the self-referencing transaction iteratively for each chunk
     let iteration = 0;
-    let hasMoreData = true;
     let allProcessedData: any[] = [];
     
-    while (hasMoreData && iteration < 10) { // Safety limit
-      console.log(`🔄 Iteration ${iteration + 1} for ${iteratingTransaction.agentName}`);
+    for (const chunk of dataChunks) {
+      console.log(`🔄 Processing chunk ${iteration + 1}/${dataChunks.length} with ${chunk.length} records for ${iteratingTransaction.agentName}`);
       
-      // Set iteration context
+      // Set iteration context with the current chunk data
       this.contextManager.updateContext(iteratingTransaction.agentName, {
         lastTransactionResult: finalResult.result,
         transactionId: iteratingTransaction.id,
         timestamp: new Date(),
         iteration: iteration,
-        isSelfReferencing: true
+        isSelfReferencing: true,
+        currentChunk: chunk,
+        chunkIndex: iteration,
+        totalChunks: dataChunks.length
       });
       
       const result = await this.executeSagaTransaction(iteratingTransaction, request);
@@ -1404,10 +1425,6 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         console.error(`❌ Self-referencing iteration ${iteration + 1} failed: ${iteratingTransaction.agentName}`);
         break;
       }
-      
-      // Check if there's more data to process (implementation specific)
-      // This would need to be customized based on the specific use case
-      hasMoreData = this.shouldContinueIteration(result, iteration);
       
       if (result.result && result.result.data) {
         allProcessedData = allProcessedData.concat(result.result.data);
@@ -1417,7 +1434,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       iteration++;
     }
     
-    console.log(`✅ Self-referencing chain completed after ${iteration} iterations`);
+    console.log(`✅ Self-referencing chain completed after ${iteration} chunk iterations`);
     
     return {
       ...finalResult,
@@ -1425,10 +1442,13 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         ...finalResult.result,
         data: allProcessedData,
         selfReferencingMetadata: {
+          totalChunks: dataChunks.length,
           totalIterations: iteration,
           iteratingAgent: iteratingTransaction.agentName,
           preIterationAgents: preIterationTransactions.map(t => t.agentName),
-          totalRecordsProcessed: allProcessedData.length
+          totalRecordsFromStorage: resultEntries.length,
+          totalRecordsProcessed: allProcessedData.length,
+          chunkSize: 2
         }
       }
     };

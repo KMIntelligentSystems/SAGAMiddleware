@@ -11,6 +11,10 @@ export interface ProcessedData {
   metadata?: Record<string, any>;
 }
 
+export interface ProcessedDataWithKey extends ProcessedData {
+  key: string;
+}
+
 export interface StorageStats {
   totalResults: number;
   resultsByAgent: Record<string, number>;
@@ -145,6 +149,31 @@ export class DataResultProcessor {
   getAllResults(): Map<string, ProcessedData> {
     return new Map(this.globalStorage);
   }
+
+createOptimalChunks(entries: [string, ProcessedData][], chunkSize: number = 2): ProcessedDataWithKey[][] {
+    const chunks: ProcessedDataWithKey[][] = [];
+    let currentChunk: ProcessedDataWithKey[] = [];
+    
+    for (const [key, data] of entries) {
+      // Add key to the data object for reference
+      currentChunk.push({ key, ...data });
+      
+      // If we've reached the chunk size, start a new chunk
+      if (currentChunk.length >= chunkSize) {
+        chunks.push([...currentChunk]);
+        currentChunk = [];
+      }
+    }
+    
+    // Add remaining items if any
+    if (currentChunk.length > 0) {
+      chunks.push(currentChunk);
+    }
+    
+    console.log(`📦 Created ${chunks.length} chunks with max ${chunkSize} records each`);
+    return chunks;
+  }
+  
 
   /**
    * Clear storage with optional filter
