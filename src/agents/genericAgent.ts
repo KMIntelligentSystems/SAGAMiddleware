@@ -1,11 +1,12 @@
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
-import { mcpClientManager } from '../mcp/mcpClient.js';
+import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { OpenAI } from 'openai';
 
 export class GenericAgent {
   private availableTools: any[] = [];
   private availableResources: any[] = [];
   private context: string = '';
+  private mcpToolCallContext?: ToolCallContext;
   
   constructor(private definition: AgentDefinition) {
     this.initializeMCPConnections();
@@ -86,6 +87,14 @@ export class GenericAgent {
   }
 
     receiveContext(contextData: Record<string, any>) {
+       // Extract and store MCP tool call context for tool enhancement
+       if (contextData?.mcpToolCallContext) {
+         this.mcpToolCallContext = contextData.mcpToolCallContext;
+         const iteration = this.mcpToolCallContext?.iteration || 0;
+         const totalChunks = this.mcpToolCallContext?.totalChunks || 1;
+         console.log(`🔧 Agent ${this.definition.name} received MCP tool call context for chunk ${iteration + 1}/${totalChunks}`);
+       }
+
        // Extract the actual data to avoid double-stringification
            /*
          ...baseContext,
@@ -888,7 +897,8 @@ export class GenericAgent {
         if (tool) {
           console.log(`Found tool ${toolCall.name} on server ${serverName}`);
           try {
-            return await mcpClientManager.callTool(serverName, toolCall);
+            // Pass the stored MCP tool call context for enhancement
+            return await mcpClientManager.callTool(serverName, toolCall, this.mcpToolCallContext);
           } catch (error) {
             if (error instanceof Error && error.message.includes('timed out')) {
               const isIndexingOperation = ['index_file', 'index-file'].includes(toolCall.name);

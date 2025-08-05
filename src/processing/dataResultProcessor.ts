@@ -4,9 +4,9 @@
  */
 
 export interface ProcessedData {
-  agentName: string;
-  processedAt: Date;
-  originalFormat: string;
+  agentName?: string;
+  processedAt?: Date;
+  originalFormat?: string;
   cleanedData: any;
   metadata?: Record<string, any>;
 }
@@ -37,15 +37,15 @@ export class DataResultProcessor {
     const cleanedData = this.cleanData(extractedData);
     
     const processedData: ProcessedData = {
-      agentName: agentType || this.extractAgentName(rawResult) || 'unknown',
-      processedAt: new Date(),
-      originalFormat,
-      cleanedData,
-      metadata: {
+     // agentName: agentType || this.extractAgentName(rawResult) || 'unknown',
+      //processedAt: new Date(),
+     // originalFormat,
+      cleanedData
+    /*  metadata: {
         originalStructure: typeof rawResult,
         hasNestedResult: this.hasNestedResult(rawResult),
         dataSize: JSON.stringify(cleanedData).length
-      }
+      }*/
     };
 
     console.log('✅ DataResultProcessor: Successfully processed data:', {
@@ -112,7 +112,7 @@ export class DataResultProcessor {
   /**
    * Get all results from specific agent
    */
-  getResultsByAgent(agentName: string): ProcessedData[] {
+/*  getResultsByAgent(agentName: string): ProcessedData[] {
     const results: ProcessedData[] = [];
     for (const [key, data] of this.globalStorage.entries()) {
       if (data.agentName === agentName) {
@@ -120,12 +120,12 @@ export class DataResultProcessor {
       }
     }
     return results.sort((a, b) => b.processedAt.getTime() - a.processedAt.getTime());
-  }
+  }*/
 
   /**
    * Get results by custom metadata filter
    */
-  getResultsByFilter(filterFn: (data: ProcessedData) => boolean): ProcessedData[] {
+/*  getResultsByFilter(filterFn: (data: ProcessedData) => boolean): ProcessedData[] {
     const results: ProcessedData[] = [];
     for (const [key, data] of this.globalStorage.entries()) {
       if (filterFn(data)) {
@@ -133,15 +133,15 @@ export class DataResultProcessor {
       }
     }
     return results.sort((a, b) => b.processedAt.getTime() - a.processedAt.getTime());
-  }
+  }*/
 
   /**
    * Get latest result from specific agent
    */
-  getLatestByAgent(agentName: string): ProcessedData | undefined {
+ /* getLatestByAgent(agentName: string): ProcessedData | undefined {
     const results = this.getResultsByAgent(agentName);
     return results.length > 0 ? results[0] : undefined;
-  }
+  }*/
 
   /**
    * Get all stored results
@@ -157,6 +157,7 @@ createOptimalChunks(entries: [string, ProcessedData][], chunkSize: number = 2): 
     for (const [key, data] of entries) {
       // Add key to the data object for reference
       currentChunk.push({ key, ...data });
+      console.log('CHUNK  ',currentChunk[0])
       
       // If we've reached the chunk size, start a new chunk
       if (currentChunk.length >= chunkSize) {
@@ -178,7 +179,7 @@ createOptimalChunks(entries: [string, ProcessedData][], chunkSize: number = 2): 
   /**
    * Clear storage with optional filter
    */
-  clearStorage(filter?: string): number {
+ /* clearStorage(filter?: string): number {
     if (!filter) {
       const count = this.globalStorage.size;
       this.globalStorage.clear();
@@ -195,12 +196,12 @@ createOptimalChunks(entries: [string, ProcessedData][], chunkSize: number = 2): 
     }
     console.log(`🗑️ DataResultProcessor: Cleared ${cleared} results matching filter: ${filter}`);
     return cleared;
-  }
+  }*/
 
   /**
    * Get storage statistics
    */
-  getStorageStats(): StorageStats {
+  /*getStorageStats(): StorageStats {
     const results = Array.from(this.globalStorage.values());
     const resultsByAgent: Record<string, number> = {};
     
@@ -228,7 +229,7 @@ createOptimalChunks(entries: [string, ProcessedData][], chunkSize: number = 2): 
       storageKeys: Array.from(this.globalStorage.keys())
     };
   }
-
+*/
   // Private helper methods
 
   private detectFormat(rawResult: any): string {

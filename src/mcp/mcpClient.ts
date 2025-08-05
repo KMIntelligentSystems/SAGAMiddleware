@@ -1,6 +1,7 @@
 //import { Client } from '@modelcontextprotocol/sdk/client/index';
 //import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
 import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
+import { globalDataProcessor, ProcessedDataWithKey } from '../processing/dataResultProcessor.js';
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -9,20 +10,170 @@ import {
   ListToolsResultSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
+export interface ToolCallEnhancementRule {
+  toolName: string;
+  requiredParameters: string[];
+  enhancer: (originalArgs: any, context: ToolCallContext) => any;
+}
+
+export interface ToolCallContext {
+  currentChunk?: ProcessedDataWithKey[];
+  allStoredData?: Map<string, any>;
+  outputPath?: string;
+  iteration?: number;
+  totalChunks?: number;
+}
+
 export interface MCPClientManager {
   connect(serverConfig: MCPServerConfig): Promise<void>;
   disconnect(serverName: string): Promise<void>;
   listTools(serverName?: string): Promise<any[]>;
-  callTool(serverName: string, toolCall: MCPToolCall): Promise<any>;
+  callTool(serverName: string, toolCall: MCPToolCall, context?: ToolCallContext): Promise<any>;
   getResource(serverName: string, resourceUri: string): Promise<any>;
   listResources(serverName?: string): Promise<MCPResource[]>;
   isConnected(serverName: string): boolean;
+  addToolEnhancementRule(rule: ToolCallEnhancementRule): void;
+  removeToolEnhancementRule(toolName: string): boolean;
 }
 
 export class MCPClientManagerImpl implements MCPClientManager {
   private clients = new Map<string, any>();
   private transports = new Map<string, any>();
   private serverConfigs = new Map<string, MCPServerConfig>();
+  private enhancementRules = new Map<string, ToolCallEnhancementRule>();
+
+  constructor() {
+    this.initializeDefaultEnhancementRules();
+  }
+
+  /**
+   * Initialize default enhancement rules for common tools
+   */
+  private initializeDefaultEnhancementRules(): void {
+    // Rule for calculate_energy_totals tool
+    this.addToolEnhancementRule({
+      toolName: 'calculate_energy_totals',
+      requiredParameters: ['energyData', 'filePath'],
+      enhancer: (originalArgs, context) => {
+        // For calculate_energy_totals, always use ALL stored data (up to 1000 records)
+        const energyData = this.extractAllEnergyData(context);
+        const filePath = this.generateFilePath('energy_totals', context);
+        
+        console.log(`🔧 Enhanced calculate_energy_totals with ${energyData.length} total records (all data), output: ${filePath}`);
+        console.log(`🔍 First few energy records:`, JSON.stringify(energyData.slice(0, 2), null, 2));
+        
+        return {
+          ...originalArgs,
+          energyData,
+          filePath
+        };
+      }
+    });
+
+    // Rule for save_processed_data tool
+    this.addToolEnhancementRule({
+      toolName: 'save_processed_data',
+      requiredParameters: ['data', 'filePath'],
+      enhancer: (originalArgs, context) => {
+        const data = this.extractProcessedData(context);
+        const filePath = this.generateFilePath('processed_data', context);
+        
+        console.log(`🔧 Enhanced save_processed_data with ${data.length} records, output: ${filePath}`);
+        
+        return {
+          ...originalArgs,
+          data,
+          filePath
+        };
+      }
+    });
+
+    // Rule for process_data_chunk tool
+    this.addToolEnhancementRule({
+      toolName: 'process_data_chunk',
+      requiredParameters: ['chunkData', 'chunkIndex', 'totalChunks'],
+      enhancer: (originalArgs, context) => {
+        console.log(`🔧 Enhanced process_data_chunk with chunk ${(context.iteration || 0) + 1}/${context.totalChunks || 1}`);
+        
+        return {
+          ...originalArgs,
+          chunkData: context.currentChunk || [],
+          chunkIndex: context.iteration || 0,
+          totalChunks: context.totalChunks || 1
+        };
+      }
+    });
+  }
+
+  /**
+   * Add a new enhancement rule for a specific tool
+   */
+  addToolEnhancementRule(rule: ToolCallEnhancementRule): void {
+    this.enhancementRules.set(rule.toolName, rule);
+    console.log(`📋 Added enhancement rule for tool: ${rule.toolName}`);
+  }
+
+  /**
+   * Remove an enhancement rule
+   */
+  removeToolEnhancementRule(toolName: string): boolean {
+    const removed = this.enhancementRules.delete(toolName);
+    if (removed) {
+      console.log(`🗑️ Removed enhancement rule for tool: ${toolName}`);
+    }
+    return removed;
+  }
+
+  /**
+   * Intercept and enhance a tool call if needed
+   */
+  private async interceptAndEnhance(
+    toolCall: MCPToolCall, 
+    context: ToolCallContext = {}
+  ): Promise<MCPToolCall> {
+    const rule = this.enhancementRules.get(toolCall.name);
+    
+    if (!rule) {
+      console.log(`📤 No enhancement rule for ${toolCall.name} - forwarding as-is`);
+      return toolCall;
+    }
+
+    console.log(`🔧 Enhancing tool call: ${toolCall.name}`);
+    
+    try {
+      // Parse original arguments
+      const originalArgs = typeof toolCall.arguments === 'string' 
+        ? JSON.parse(toolCall.arguments)
+        : toolCall.arguments;
+
+      // Check if enhancement is needed
+      const missingParams = this.findMissingParameters(originalArgs, rule.requiredParameters);
+      
+      if (missingParams.length === 0) {
+        console.log(`✅ Tool call ${toolCall.name} already has all required parameters`);
+        return toolCall;
+      }
+
+      console.log(`🔍 Missing parameters for ${toolCall.name}:`, missingParams);
+
+      // Enhance the arguments
+      const enhancedArgs = rule.enhancer(originalArgs, context);
+
+      console.log(`✨ Enhanced tool call ${toolCall.name} with:`, {
+        original: Object.keys(originalArgs),
+        enhanced: Object.keys(enhancedArgs)
+      });
+
+      return {
+        name: toolCall.name,
+        arguments: enhancedArgs
+      };
+
+    } catch (error) {
+      console.error(`❌ Failed to enhance tool call ${toolCall.name}:`, error);
+      return toolCall; // Return original if enhancement fails
+    }
+  }
 
   async connect(serverConfig: MCPServerConfig): Promise<void> {
     if (this.clients.has(serverConfig.name)) {
@@ -129,7 +280,10 @@ RAG MCP Server started in stdio mode*/
     return allTools;
   }
 
-  async callTool(serverName: string, toolCall: MCPToolCall): Promise<any> {
+  async callTool(serverName: string, toolCall: MCPToolCall, context?: ToolCallContext): Promise<any> {
+    // First, intercept and enhance the tool call if needed
+    const enhancedToolCall = await this.interceptAndEnhance(toolCall, context || {});
+    
     const client = this.getClient(serverName);
     const serverConfig = this.serverConfigs.get(serverName);
     
@@ -143,24 +297,24 @@ RAG MCP Server started in stdio mode*/
       'default': 120000        // 2 minutes default
     };
     
-    const timeout = OPERATION_TIMEOUTS[toolCall.name] ?? serverConfig?.timeout ?? OPERATION_TIMEOUTS['default'];
+    const timeout = OPERATION_TIMEOUTS[enhancedToolCall.name] ?? serverConfig?.timeout ?? OPERATION_TIMEOUTS['default'];
     
     try {
-      console.log(`MCP Client calling tool ${toolCall.name} on server ${serverName} with arguments:`, toolCall.arguments);
+      console.log(`MCP Client calling tool ${enhancedToolCall.name} on server ${serverName} with arguments:`, enhancedToolCall.arguments);
       console.log(`Timeout set to ${timeout}ms (${Math.round(timeout/60000)} minutes)`);
       
       // Add progress logging for long-running operations
       let progressInterval: NodeJS.Timeout | null = null;
-      const isLongRunningOperation = ['index_file', 'index-file'].includes(toolCall.name);
+      const isLongRunningOperation = ['index_file', 'index-file'].includes(enhancedToolCall.name);
       
       if (isLongRunningOperation) {
         const startTime = Date.now();
-        console.log(`🔄 Starting long-running operation: ${toolCall.name}. This may take several minutes...`);
+        console.log(`🔄 Starting long-running operation: ${enhancedToolCall.name}. This may take several minutes...`);
         
         progressInterval = setInterval(() => {
           const elapsed = Math.round((Date.now() - startTime) / 1000);
           const remaining = Math.round((timeout - (Date.now() - startTime)) / 1000);
-          console.log(`⏱️ ${toolCall.name} progress: ${elapsed}s elapsed, ~${remaining}s remaining (timeout: ${Math.round(timeout/60000)}min)`);
+          console.log(`⏱️ ${enhancedToolCall.name} progress: ${elapsed}s elapsed, ~${remaining}s remaining (timeout: ${Math.round(timeout/60000)}min)`);
         }, 30000); // Log every 30 seconds
       }
       
@@ -175,8 +329,8 @@ RAG MCP Server started in stdio mode*/
       // Race between the tool call and timeout
       const response = await Promise.race([
         client.callTool({
-          name: toolCall.name,
-          arguments: toolCall.arguments
+          name: enhancedToolCall.name,
+          arguments: enhancedToolCall.arguments
         }),
         timeoutPromise
       ]) as any;
@@ -185,13 +339,13 @@ RAG MCP Server started in stdio mode*/
       if (progressInterval) {
         clearInterval(progressInterval);
         if (isLongRunningOperation) {
-          console.log(`✅ ${toolCall.name} completed successfully`);
+          console.log(`✅ ${enhancedToolCall.name} completed successfully`);
         }
       }
       
       // Return the content directly, handling different content types
       //MCP tool structured_query raw response
-     console.log(`MCP tool ${toolCall.name} raw response:`, JSON.stringify(response, null, 2));
+     console.log(`MCP tool ${enhancedToolCall.name} raw response:`, JSON.stringify(response, null, 2));
       
       if (Array.isArray(response.content)) {
         // Handle MCP response format: content is array of objects with type and text
@@ -204,7 +358,7 @@ RAG MCP Server started in stdio mode*/
           try {
             // Try to parse the text content as JSON
             const parsedContent = JSON.parse(textContent);
-            console.log(`Parsed ${toolCall.name} content:`, Array.isArray(parsedContent) ? `Array with ${parsedContent.length} items` : typeof parsedContent);
+            console.log(`Parsed ${enhancedToolCall.name} content:`, Array.isArray(parsedContent) ? `Array with ${parsedContent.length} items` : typeof parsedContent);
             return parsedContent;
           } catch (parseError) {
             console.error(`JSON Parse Error: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
@@ -224,7 +378,7 @@ RAG MCP Server started in stdio mode*/
       }
       return response.content;
     } catch (error) {
-      throw new Error(`MCP tool call failed for ${toolCall.name} on server ${serverName}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`MCP tool call failed for ${enhancedToolCall.name} on server ${serverName}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -289,6 +443,168 @@ RAG MCP Server started in stdio mode*/
       this.disconnect(serverName)
     );
     await Promise.allSettled(disconnectPromises);
+  }
+
+  /**
+   * Helper method to find missing required parameters
+   */
+  private findMissingParameters(args: any, requiredParams: string[]): string[] {
+    return requiredParams.filter(param => !(param in args) || args[param] === undefined);
+  }
+
+  /**
+   * Extract ALL energy data from storage (for tools that need complete dataset)
+   */
+  private extractAllEnergyData(context: ToolCallContext): any[] {
+    console.log(`🔍 Extracting ALL energy data from storage...`);
+    
+    // Debug: Check what's actually in storage
+    const allResults = globalDataProcessor.getAllResults();
+    console.log(`📊 Global storage contains ${allResults.size} total entries`);
+    console.log(`📊 Storage keys:`, Array.from(allResults.keys()));
+    
+    // Priority: allStoredData > global storage > currentChunk (fallback)
+    if (context.allStoredData && context.allStoredData.size > 0) {
+      console.log(`📊 Context.allStoredData contains ${context.allStoredData.size} entries`);
+      console.log(`📊 Context.allStoredData keys:`, Array.from(context.allStoredData.keys()));
+      
+      const extractedData = Array.from(context.allStoredData.values()).map(item => item.cleanedData).flat();
+      const formattedData = this.formatEnergyData(extractedData);
+      console.log(`🔍 Extracted and formatted ${formattedData.length} energy records from context.allStoredData`);
+      return formattedData;
+    }
+
+    // Fallback: get from global storage
+    if (allResults.size > 0) {
+      console.log(`📊 Using global storage with ${allResults.size} entries`);
+      const extractedData = Array.from(allResults.values()).map(item => item.cleanedData).flat();
+      console.log(`📊 Sample storage entry:`, JSON.stringify(Array.from(allResults.values())[0], null, 2));
+      const formattedData = this.formatEnergyData(extractedData);
+      console.log(`🔍 Extracted and formatted ${formattedData.length} energy records from global storage`);
+      return formattedData;
+    }
+
+    // Last resort: use current chunk if that's all we have
+    if (context.currentChunk && context.currentChunk.length > 0) {
+      console.log(`⚠️ Warning: Only current chunk available, using ${context.currentChunk.length} records`);
+      const extractedData: any[] = [];
+      for (const item of context.currentChunk) {
+        if (item.cleanedData) {
+          if (Array.isArray(item.cleanedData)) {
+            extractedData.push(...item.cleanedData);
+          } else {
+            extractedData.push(item.cleanedData);
+          }
+        }
+      }
+      const formattedData = this.formatEnergyData(extractedData);
+      return formattedData;
+    }
+
+    console.warn(`⚠️ No energy data found in any storage location`);
+    return [];
+  }
+
+  /**
+   * Extract energy data from context (chunk-based for other tools)
+   */
+  private extractEnergyData(context: ToolCallContext): any[] {
+    if (context.currentChunk && context.currentChunk.length > 0) {
+      // Extract and format data to match expected structure
+      const extractedData: any[] = [];
+      for (const item of context.currentChunk) {
+        if (item.cleanedData) {
+          // If cleanedData is an array, spread it; otherwise, add the item
+          if (Array.isArray(item.cleanedData)) {
+            extractedData.push(...item.cleanedData);
+          } else {
+            extractedData.push(item.cleanedData);
+          }
+        }
+      }
+      
+      // Validate and format data to match expected structure
+      const formattedData = this.formatEnergyData(extractedData);
+      console.log(`🔍 Extracted and formatted ${formattedData.length} energy records from chunk`);
+      console.log(`🔍 Sample data:`, JSON.stringify(formattedData.slice(0, 2), null, 2));
+      return formattedData;
+    }
+
+    if (context.allStoredData) {
+      // Extract from all stored data
+      const extractedData = Array.from(context.allStoredData.values()).map(item => item.cleanedData).flat();
+      const formattedData = this.formatEnergyData(extractedData);
+      console.log(`🔍 Extracted and formatted ${formattedData.length} energy records from all stored data`);
+      return formattedData;
+    }
+
+    // Fallback: get from global storage
+    const allResults = globalDataProcessor.getAllResults();
+    const extractedData = Array.from(allResults.values()).map(item => item.cleanedData).flat();
+    const formattedData = this.formatEnergyData(extractedData);
+    console.log(`🔍 Extracted and formatted ${formattedData.length} energy records from global storage`);
+    return formattedData;
+  }
+
+  /**
+   * Format data to match expected energy data structure
+   */
+  private formatEnergyData(rawData: any[]): any[] {
+    return rawData.map(item => {
+      // If the item already has the correct structure, return as-is
+      if (item && typeof item === 'object' && item.date && item.installation && Array.isArray(item.values)) {
+        return item;
+      }
+      
+      // Try to extract or format the data to match expected structure
+      // This might need adjustment based on your actual data structure
+      if (item && typeof item === 'object') {
+        return {
+          date: item.date || item.Date || new Date().toISOString().split('T')[0],
+          installation: item.installation || item.Installation || item.site || 'unknown',
+          values: Array.isArray(item.values) ? item.values : 
+                 Array.isArray(item.data) ? item.data :
+                 (typeof item.value === 'number' ? [item.value] : [0])
+        };
+      }
+      
+      // Fallback for unexpected data format
+      console.warn(`⚠️ Unexpected data format:`, item);
+      return {
+        date: new Date().toISOString().split('T')[0],
+        installation: 'unknown',
+        values: [0]
+      };
+    }).filter(item => item.values.length > 0); // Remove items with no values
+  }
+
+  /**
+   * Extract processed data from context
+   */
+  private extractProcessedData(context: ToolCallContext): any[] {
+    return this.extractEnergyData(context); // Same logic for now
+  }
+
+  /**
+   * Generate appropriate file path based on context
+   */
+  private generateFilePath(baseName: string, context: ToolCallContext): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    
+    let filePath: string;
+    
+    if (context.iteration !== undefined && context.totalChunks !== undefined) {
+      // Use output directory for organized file storage
+      filePath = `output/${baseName}_chunk_${context.iteration + 1}_of_${context.totalChunks}_${timestamp}.csv`;
+    } else {
+      filePath = context.outputPath || `output/${baseName}_${timestamp}.csv`;
+    }
+    
+    // Remove leading ./ if present for better MCP server compatibility
+    filePath = filePath.replace(/^\.\//, '');
+    
+    console.log(`📁 Generated file path for ${baseName}: ${filePath}`);
+    return filePath;
   }
 }
 

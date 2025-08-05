@@ -168,9 +168,9 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-2',
         backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'Pass information from user requirements to a set of data operation agents.',
+        taskDescription: 'Your task has two time based sequnces. The first constructs detailed agent configurations for data querying and manipulation. The second is calling the data saving operations for which you provide the required information',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set'
+        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set for the first part of the data processing and provide the necessary information for the second part of saving data'
       },
     /* {
         agentName: 'DataProcessingAgent',TransactionGroupingAgent
@@ -236,8 +236,8 @@ export class SagaWorkflow {
         agentType: 'tool',
         transactionId: 'tx-5',
         backstory: 'Provide the search query for a structured query search.',
-        taskDescription: 'Iteratively call a tool to store data to an external repository ',
-        taskExpectedOutput: 'Provide the data unchanged'
+        taskDescription: 'Iteratively call a tool to process chunks of data. Be sure to use the tool name you are given to call the correct tool ',
+        taskExpectedOutput: 'You should expect feedback from the tool call operation'
       }
     /* 
 Task: Extract values array for each group

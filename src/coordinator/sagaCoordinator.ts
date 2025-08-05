@@ -23,6 +23,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { ValidationManager } from '../sublayers/validationManager.js';
 import { globalDataProcessor, ProcessedDataWithKey } from '../processing/dataResultProcessor.js';
+import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
@@ -680,7 +681,7 @@ console.log('AGETN  ', transaction.id)
         const filteringAgentResult: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
          agentSpecificTask ='Your task is to provide the DataSavingAgent requirements as provided by the user. You will find the data saving requirents and pass explicit instructions to the DataSavingAgent';
          //Finalization of DataFilteringAgent ' + JSON.stringify(filteringAgentResult.lastTransactionResult);
-         agentSpecificTask += '**CRITICAL**\n concentrate only on Data Savings: as this is critical to the next agent. The data operations before the Data Savings have been completed and are no longer relevant to data saving'
+         agentSpecificTask += '**CRITICAL**\n concentrate only on Data Savings: as this is critical to the next agent. The data operations before the Data Savings have been completed and are no longer relevant to data saving. Ensure that only the items of Data Saving are provided such as the tool name and collection. Only provide information about saving not querying'
          const initialContext = this.contextManager.getContext('TransactionGroupingAgent')
          agentSpecificTask += 'User Requirements for saving processed data:' + JSON.stringify(initialContext?.lastTransactionResult); //this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
          //const foundTransaction = SAGA_TRANSACTIONS.find(transaction => transaction.agentName === 'TransactionGroupingAgent');
@@ -702,7 +703,9 @@ console.log('AGETN  ', transaction.id)
       if (conversationContext && conversationContext.lastTransactionResult) {
         console.log("HERE IN CONVERSATIONCONTEXT", transaction.agentName)
         agentSpecificTask = this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
-
+        if(!agentSpecificTask){
+          agentSpecificTask = request.userQuery as string
+        }
       }
 
       // If no conversation context available, fall back to parsing the original user query
@@ -1408,7 +1411,16 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     for (const chunk of dataChunks) {
       console.log(`🔄 Processing chunk ${iteration + 1}/${dataChunks.length} with ${chunk.length} records for ${iteratingTransaction.agentName}`);
       
-      // Set iteration context with the current chunk data
+      // Create MCP tool call context for this iteration
+      const mcpToolCallContext: ToolCallContext = {
+        currentChunk: chunk,
+        allStoredData: allStoredResults,
+        iteration: iteration,
+        totalChunks: dataChunks.length,
+        outputPath: `./output/chunk_${iteration + 1}_of_${dataChunks.length}.csv`
+      };
+      
+      // Set iteration context with the current chunk data and MCP context
       this.contextManager.updateContext(iteratingTransaction.agentName, {
         lastTransactionResult: finalResult.result,
         transactionId: iteratingTransaction.id,
@@ -1417,9 +1429,10 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         isSelfReferencing: true,
         currentChunk: chunk,
         chunkIndex: iteration,
-        totalChunks: dataChunks.length
+        totalChunks: dataChunks.length,
+        mcpToolCallContext: mcpToolCallContext
       });
-      
+      request.userQuery = JSON.stringify(finalResult.result) + 'Data to provide to the tool save: ' + JSON.stringify(chunk);
       const result = await this.executeSagaTransaction(iteratingTransaction, request);
       if (!result.success) {
         console.error(`❌ Self-referencing iteration ${iteration + 1} failed: ${iteratingTransaction.agentName}`);
@@ -1848,7 +1861,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
                 const totalPages = parseInt(parsedResult.total_pages) || 1;
                 
                 page = currentPage + 1;
-                hasMoreChunks = false;//currentPage < totalPages;
+                hasMoreChunks = currentPage < totalPages;
                 
                 console.log(`📊 DataFilteringAgent pagination: page=${currentPage}, total_pages=${totalPages}, resultsReturned=${parsedResult.results.length}, hasMoreChunks=${hasMoreChunks}`);
               } else {

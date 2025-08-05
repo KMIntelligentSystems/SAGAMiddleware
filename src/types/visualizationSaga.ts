@@ -349,7 +349,7 @@ Now process the user's requirements and generate the specific agent instructions
 
 export const transactionGroupPrompt = `
 Your role is to coalesce the user requirements into a set of instructions for agents participating in data operations. Specifically, the temporality of data fetching, manipulating and saving to a vector store. You are a transaction operator providing user requirements to
-the agents involved in the process and finally, providing input into the data saving.
+the agents involved in the process and finally, providing input into the data saving. 
 These agents are in your transaction group. The purpose of the group concerns data operations. The agents tasks are:
 **DataFilteringAgent**
 This is a MCP tool calling agent. Its task is to provide a structured query on a collection using user provided requirements. The querying of the collection returns data in manageable chunks. Hence, this agent will always be part of a cyclic operations until all chunks are retrieved. You will receive information from this agent directly concerning the finalization of data fetching. 
@@ -383,12 +383,18 @@ This is a processing agent. You will receive the user requirements from this age
 5. You will provide the necessary information to the data saving tool:
   -Name of MCP tool which will do further operations on the data in the MCP server.
   -Name of the collection where the data will be stored in the vector store.
-Do not pass this information to DataCoordinatingAgent. You will provide the information to the DataSavingAgent directly after you receive the sigal that there are no more chunks.
+  -Name of file path where the data will be saved
+  -Example of the type of data to be saved
+Do not pass this information to DataCoordinatingAgent. You will provide the information to the DataSavingAgent after the processing by the DataCoordinating agent. Thus the data coordination is Phase 1 and the data saving is Phase 2.
 
 Each of these items will come with examples.
 
 **CRITICAL**
-Provide the requirements and examples without modification. However, provide additional information which may enable DataCoordinatingAgent to build better instructions for creating the data management agents dynamically. For example, provide the agent's name with its specific requirements and examples.`
+Phase 1
+Provide the requirements and examples without modification. However, provide additional information which may enable DataCoordinatingAgent to build better instructions for creating the data management agents dynamically. 
+For example, provide the agent's name with its specific requirements and examples.
+Phase 2
+Provide the information required to save the data`
 
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
