@@ -1395,59 +1395,51 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       finalResult = result;
     }
     
-    // Get all results from global storage and create optimal chunks for processing
+    // Get all results from global storage for processing
     const allStoredResults = globalDataProcessor.getAllResults();
     const resultEntries = Array.from(allStoredResults.entries());
     
     console.log(`📊 Found ${resultEntries.length} records in global storage to process`);
     
-    // Create chunks of 2 records each for optimal processing
-    const dataChunks: ProcessedDataWithKey[][] = globalDataProcessor.createOptimalChunks(resultEntries, 2);
+    // For self-referencing chains, execute once with all data (no chunking needed)
+    // Tools like calculate_energy_totals can handle up to 1000 records at once
+    console.log(`🔄 Processing all ${resultEntries.length} records in single execution for ${iteratingTransaction.agentName}`);
     
-    // Now execute the self-referencing transaction iteratively for each chunk
-    let iteration = 0;
+    // Create MCP tool call context with all data
+    const mcpToolCallContext: ToolCallContext = {
+      allStoredData: allStoredResults,
+      iteration: 0,
+      totalChunks: 1,
+      outputPath: `./output/complete_dataset.csv`
+    };
+    
+    // Set context with all data for single execution
+    this.contextManager.updateContext(iteratingTransaction.agentName, {
+      lastTransactionResult: finalResult.result,
+      transactionId: iteratingTransaction.id,
+      timestamp: new Date(),
+      iteration: 0,
+      isSelfReferencing: true,
+      totalRecords: resultEntries.length,
+      mcpToolCallContext: mcpToolCallContext
+    });
+    
+    request.userQuery = JSON.stringify(finalResult.result) + 'Data to provide to the tool save: All stored data for processing';
+    
+    // Execute once with all data
+    const result = await this.executeSagaTransaction(iteratingTransaction, request);
     let allProcessedData: any[] = [];
     
-    for (const chunk of dataChunks) {
-      console.log(`🔄 Processing chunk ${iteration + 1}/${dataChunks.length} with ${chunk.length} records for ${iteratingTransaction.agentName}`);
-      
-      // Create MCP tool call context for this iteration
-      const mcpToolCallContext: ToolCallContext = {
-        currentChunk: chunk,
-        allStoredData: allStoredResults,
-        iteration: iteration,
-        totalChunks: dataChunks.length,
-        outputPath: `./output/chunk_${iteration + 1}_of_${dataChunks.length}.csv`
-      };
-      
-      // Set iteration context with the current chunk data and MCP context
-      this.contextManager.updateContext(iteratingTransaction.agentName, {
-        lastTransactionResult: finalResult.result,
-        transactionId: iteratingTransaction.id,
-        timestamp: new Date(),
-        iteration: iteration,
-        isSelfReferencing: true,
-        currentChunk: chunk,
-        chunkIndex: iteration,
-        totalChunks: dataChunks.length,
-        mcpToolCallContext: mcpToolCallContext
-      });
-      request.userQuery = JSON.stringify(finalResult.result) + 'Data to provide to the tool save: ' + JSON.stringify(chunk);
-      const result = await this.executeSagaTransaction(iteratingTransaction, request);
-      if (!result.success) {
-        console.error(`❌ Self-referencing iteration ${iteration + 1} failed: ${iteratingTransaction.agentName}`);
-        break;
-      }
-      
+    if (!result.success) {
+      console.error(`❌ Self-referencing execution failed: ${iteratingTransaction.agentName}`);
+    } else {
       if (result.result && result.result.data) {
         allProcessedData = allProcessedData.concat(result.result.data);
       }
-      
       finalResult = result;
-      iteration++;
     }
     
-    console.log(`✅ Self-referencing chain completed after ${iteration} chunk iterations`);
+    console.log(`✅ Self-referencing chain completed with single execution of all data`);
     
     return {
       ...finalResult,
@@ -1455,13 +1447,13 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         ...finalResult.result,
         data: allProcessedData,
         selfReferencingMetadata: {
-          totalChunks: dataChunks.length,
-          totalIterations: iteration,
+          totalChunks: 1,
+          totalIterations: 1,
           iteratingAgent: iteratingTransaction.agentName,
           preIterationAgents: preIterationTransactions.map(t => t.agentName),
           totalRecordsFromStorage: resultEntries.length,
           totalRecordsProcessed: allProcessedData.length,
-          chunkSize: 2
+          executionMode: 'single_execution_all_data'
         }
       }
     };

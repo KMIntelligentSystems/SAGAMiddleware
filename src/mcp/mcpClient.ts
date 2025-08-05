@@ -589,15 +589,14 @@ RAG MCP Server started in stdio mode*/
    * Generate appropriate file path based on context
    */
   private generateFilePath(baseName: string, context: ToolCallContext): string {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    
     let filePath: string;
     
     if (context.iteration !== undefined && context.totalChunks !== undefined) {
-      // Use output directory for organized file storage
-      filePath = `output/${baseName}_chunk_${context.iteration + 1}_of_${context.totalChunks}_${timestamp}.csv`;
+      // For chunked processing, use iteration-based naming
+      filePath = `output/${baseName}_chunk_${context.iteration + 1}_of_${context.totalChunks}.csv`;
     } else {
-      filePath = context.outputPath || `output/${baseName}_${timestamp}.csv`;
+      // For single calls, use simple predictable naming
+      filePath = context.outputPath || `output/${baseName}_latest.csv`;
     }
     
     // Remove leading ./ if present for better MCP server compatibility
