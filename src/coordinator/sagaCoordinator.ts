@@ -250,7 +250,7 @@ sleep(ms: number) {
           const setResult = await this.executeSagaWorkflow(
             request,
             `${workflowId}_${setId}`,
-            transactionSet.transactions,
+            transactionSet,
             contextSet
           );
 
@@ -330,12 +330,13 @@ sleep(ms: number) {
   async executeSagaWorkflow(
     request: BrowserGraphRequest, //SagaWorkflowRequest,
     workflowId: string = `saga_${Date.now()}`,
-    transactionOrdering?: SagaTransaction[],
+    transactionSet: TransactionSet,
     contextSet?: ContextSetDefinition
   ): Promise<AgentResult> {
     console.log(`🚀 SC: ${workflowId}`);
     
     // Use provided transaction ordering or fall back to default
+    const transactionOrdering = transactionSet.transactions;
     const transactionsToExecute = transactionOrdering || SAGA_TRANSACTIONS;
 
    // this.initializeSaga(workflowId, request, transactionsToExecute.length);
@@ -346,24 +347,7 @@ sleep(ms: number) {
       // Store the current executing transaction set and context set
       this.currentExecutingTransactionSet = transactionsToExecute;
       this.contextManager.setActiveContextSet(contextSet)
-    /*  this.currentContextSet = contextSet || null;
-      
-      console.log(`🔄 Executing ${transactionsToExecute.length} transactions from ${transactionOrdering ? 'TransactionRegistry' : 'default configuration'}`);
-      console.log(`📊 Using context set: ${contextSet?.name || 'none'} with ${contextSet?.dataSources.length || 0} data sources`);*/
-      
-      // Execute transactions in order with compensation capability
-      //executeWorkflow above use executeOrder array
-      // SAGA_TRANSACTIONS:SagaTransaction
-      
-      // Group transactions by iteration groups
-    //  const iterationGroups = this.groupTransactionsByIteration(transactionsToExecute);
-     // const regularTransactions = transactionsToExecute.filter(t => !t.iterationGroup);
-
-      //**********For use with testdata.js
-   /*   this.contextManager.setContext('DataFilteringAgent', { lastTransactionResult: csvContent})
-        const filteringAgentContext: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-        le t filteredData = `              **FIND THE DATASET IN RESULTS**\n` + filteringAgentContext.lastTransactionResult;*/
-      
+   
       const processedInCycle = new Set<string>(); // Track transactions already processed in cycles
       const sagaCoordinatorAgent = this.agents.get('sagaCoordinatorAgent');
        sagaCoordinatorAgent?.setContext(sagaPrompt)
@@ -375,6 +359,7 @@ sleep(ms: number) {
           continue;
         }
         
+        transaction.transactionPrompt = transactionSet.prompt;
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
         
         let result: AgentResult;
@@ -667,13 +652,16 @@ console.log('AGETN  ', transaction.id)
     // 3. Parse user query to extract agent-specific task descriptions
     let agentSpecificTask = '';
     if (transaction.agentName === 'ConversationAgent') {
+    //  console.log('TRANSACTION GROUPING  ', transaction.transactionPrompt)
+    //  console.log('AGENT ',this.agents.get('TransactionGroupingAgent'))
+      this.agents.get('TransactionGroupingAgent')?.receiveContext({'TransactionGroupingAgent_Prompt': transaction.transactionPrompt})
       // ConversationAgent needs the entire user query for human-in-the-loop conversations
       agentSpecificTask = request.userQuery || '';
     } 
      else if(transaction.agentName === 'TransactionGroupingAgent')//
     {
       if(!this.conversationAgentCompleted){
-        agentSpecificTask = transactionGroupPrompt;
+        agentSpecificTask = transaction.transactionPrompt as string; //transactionGroupPrompt;
         agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
         this.conversationAgentCompleted = true;
       }
@@ -1853,7 +1841,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
                 const totalPages = parseInt(parsedResult.total_pages) || 1;
                 
                 page = currentPage + 1;
-                hasMoreChunks = currentPage < totalPages;
+                hasMoreChunks = false;//currentPage < totalPages;
                 
                 console.log(`📊 DataFilteringAgent pagination: page=${currentPage}, total_pages=${totalPages}, resultsReturned=${parsedResult.results.length}, hasMoreChunks=${hasMoreChunks}`);
               } else {

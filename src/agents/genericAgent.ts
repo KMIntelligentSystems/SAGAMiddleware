@@ -5,7 +5,7 @@ import { OpenAI } from 'openai';
 export class GenericAgent {
   private availableTools: any[] = [];
   private availableResources: any[] = [];
-  private context: string = '';
+  private context: string[] = [];
   private mcpToolCallContext?: ToolCallContext;
   
   constructor(private definition: AgentDefinition) {
@@ -131,15 +131,15 @@ export class GenericAgent {
          contextWithQuestions = `${contextData.partnerQuestions}\n\n${baseContext}`;
        }
        
-       this.context = `${this.definition.name} received context: \n${contextWithQuestions}`;
+       this.context.push(`${this.definition.name} received context: \n${contextWithQuestions}`);
     }
 
-  getContext(): string {
+  getContext(): string[] {
     return this.context;
   }
 
   setContext(ctx: string){
-    this.context = ctx;
+    this.context.push(ctx);
   }
 
    createPrompt(): string {

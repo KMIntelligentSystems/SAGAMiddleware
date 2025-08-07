@@ -70,6 +70,7 @@ export interface SagaTransaction {
   name: string;
   agentName: string;
   dependencies: string[];
+  transactionPrompt?: string,
   compensationAgent?: string;
   compensationAction?: string;
   status: 'pending' | 'executing' | 'completed' | 'failed' | 'compensated';
@@ -347,6 +348,45 @@ Your instructions are successful when:
 
 Now process the user's requirements and generate the specific agent instructions using the required format.Add to Conversation`
 
+export const transactionGroupConversationPrompt = `
+Your role is to group transactions for topographically ordered agents executing the transactional flow. 
+You will coalesce the user requirements into a set of instructions for agents participating in data operations. Specifically, the temporality of data fetching, manipulating and saving to a vector store. You are a transaction operator providing user requirements to
+the agents involved in the process and finally, providing input into the data saving. 
+These agents are in your transaction group. The purpose of the group concerns data operations. The agents tasks are:
+**DataFilteringAgent**
+This is a MCP tool calling agent. Its task is to provide a structured query on a collection using user provided requirements. The querying of the collection returns data in manageable chunks. Hence, this agent will always be part of a cyclic operations until all chunks are retrieved. You will receive information from this agent directly concerning the finalization of data fetching. 
+**DataExtractingAgent**
+This is a processing agent. It receives input from the DataFilteringAgent one chunk at a time. Its task is to flatten the JSON which is how the records are stored in the collection.
+**DataNormalizingAgent**
+This is a processing agent. It receives input from the DataExtractingAgent. It will follow user requirements to standardise a particular attribute, such as the date attribute.
+**DataGroupingAgent**
+This is a processing agent. It receives input from the DataNormalizingAgent. It groups the data following user input.
+**DataGroupingAgent**
+This is a processing agent. It receives input from the DataGroupingAgent. It will be provided with instructions in how to group the data. It is the last agent in the cycle.
+**DataCoordinatingAgent**
+This is a processing agent. You will provide inputs to this agent based on user requirements for data based operations. You will interact with this agent directly. This agent then dynamically builds all of the data processing agents dealing with the structured data query .
+**DataSavingAgent**
+This is a tool calling agent. You will interact directly with this agent providing user requirements about saving the data to stora. This is a temporally ordered agent in that it is called when all the data processing has finalized.
+**ConversationAgent**
+This is a processing agent. You will receive the user requirements from this agent. This agent is independent of you. It is the conduit of information to you. 
+
+There are three sets of tranactions to be run in order:
+1. Initial user request to fetch and store data
+2. Fetch and process the data following user requirements which you understand from step 1
+3. Save the processed data from step 2 to permanent storeage
+
+Therefore, you will be aware of and participate in each step of the flow. The difficulty is the temporality of the flows. Therefore, it is critical that you pass on knowledge and complete understanding of the current context to the next set of transactional agents.
+As your role is organizing the transactional flow, you will be the first agent in each of the step sets except step 1 where you will get instructions from the ConversationAgent conveying user requirements. Therefore, you will be sending your complete analysis and understanding 
+to yourself. You will be identified as 'TransactionGroupingAgent'. 
+
+You will provide your results in this format: '[AGENT TransactionGroupingAgent](Your analysis and instructions)[/AGENT]. For each subsequent step you will find your results in <context>([AGENT TransactionGroupingAgent]...[AGENT]). You will use your knowlege to assist the next set of agents.
+
+The ConversationAgent will provide you with this information in the format outlined above:
+1. [AGENT DataProcessingAgent](user's instructions for data to process)[/AGENT]. You must pass on the instuctions precisely in the format: [AGENT DataProcessingAgent]...[/AGENT]
+2. [AGENT TransactionGroupingAgent](user's instructions to you)[/AGENT]. These will be instructions concerning the data fetching, manipulating and saving of data. Therefore, you must pass on your understanding of the agents as defined above in this flow in order for you to give 
+the assistance required to understand how to provide meaningful instructions to these agents. You will pass  [AGENT TransactionGroupingAgent](user's instructions to you)[/AGENT] exactly as is as well as any information you will need in the next step of the flow.
+`;
+
 export const transactionGroupPrompt = `
 Your role is to coalesce the user requirements into a set of instructions for agents participating in data operations. Specifically, the temporality of data fetching, manipulating and saving to a vector store. You are a transaction operator providing user requirements to
 the agents involved in the process and finally, providing input into the data saving. 
@@ -396,6 +436,33 @@ For example, provide the agent's name with its specific requirements and example
 Phase 2
 Provide the information required to save the data`
 
+export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
+  // Transaction Set 1: Requirements Gathering SAGA
+  {
+    id: 'tx-1',
+    name: 'Start Conversation',
+    agentName: 'ConversationAgent',
+    dependencies: ['tx-2'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  },
+  { id: 'tx-2',
+    name: 'Index files',
+    agentName: 'TransactionGroupingAgent',
+     dependencies: ['tx-2'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  },
+  {
+    id: 'tx-2-1',
+    name: 'Index files',
+    agentName: 'DataProcessingAgent',
+     dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }
+];
+
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
@@ -414,14 +481,6 @@ export const SAGA_TRANSACTIONS: SagaTransaction[] = [
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
- /* {
-    id: 'tx-2',
-    name: 'Index files',
-    agentName: 'DataProcessingAgent',
-     dependencies: [],
-    compensationAction: 'cleanup_conversation_state',
-    status: 'pending'
-  },*/
   {
     id: 'tx-3',
     name: 'Coordinator',
@@ -495,6 +554,7 @@ export interface TransactionSet {
   id: string;
   name: string;
   description: string;
+  prompt?: string;
   transactions: SagaTransaction[];
   dependencies?: string[]; // Other set IDs this set depends on
   executionCondition?: (context: any) => boolean; // Optional condition for execution
@@ -547,17 +607,27 @@ export interface SetExecutionResult {
   };
 }
 
-// Default Transaction Set Collection
+// Default Transaction Set Collection SAGA_CONVERSATION_TRANSACTIONS
 export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
   id: 'default-saga-collection',
   name: 'Default SAGA Workflow',
   description: 'Standard data processing and saving workflow',
-  sets: [
+  sets: 
+  
+  [
+    { id: 'data-loading-set',
+      name: 'Data Loading Pipeline',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: transactionGroupConversationPrompt,
+      transactions: SAGA_CONVERSATION_TRANSACTIONS
+    },
     {
       id: 'data-processing-set',
       name: 'Data Processing Pipeline',
       description: 'Initial conversation, coordination, and cyclic data processing',
       transactions: SAGA_TRANSACTIONS,
+      prompt: transactionGroupPrompt,
+      dependencies: ['data-loading-set'],
       transitionRules: [
         {
           sourceSetId: 'data-processing-set',
@@ -578,7 +648,7 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       dependencies: ['data-processing-set']
     }
   ],
-  executionOrder: ['data-processing-set', 'data-saving-set'],
+  executionOrder: ['data-loading-set'/*, 'data-processing-set', 'data-saving-set'*/],
   metadata: {
     version: '1.0.0',
     created: new Date()

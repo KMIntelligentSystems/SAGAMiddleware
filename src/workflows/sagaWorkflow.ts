@@ -173,14 +173,14 @@ export class SagaWorkflow {
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set for the first part of the data processing and provide the necessary information for the second part of saving data'
       },
     /* {
-        agentName: 'DataProcessingAgent',TransactionGroupingAgent
+        agentName: 'DataProcessingAgent',
         agentType: 'tool',
         transactionId: 'tx-2',
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
-      },*/
+      }*/
      {
         agentName: 'DataCoordinatingAgent',
         agentType: 'processing',
@@ -445,7 +445,7 @@ Focus: Only array extraction
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'start-graph-request' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
-        await this.handleBrowserGraphRequest(message);
+      //  await this.handleBrowserGraphRequest(message);
       } else if (message.type === 'enhanced_graph_request') {
         console.log(`📊 Received enhanced routed graph request with priority: ${message.data.routingInfo?.priority}`);
    //     await this.handleEnhancedBrowserRequest(message.data.browserRequest, message.data.routingInfo);
@@ -520,7 +520,7 @@ Focus: Only array extraction
   /**
      * Handle graph request from browser via Event Bus using Enhanced SAGA
      */
-    private async handleBrowserGraphRequest(message: any): Promise<void> {
+    /*private async handleBrowserGraphRequest(message: any): Promise<void> {
       try {
         console.log(`📊 Processing enhanced graph request from browser...`);
         
@@ -538,25 +538,7 @@ Focus: Only array extraction
           correlationId: message.messageId || `corr_${Date.now()}`
         };
 
-        /* const workflowRequest: VisualizationWorkflowRequest = {
-      userQuery: "Show me coal energy output trends over the last 3 days",
-      visualizationRequest: {
-        userQuery: "Show me coal energy output trends over the last 3 days",
-        filters: {
-          energyTypes: ['coal'],
-          timeRange: {
-            start: "2023-11-02T04:00:00.000Z",
-            end: "2023-11-05T23:55:00.000Z"
-          },
-          aggregation: 'hourly'
-        },
-        chartPreferences: {
-          type: 'line'
-        }
-      },
-      workflowId: `simple_saga_${Date.now()}`
-    };*/
-        
+  
   
         console.log(`📋 Requirements: ${browserRequest.userQuery}`);
    
@@ -606,7 +588,7 @@ Focus: Only array extraction
           }
         }, 'broadcast');
       }
-    }
+    }*/
   
   /**
    * Execute visualization SAGA specifically for OpenAI thread requests
@@ -659,28 +641,9 @@ Focus: Only array extraction
     }
   }
 
-    async executeSimpleVisualizationSAGA(browserRequest: BrowserGraphRequest): Promise<AgentResult> {
+  /*  async executeSimpleVisualizationSAGA(browserRequest: BrowserGraphRequest): Promise<AgentResult> {
     console.log('\n📊 Executing Simple Visualization SAGA');
     console.log('==========================================');
-
-   /* const workflowRequest: VisualizationWorkflowRequest = {
-      userQuery: "Show me coal energy output trends over the last 3 days",
-      visualizationRequest: {
-        userQuery: "Show me coal energy output trends over the last 3 days",
-        filters: {
-          energyTypes: ['coal'],
-          timeRange: {
-            start: "2023-11-02T04:00:00.000Z",
-            end: "2023-11-05T23:55:00.000Z"
-          },
-          aggregation: 'hourly'
-        },
-        chartPreferences: {
-          type: 'line'
-        }
-      },
-      workflowId: `simple_saga_${Date.now()}`
-    };*/
 
     try {
       // Get the active transaction set from registry
@@ -711,7 +674,7 @@ Focus: Only array extraction
       const transactionId = ';ll'
       return await this.handleFailure(transactionId, error, 'sagaState');
     }
-  }
+  }*/
 
    /**
      * Handle system failure
