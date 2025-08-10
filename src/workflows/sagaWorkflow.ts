@@ -172,16 +172,16 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set for the first part of the data processing and provide the necessary information for the second part of saving data'
       },
-    /* {
-        agentName: 'DataProcessingAgent',
-        agentType: 'tool',
-        transactionId: 'tx-2',
-        backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'The usage of tool calling under appropiate matching of tool with intent to index a file.',
-      //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide information such as the collection name so another agent can search the vectorized CSV data chunks, Also provide that part of the "user query" which pertains directly to data filtering and not to the indexing'
-      }*/
      {
+        agentName: 'DataLoadingAgent',
+        agentType: 'tool',
+        transactionId: 'tx-2-1',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'Your task is to pass the data store instructions to the tool handler to carry out the instructions. Therefore, ensure you provide the instructions without modification.',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Expect messages from the data store'
+      },
+    /* {
         agentName: 'DataCoordinatingAgent',
         agentType: 'processing',
         transactionId: 'tx-3',
@@ -189,14 +189,14 @@ export class SagaWorkflow {
         taskDescription: 'Provide the agent prompts as stipulated by user requirments for a set of agents.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide the agent prompts to be used by the defined agents '
-      },
+      },*/
       {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
         transactionId: 'tx-4',
         backstory: 'Filter and chunk data for processing pipeline.',
-        taskDescription: 'Process data in manageable chunks and pass to next agent in sequence. Provide data chunks to DataExtractingAgent.',
-        taskExpectedOutput: 'Structured data chunks ready for presentation processing'
+        taskDescription: 'Your task is to provide a user query to a data store. You must pass the query exactly as it is without modification.',
+        taskExpectedOutput: 'Filtered data chunks ready for presentation processing'
       },
    
       {
@@ -245,7 +245,7 @@ Input: Grouped records
 Output: Final structure {date, installation, values[]}
 Focus: Only array extraction
     {
-        agentName: 'DataProcessingAgent',
+        agentName: 'DataLoadingAgent',
         agentType: 'tool',
         transactionId: 'tx-2',
         backstory: 'Provide files for indexing using tool calls.',
@@ -355,8 +355,8 @@ Focus: Only array extraction
       // Create LLM config based on agent type
       const llmConfig: LLMConfig = {
         provider: 'openai',
-        model: promptParams.model || (agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o-mini'),
-        temperature: promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),
+        model: promptParams.model || (agentType === 'tool' ? 'gpt-5' : 'gpt-5'), //gpt-5
+        temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens: promptParams.maxTokens || (agentType === 'tool' ? 2000 : 1500),
         apiKey: process.env.OPENAI_API_KEY
       };

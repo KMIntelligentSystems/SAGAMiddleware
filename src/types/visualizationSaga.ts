@@ -70,6 +70,7 @@ export interface SagaTransaction {
   name: string;
   agentName: string;
   dependencies: string[];
+  transactionSetId?: string;
   transactionPrompt?: string,
   compensationAgent?: string;
   compensationAction?: string;
@@ -353,6 +354,8 @@ Your role is to group transactions for topographically ordered agents executing 
 You will coalesce the user requirements into a set of instructions for agents participating in data operations. Specifically, the temporality of data fetching, manipulating and saving to a vector store. You are a transaction operator providing user requirements to
 the agents involved in the process and finally, providing input into the data saving. 
 These agents are in your transaction group. The purpose of the group concerns data operations. The agents tasks are:
+**DataLoadingAgent**
+This is a MCP tool calling agent. Its task is to provide to provide instructions to a tool to enable the tool to load data to a store.
 **DataFilteringAgent**
 This is a MCP tool calling agent. Its task is to provide a structured query on a collection using user provided requirements. The querying of the collection returns data in manageable chunks. Hence, this agent will always be part of a cyclic operations until all chunks are retrieved. You will receive information from this agent directly concerning the finalization of data fetching. 
 **DataExtractingAgent**
@@ -361,33 +364,89 @@ This is a processing agent. It receives input from the DataFilteringAgent one ch
 This is a processing agent. It receives input from the DataExtractingAgent. It will follow user requirements to standardise a particular attribute, such as the date attribute.
 **DataGroupingAgent**
 This is a processing agent. It receives input from the DataNormalizingAgent. It groups the data following user input.
-**DataGroupingAgent**
-This is a processing agent. It receives input from the DataGroupingAgent. It will be provided with instructions in how to group the data. It is the last agent in the cycle.
-**DataCoordinatingAgent**
-This is a processing agent. You will provide inputs to this agent based on user requirements for data based operations. You will interact with this agent directly. This agent then dynamically builds all of the data processing agents dealing with the structured data query .
+**DataAggregatingAgent**
+This is a processing agent. It receives input from the DataGroupingAgent. It will be provided with instructions in how to aggregate the data. It is the last agent in the cycle.
 **DataSavingAgent**
 This is a tool calling agent. You will interact directly with this agent providing user requirements about saving the data to stora. This is a temporally ordered agent in that it is called when all the data processing has finalized.
 **ConversationAgent**
 This is a processing agent. You will receive the user requirements from this agent. This agent is independent of you. It is the conduit of information to you. 
 
 There are three sets of tranactions to be run in order:
-1. Initial user request to fetch and store data
-2. Fetch and process the data following user requirements which you understand from step 1
-3. Save the processed data from step 2 to permanent storeage
+1. Load the data to a store using the information in Step 1: Data Loading
+2. Fetch and process the data following the instructions for Step 2: Data Coordination
+3. Save the processed data from step 2 to permanent storeage using the instructions for Step 3: Data Saving
 
 Therefore, you will be aware of and participate in each step of the flow. The difficulty is the temporality of the flows. Therefore, it is critical that you pass on knowledge and complete understanding of the current context to the next set of transactional agents.
 As your role is organizing the transactional flow, you will be the first agent in each of the step sets except step 1 where you will get instructions from the ConversationAgent conveying user requirements. Therefore, you will be sending your complete analysis and understanding 
 to yourself. You will be identified as 'TransactionGroupingAgent'. 
 
-You will provide your results in this format: '[AGENT TransactionGroupingAgent](Your analysis and instructions)[/AGENT]. For each subsequent step you will find your results in <context>([AGENT TransactionGroupingAgent]...[AGENT]). You will use your knowlege to assist the next set of agents.
+You will find the user's requirement for the three steps in <content>(user requirement steps)</context>. Extract the instructions for each step.
 
-The ConversationAgent will provide you with this information in the format outlined above:
-1. [AGENT DataProcessingAgent](user's instructions for data to process)[/AGENT]. You must pass on the instuctions precisely in the format: [AGENT DataProcessingAgent]...[/AGENT]
-2. [AGENT TransactionGroupingAgent](user's instructions to you)[/AGENT]. These will be instructions concerning the data fetching, manipulating and saving of data. Therefore, you must pass on your understanding of the agents as defined above in this flow in order for you to give 
-the assistance required to understand how to provide meaningful instructions to these agents. You will pass  [AGENT TransactionGroupingAgent](user's instructions to you)[/AGENT] exactly as is as well as any information you will need in the next step of the flow.
+This is the start of the process. You are at step 1. Therefore, provide the instructions to DataLoadingAgent. The format for this agent and all the agents is of the form: [AGENT: agent name]user's instructions[/AGENT]. For step 1, you will provide:
+[AGENT: DataLoadingAgent]user's instructions for data to process and provide instructions that the data loading agent must provide the user's instructions without modification[/AGENT]. You must pass on the instuctions precisely as you find them at step 1 of the user input and place them betweem [AGENT: DataLoadingAgent] and [/AGENT].
+The DataFilteringAgent needs to be provided with constraints. Add this to [AGENT:  DataFilteringAgent]:
+"**FORBIDDEN MODIFICATIONS for DataFilteringAgent:**
+❌ Converting metadata_filters to search_text
+❌ Changing field names or structure
+❌ Interpreting or transforming any part of the query
+❌ Adding fields not in the original query
+❌ Removing fields from the original query"
+as well as the user instructions and end with [/AGENT]
+
+You must pay close attention to any instructions marked **CRITICAL**
+
 `;
 
-export const transactionGroupPrompt = `
+/*
+As well as the user requirement add this message after [AGENT DataLoadingAgent]
+**FORBIDDEN MODIFICATIONS for DataLoadingAgent:**
+❌ Changing field names or structure
+❌ Interpreting or transforming any part of the query
+❌ Adding fields not in the original query
+❌ Removing fields from the original query
+This will ensure that the agent passes the full instructions to the data store.
+2. [AGENT: DataFilteringAgent]user's instructions to you[/AGENT]. 
+ [AGENT: DataFilteringAgent]user's instructions to you[/AGENT]
+[AGENT: DataExtractingAgent]user's instructions to you[/AGENT]
+[AGENT: DataNormalizingAgent]user's instructions to you[/AGENT]
+[AGENT: DataGroupingAgent]user's instructions to you[/AGENT]
+[AGENT: DataAggregatingAgent]user's instructions to you[/AGENT]. These will be instructions concerning the data fetching and manipulating. Therefore, you must pass on your understanding of the agents as defined above in this flow in order for you to give 
+the assistance required to understand how to provide meaningful instructions to these agents. The 
+3. [AGENT: DataSaving]Instructions for data saving[/AGENT]
+
+
+3. [AGENT: DataSaving]Instructions for data saving[/AGENT]
+For example: between [AGENT: DataFilteringAgent] and [/AGENT] provide the precise instructions for the structured query tool. Likewise for the other agents. Your output will be a list of all these agents properly formatted with their precise user instructions and examples.
+The DataFilteringAgent needs to be provided with constraints. Add this to [AGENT:  DataFilteringAgent]:
+"**FORBIDDEN MODIFICATIONS for DataFilteringAgent:**
+❌ Converting metadata_filters to search_text
+❌ Changing field names or structure
+❌ Interpreting or transforming any part of the query
+❌ Adding fields not in the original query
+❌ Removing fields from the original query"
+as well as the user instructions and end with [/AGENT]`
+ */
+
+export const transactionGroupPrompt = `To understand your role and your activity to this point look at your <context></context>. There you will find previous interactions concerning the three steps for data processing: loading, processing and saving. 
+You are up to Step 2 now. You must provide the instructions for building each of the agents involved in data processing, pay close attention to these agents:
+**DataFilteringAgent**
+**DataExtractingAgent**
+**DataNormalizingAgent**
+**DataGroupingAgent**
+**DataAggregatingAgent**
+You will find the user requirements for Step 2 under User Requirments. Align each of these agents with the instructions and examples provided at Step 2. You will format the instructions for each agent as:
+
+[AGENT: DataFilteringAgent]user's instructions to you and instructions from you emphasizing that the structured query must be used exactly as provided without modification[/AGENT]
+[AGENT: DataExtractingAgent]user's instructions to you[/AGENT]
+[AGENT: DataNormalizingAgent]user's instructions to you[/AGENT]
+[AGENT: DataGroupingAgent]user's instructions to you[/AGENT] 
+`;
+
+export const transactionSavingPrompt = `To understand your role and your activity to this point look at your <context></context>. There you will find previous interactions concerning the three steps for data processing: loading, processing and saving. 
+You are up to Step 3 now. You must provide the user's instructions for Data Saving to the DataSavingAgent. Ensure the instructions are placed between [AGENT DataSavingAgent] and [/AGENT]`;
+
+
+export const transactionGroupPrompt_ = `
 Your role is to coalesce the user requirements into a set of instructions for agents participating in data operations. Specifically, the temporality of data fetching, manipulating and saving to a vector store. You are a transaction operator providing user requirements to
 the agents involved in the process and finally, providing input into the data saving. 
 These agents are in your transaction group. The purpose of the group concerns data operations. The agents tasks are:
@@ -399,7 +458,7 @@ This is a processing agent. It receives input from the DataFilteringAgent one ch
 This is a processing agent. It receives input from the DataExtractingAgent. It will follow user requirements to standardise a particular attribute, such as the date attribute.
 **DataGroupingAgent**
 This is a processing agent. It receives input from the DataNormalizingAgent. It groups the data following user input.
-**DataGroupingAgent**
+**DataAggregatingAgent**
 This is a processing agent. It receives input from the DataGroupingAgent. It will be provided with instructions in how to group the data. It is the last agent in the cycle.
 **DataCoordinatingAgent**
 This is a processing agent. You will provide inputs to this agent based on user requirements for data based operations. You will interact with this agent directly. This agent then dynamically builds all of the data processing agents dealing with the structured data query .
@@ -442,21 +501,21 @@ export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-1',
     name: 'Start Conversation',
     agentName: 'ConversationAgent',
-    dependencies: ['tx-2'],
+    dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
   { id: 'tx-2',
     name: 'Index files',
     agentName: 'TransactionGroupingAgent',
-     dependencies: ['tx-2'],
+     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
   {
     id: 'tx-2-1',
     name: 'Index files',
-    agentName: 'DataProcessingAgent',
+    agentName: 'DataLoadingAgent',
      dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
@@ -466,29 +525,26 @@ export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
-  {
+ /* {
     id: 'tx-1',
     name: 'Start Conversation',
     agentName: 'ConversationAgent',
     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
+  },*/
   { id: 'tx-2',
     name: 'Index files',
     agentName: 'TransactionGroupingAgent',
      dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
-  {
-    id: 'tx-3',
-    name: 'Coordinator',
+  }/*
     agentName: 'DataCoordinatingAgent',
     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
+  }*/,
   {
     id: 'tx-4',
     name: 'Apply RAG Tool',
@@ -555,6 +611,7 @@ export interface TransactionSet {
   name: string;
   description: string;
   prompt?: string;
+  transactionSetId?: string;
   transactions: SagaTransaction[];
   dependencies?: string[]; // Other set IDs this set depends on
   executionCondition?: (context: any) => boolean; // Optional condition for execution
@@ -627,7 +684,7 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       description: 'Initial conversation, coordination, and cyclic data processing',
       transactions: SAGA_TRANSACTIONS,
       prompt: transactionGroupPrompt,
-      dependencies: ['data-loading-set'],
+      dependencies: [],//'data-loading-set'
       transitionRules: [
         {
           sourceSetId: 'data-processing-set',
@@ -648,7 +705,7 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       dependencies: ['data-processing-set']
     }
   ],
-  executionOrder: ['data-loading-set'/*, 'data-processing-set', 'data-saving-set'*/],
+  executionOrder: ['data-loading-set', 'data-processing-set', 'data-saving-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()

@@ -366,7 +366,7 @@ export class GenericAgent {
     const response = await client.chat.completions.create({
        messages: [userMessage],
         model: config.model,
-        temperature: 0.3,
+      //  temperature: 0.3,
      //   maxTokens: 3000,
     });
    return  {
@@ -503,7 +503,7 @@ export class GenericAgent {
     const response = await client.messages.create({
       model: config.model,
       max_tokens: config.maxTokens || 1000,
-      temperature: config.temperature || 0.7,
+   //   temperature: config.temperature || 0.7,
       messages: [{ role: "user", content: prompt }]
     });
 
@@ -530,7 +530,7 @@ export class GenericAgent {
     let conversationHistory: any[] = [{ role: "user", content: prompt }];
     let maxIterations = 5; // Allow more iterations for finding data
     let hasExecutedTool = false; // Track if any tool has been executed
-    
+    console.log('CONTENT  ', prompt)
     while (maxIterations > 0) {
     //  console.log("TOOLS ", tools);
       let response;
@@ -546,8 +546,8 @@ export class GenericAgent {
           messages: conversationHistory,
           tools: tools,
           tool_choice: toolChoice,
-          temperature: config.temperature || 0.7,
-          max_tokens: 1000
+       //   temperature: config.temperature || 0.7,
+          max_completion_tokens: 4000
         });
         
         const message = response.choices[0].message;
@@ -671,7 +671,7 @@ export class GenericAgent {
         response = await client.messages.create({
           model: config.model,
           max_tokens: config.maxTokens || 1000,
-          temperature: config.temperature || 0.7,
+      //    temperature: config.temperature || 0.7,
           messages: conversationHistory,
           tools: tools,
           tool_choice: toolChoice

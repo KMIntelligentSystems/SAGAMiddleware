@@ -17,7 +17,8 @@ import {
   transactionGroupPrompt,
   TransactionSetCollection,
   SetExecutionResult,
-  TransactionSet
+  TransactionSet,
+  transactionSavingPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
@@ -216,7 +217,7 @@ sleep(ms: number) {
       success: true,
       timestamp: new Date()
     };
-
+    
     const setExecutionResults: { [setId: string]: SetExecutionResult } = {};
     const sharedContext: { [key: string]: any } = {};
 
@@ -336,6 +337,7 @@ sleep(ms: number) {
     console.log(`🚀 SC: ${workflowId}`);
     
     // Use provided transaction ordering or fall back to default
+    const transactionSetId = transactionSet.transactionSetId;
     const transactionOrdering = transactionSet.transactions;
     const transactionsToExecute = transactionOrdering || SAGA_TRANSACTIONS;
 
@@ -349,8 +351,8 @@ sleep(ms: number) {
       this.contextManager.setActiveContextSet(contextSet)
    
       const processedInCycle = new Set<string>(); // Track transactions already processed in cycles
-      const sagaCoordinatorAgent = this.agents.get('sagaCoordinatorAgent');
-       sagaCoordinatorAgent?.setContext(sagaPrompt)
+    //  const sagaCoordinatorAgent = this.agents.get('sagaCoordinatorAgent');
+  //     sagaCoordinatorAgent?.setContext(sagaPrompt)
       
       for (const transaction of transactionsToExecute) {
         // Skip transactions that were already processed as part of a cycle
@@ -360,6 +362,7 @@ sleep(ms: number) {
         }
         
         transaction.transactionPrompt = transactionSet.prompt;
+        transaction.transactionSetId = transactionSet.id;
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
         
         let result: AgentResult;
@@ -408,6 +411,13 @@ console.log('AGETN  ', transaction.id)
           if (transaction.dependencies.length > 0 &&  !allDependentsHaveEmptyDependencies && !hasLinearDependency && this.hasExtendedCycleDependency(transaction, transactionsToExecute)) {
             // Handle extended cycle (N-agent cycle)
             const cyclePartners = this.findCyclePartners(transaction, transactionsToExecute);
+            const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+            for(let i = 0; i < cyclePartners.length; i++)
+            {
+              let thisAgent = this.agents.get(cyclePartners[i].agentName) as GenericAgent;
+              const agentSpecificTask = this.parseConversationResultForAgent(groupedContext.lastTransactionResult, cyclePartners[i].agentName);
+              thisAgent?.receiveContext({ 'User Requirements:': agentSpecificTask});
+            }
             console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
             if (cyclePartners.length > 0) {
               result = await this.executeExtendedCycleLoop(cyclePartners, request);
@@ -610,7 +620,7 @@ console.log('AGETN  ', transaction.id)
     const currContextSet: ContextSetDefinition = this.contextManager.getActiveContextSet();
     const conversationContext: WorkingMemory = this.contextManager.getContext('ConversationAgent') as WorkingMemory;
     let context: Record<string, any> = {};
-   
+   const transactionSetId = transaction.transactionSetId;
     
     // 1. Extract data sources information to string (if not empty)
     let dataSourcesText = '';
@@ -660,6 +670,19 @@ console.log('AGETN  ', transaction.id)
     } 
      else if(transaction.agentName === 'TransactionGroupingAgent')//
     {
+      if(transactionSetId == 'data-processing-set'){
+          /*  const ctx = this.agents.get('TransactionGroupingAgent')?.getContext();
+            console.log('CTXXX  ', ctx)
+transactionSavingPrompt
+            const lastRes = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+            console.log('LAST ', JSON.stringify(lastRes.lastTransactionResult))*/
+            const transactionGroupingAgent =this.agents.get('TransactionGroupingAgent');
+            transactionGroupingAgent?.receiveContext({'Step 2:': transactionGroupPrompt});
+      } else if(transactionSetId == 'data-saving-set'){
+         const transactionGroupingAgent =this.agents.get('TransactionGroupingAgent');
+            transactionGroupingAgent?.receiveContext({'Step 3:': transactionSavingPrompt});
+      }
+
       if(!this.conversationAgentCompleted){
         agentSpecificTask = transaction.transactionPrompt as string; //transactionGroupPrompt;
         agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
@@ -679,8 +702,15 @@ console.log('AGETN  ', transaction.id)
       
      
     }
+    else{
+      const currPrompt = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+        agentSpecificTask = this.parseConversationResultForAgent(JSON.stringify(currPrompt.lastTransactionResult), transaction.agentName);
+
+       console.log('TRANSACTION PROMPT',  agentSpecificTask)
+
+    }
     //Was [AGENT dataCoordAgent froom prompt is it is]
-    else if(transaction.agentName === 'DataCoordinatingAgent')
+   /* else if(transaction.agentName === 'DataCoordinatingAgent')
     {
        agentSpecificTask = sagaPrompt;
        agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, 'TransactionGroupingAgent');
@@ -701,7 +731,7 @@ console.log('AGETN  ', transaction.id)
         console.log('request.userQuery  ', request.userQuery)
         agentSpecificTask = this.parseUserQueryForAgent(request.userQuery, transaction.agentName);
       }
-    }
+    }*/
     
     // Build final context with text-only variables
     context = {
@@ -1712,6 +1742,9 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     let iteration = 0;
     let allProcessedData: any[] = [];
     let cycleCounter =  cycleTransactions.length;
+
+    const groupedAgentContext = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+    const lastResult = JSON.stringify(groupedAgentContext.lastTransactionResult);
     
     // Continue processing until all chunks are retrieved
     while (hasMoreChunks) {
@@ -1721,13 +1754,14 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       for (let i = 0; i < cycleCounter; i++) {
         const transaction = cycleTransactions[i];
     //    console.log(`🎯 Executing ${transaction.agentName} (${i + 1}/${orderedCycle.length}) for iteration ${iteration + 1}`);
+    console.log('TRANSACTION  ', transaction.agentName)
         
         // Special handling for DataFilteringAgent - provide pagination context
-        if (transaction.agentName === 'DataFilteringAgent' && i === 0) {
+       /* if (transaction.agentName === 'DataFilteringAgent' && i === 0) {
           // Get the existing prompt from context (comes from user via conversation agent)
-          const existingContext = this.contextManager.getContext('DataFilteringAgent');
-          let basePrompt = existingContext?.lastTransactionResult || '';
-          
+          const existingContext = this.agents.get('DataFilteringAgent')?.getContext() as string[];//this.contextManager.getContext('DataFilteringAgent');
+          let basePrompt = existingContext[0];
+          console.log('BASE PROMPT  ', basePrompt)
           // Ensure basePrompt is a string
           if (typeof basePrompt !== 'string') {
             console.log('BasePrompt type:', typeof basePrompt, 'Value:', basePrompt);
@@ -1739,6 +1773,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           
           // Replace the {page} placeholder with the actual page number
           const updatedPrompt = basePrompt.replace(/{page}/g, page.toString());
+          console.log('UPDATEDPROMPT ',updatedPrompt)
           
           // Set DataFilteringAgent context with pagination state and updated prompt
           this.contextManager.setContext('DataFilteringAgent', {
@@ -1749,7 +1784,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
             iteration: iteration,
             collection: 'supply_analysis'
           });
-        }
+        }*/
         
         // Build context with cycle metadata and pagination information
         const cycleContext = await this.buildCycleTransactionContext(
@@ -1767,10 +1802,15 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
             hasMoreChunks: hasMoreChunks
           }
         );
+
+          if (transaction.agentName === 'DataFilteringAgent' && i === 0) {
+              cycleContext.agentSpecificTask = cycleContext.agentSpecificTask.replace(/{page}/g, page.toString());
+              console.log('AGENT SPECIFIC TASK', cycleContext.agentSpecificTask)
+          }
         
         // Execute the transaction with cycle context
         finalResult = await this.executeSagaTransactionWithContext(transaction, request, cycleContext);
-        console.log('RAW FINAL RESULT:', finalResult);
+     //   console.log('RAW FINAL RESULT:', finalResult);
   console.log('RAW FINAL RESULT TYPE:', typeof finalResult.result);
   console.log('RAW FINAL RESULT LENGTH:', finalResult.result?.length);
         
@@ -1788,7 +1828,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           if (typeof result === 'object' && result !== null && 'result' in result) {
             result = result.result;
           }
-          console.log('RESULT  FILTERINGDATA', result);
+   //       console.log('RESULT  FILTERINGDATA', result);
           console.log('RESULT TYPE:', typeof result);
           
           try {
