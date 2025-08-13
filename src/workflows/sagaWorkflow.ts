@@ -8,6 +8,8 @@ import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig }
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
+import { agentData } from '../test/testData.js'
+import {AgentParser } from '../agents/agentParser.js'
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -168,10 +170,10 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-2',
         backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'Your task has two time based sequnces. The first constructs detailed agent configurations for data querying and manipulation. The second is calling the data saving operations for which you provide the required information',
+        taskDescription: 'Your task has two time based sequences. The first constructs detailed agent configurations for data querying and manipulation. The second is calling the data saving operations for which you provide the required information',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set for the first part of the data processing and provide the necessary information for the second part of saving data'
-      },
+      }/*,
      {
         agentName: 'DataLoadingAgent',
         agentType: 'tool',
@@ -181,7 +183,7 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Expect messages from the data store'
       },
-    /* {
+     {
         agentName: 'DataCoordinatingAgent',
         agentType: 'processing',
         transactionId: 'tx-3',
@@ -189,7 +191,7 @@ export class SagaWorkflow {
         taskDescription: 'Provide the agent prompts as stipulated by user requirments for a set of agents.',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide the agent prompts to be used by the defined agents '
-      },*/
+      },
       {
         agentName: 'DataFilteringAgent',
         agentType: 'tool',
@@ -355,7 +357,7 @@ Focus: Only array extraction
       // Create LLM config based on agent type
       const llmConfig: LLMConfig = {
         provider: 'openai',
-        model: promptParams.model || (agentType === 'tool' ? 'gpt-5' : 'gpt-5'), //gpt-5
+        model: promptParams.model || (agentType === 'tool' ? 'gpt-5' : 'gpt-5'), //gpt-5 gpt-4o-mini
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens: promptParams.maxTokens || (agentType === 'tool' ? 2000 : 1500),
         apiKey: process.env.OPENAI_API_KEY
@@ -464,6 +466,41 @@ Focus: Only array extraction
   private async handleOpenAIThreadRequest(message: any): Promise<void> {
     try {
       console.log(`🧵 Processing OpenAI thread request from browser...`);
+      
+      // Test AgentParser with imported test data
+      console.log('🧪 Testing AgentParser with new format data...');
+   
+      
+      // Test with a simple example that matches your expected sequence
+      const testData = {
+        result: `[AGENT: OrchestratorAgent, ORCH-01]
+Task: Coordinate the overall workflow
+[/AGENT]
+
+[AGENT: QueryAgent, QUERY-01]
+Task: Execute structured query tool
+[/AGENT]
+
+[AGENT: ProcessingAgent, PROC-01]
+Task: Process the data
+[/AGENT]
+
+[AGENT: MergeAgent, MERGE-01]
+Task: Merge the results
+[/AGENT]
+
+SEQUENCE:
+{ORCH-01 -> QUERY-01 -> PROC-01 -> MERGE-01 -> ORCH-01}`
+      };
+      
+      console.log('🔄 Testing direct SagaTransaction parsing with test sequence...');
+    /*  const transactions = AgentParser.parseAndCreateSagaTransactions(agentData);
+    //  console.log(`✅ Created ${transactions.length} SagaTransaction objects directly`);
+      
+      console.log('📋 SagaTransactions:');
+      transactions.forEach(tx => {
+        console.log(`   - Transaction ${tx.id}: ${tx.agentName}, Dependencies: [${tx.dependencies.join(', ')}]`);
+      });*/
       
       // Extract threadId from message
       const { data } = message;
@@ -607,7 +644,8 @@ Focus: Only array extraction
       const activeContextSet = this.contextRegistry.getContextSetForTransactionSet(activeTransactionSet.name);
       // Using context set: default_visualization_context for transaction set: visualization
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
-      
+
+       
       
       // Execute SAGA through coordinator using the new executeTransactionSetCollection method
       const result = await this.coordinator.executeTransactionSetCollection(

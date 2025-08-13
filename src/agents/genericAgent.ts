@@ -7,38 +7,16 @@ export class GenericAgent {
   private availableResources: any[] = [];
   private context: string[] = [];
   private mcpToolCallContext?: ToolCallContext;
+  private agentDefn: AgentDefinition;
   
   constructor(private definition: AgentDefinition) {
+    this.agentDefn = definition;
     this.initializeMCPConnections();
   }
 
-  /* addDependency(other: Agent | Agent[]) {
-        if (Array.isArray(other) && other.every(item => item instanceof Agent)) {
-            other.forEach(item => {
-                this.dependencies.push(item);
-                item.dependents.push(this);
-            });
-        } else if (other instanceof Agent) {
-            this.dependencies.push(other);
-            other.dependents.push(this);
-        } else {
-            throw new TypeError("The dependency must be an instance or list of Agent.");
-        }
-    }
-
-    addDependent(other: Agent | Agent[]) {
-        if (Array.isArray(other) && other.every(item => item instanceof Agent)) {
-            other.forEach(item => {
-                item.dependencies.push(this);
-                this.dependents.push(item);
-            });
-        } else if (other instanceof Agent) {
-            other.dependencies.push(this);
-            this.dependents.push(other);
-        } else {
-            throw new TypeError("The dependent must be an instance or list of Agent.");
-        }
-    }*/
+ getAgentDefinition(): AgentDefinition{
+  return this.agentDefn;
+ }
 
   getName(): string {
     return this.definition.name;
@@ -140,6 +118,14 @@ export class GenericAgent {
 
   setContext(ctx: string){
     this.context.push(ctx);
+  }
+
+  setAgentDefinition(defn: AgentDefinition){
+    this.definition = defn;
+  }
+
+  deleteContext(){
+    this.context = [];
   }
 
    createPrompt(): string {
@@ -552,7 +538,7 @@ export class GenericAgent {
         
         const message = response.choices[0].message;
 
-        console.log('MESSAGES   ', conversationHistory)
+      //  console.log('MESSAGES   ', conversationHistory)
          console.log('MESSAGE CONTENT',response)
         
         // Check if we've already made tool calls in previous iterations (before adding current message)

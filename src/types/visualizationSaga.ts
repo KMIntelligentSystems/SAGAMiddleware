@@ -144,6 +144,35 @@ export interface HumanInLoopConfig {
   };
 }
 
+export const agentDefinitionPrompt = `You have two tasks:
+1. Your task is to depict the flow of data processing in a set of agents. The agents are defined below by this format: [AGENT name, id]instructions[/AGENT]
+The flow of responsibility has these general principles:
+1. Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...->Data_Rpocessing_Id_n -> Data_Saving_Id
+2. Data fetching continues returning chunks until there are no more chunks to fetch. Therefore, there is a loop back to Data_Fetching_Id by the last Data_Processing_Id_n: 
+Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...->Data_Rpocessing_Id_n ->  Data_Fetching_Id. You will know the data fetching agent both semantically and because the agent uses a structured query
+3. Data saving agent occurs only after all the data is fetched. Therefore, it will be considered a separate operations from the other agents and will be depicted with a dashed line connector:
+Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...->Data_Rpocessing_Id_n -- Data_Saving_Id
+
+You must have a clear understanding of the separation of concerns: 1. Data fetching; 2. Data processing; 3. Data Saving. When there is Data fetching using 'structured query' then you must depict a flow from the last processing agent - the one before the Data saving agent - back to the Data fetching agent.
+That is, it is a cyclical flow and this must be depicted in the flow sequnce.
+
+Your final output will have this simple format:
+<flow>The agent ids depicted as descibed</flow>. For example:
+<flow>Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...-> Data_Rpocessing_Id_n -> Data_Fetching_Id  -- Data_Saving_Id</flow> substituting for the real agent ids.
+
+2. Your second task is to nominate those agents which are tool users and provide their names in the following format:
+{"toolUsers": [agent names]}
+`
+/*
+FORBIDDEN ACTIONS:
+❌ Do NOT summarize the input you receive
+❌ Do NOT comment on the input you receive
+❌ Do NOT interpret what you receive
+❌ Do NOT provide any other output than that specifically requested:
+
+Your output will consist of one line of information delimited by <flow> and </flow>. If there is more information than this then  you have failed in your task! Do exactly as requested: no more and no less.
+*/
+
 export const sagaPrompt = `Role and Purpose
 You are the Data Pipeline Coordinator Meta-Agent. Your role is to analyze user-provided data requirements and generate specific, actionable instructions for a sequence of data processing agents. You must create concrete instructions using the user's actual data structure, field names, and requirements - not generic examples.
 Agent Capabilities Knowledge
@@ -508,10 +537,10 @@ export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
   { id: 'tx-2',
     name: 'Index files',
     agentName: 'TransactionGroupingAgent',
-     dependencies: [],
+     dependencies: ['tx-2'],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
+  }/*,
   {
     id: 'tx-2-1',
     name: 'Index files',
@@ -519,7 +548,7 @@ export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
      dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  }
+  }*/
 ];
 
 // Transaction definitions for visualization SAGA
@@ -675,14 +704,14 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
     { id: 'data-loading-set',
       name: 'Data Loading Pipeline',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
-      prompt: transactionGroupConversationPrompt,
+      prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_CONVERSATION_TRANSACTIONS
-    },
+    }/*,
     {
       id: 'data-processing-set',
       name: 'Data Processing Pipeline',
       description: 'Initial conversation, coordination, and cyclic data processing',
-      transactions: SAGA_TRANSACTIONS,
+      transactions: [],//SAGA_TRANSACTIONS,
       prompt: transactionGroupPrompt,
       dependencies: [],//'data-loading-set'
       transitionRules: [
@@ -703,9 +732,9 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       description: 'Final transaction grouping and data saving with self-referencing iterations',
       transactions: SAGA_CONTINUATION,
       dependencies: ['data-processing-set']
-    }
+    }*/
   ],
-  executionOrder: ['data-loading-set', 'data-processing-set', 'data-saving-set'],
+  executionOrder: ['data-loading-set'/*, 'data-processing-set', 'data-saving-set'*/],
   metadata: {
     version: '1.0.0',
     created: new Date()
