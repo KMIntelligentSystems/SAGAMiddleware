@@ -26,8 +26,8 @@ import { SagaCoordinator } from './coordinator/sagaCoordinator.js';
 import { AgentDefinition, MCPServerConfig } from './types/index.js';
 import { mcpClientManager } from './mcp/mcpClient.js';
 
-export function createSagaMiddleware(): SagaCoordinator {
-  return new SagaCoordinator();
+/*export function createSagaMiddleware(): SagaCoordinator {
+  return new SagaCoordinator(null);
 }
 
 // Enhanced SAGA middleware with MCP support
@@ -48,7 +48,7 @@ export function createEnhancedSagaMiddleware(options?: {
   }
   
   return coordinator;
-}
+}*/
 
 export function createAgentDefinition(config: {
   name: string;

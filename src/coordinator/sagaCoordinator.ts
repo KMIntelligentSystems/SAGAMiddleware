@@ -3,7 +3,8 @@ import {
   AgentDefinition, 
   SagaEvent, 
   AgentResult,
-  WorkingMemory
+  WorkingMemory,
+  LLMConfig
 } from '../types/index.js';
 import { 
   SagaState, 
@@ -44,21 +45,35 @@ export class SagaCoordinator extends EventEmitter {
   private currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
   private  conversationAgentCompleted = false;
+   private ragServerConfig: any;
+//  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
-  constructor() {
+  constructor(ragServerConfig: any) {
     super();
+  //  this.agentParser = agentParser;
     this.contextManager = new ContextManager();
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
+    this.ragServerConfig = ragServerConfig;
   }
 
   registerAgent(definition: AgentDefinition): void {
     const agent = new GenericAgent(definition);
     this.agents.set(definition.name, agent);
     this.agentDefinitions.set(definition.name, definition);
- //   this.recalculateExecutionOrder();
-    
+ 
+    const llmConfig: LLMConfig = {
+            provider: 'openai',
+            model: definition.agentType === 'tool' ? 'gpt-5' : 'gpt-5', //gpt-5 gpt-4o-mini
+            temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
+            maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
+            apiKey: process.env.OPENAI_API_KEY
+    };
+    if(definition.agentType === 'tool'){
+      definition.mcpServers = [this.ragServerConfig];
+    }
+
     console.log(`🔧 Registered agent: ${definition.name}`);
     console.log(`🔧 MCP servers: ${definition.mcpServers?.map(s => s.name).join(', ') || 'none'}`);
     console.log(`🔧 MCP tools: ${definition.mcpTools?.join(', ') || 'none'}`);
@@ -264,10 +279,12 @@ sleep(ms: number) {
         if(transactionSet.id === 'data-loading-set' && setResult.result){
  // Parse agent patterns from conversation context and create generic agents
           { 
-                 dynamicTransactionSet = AgentParser.parseAndCreateAgents(
-                    setResult.result,
-                    this // Pass the coordinator instance to register agents
-                  );
+              const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+              dynamicTransactionSet = AgentParser.parseAndCreateAgents(
+                 groupedContext.previousResult,
+                 setResult.result,
+                 this // Pass the coordinator instance to register agents
+              );
           }
         }
 
@@ -535,14 +552,13 @@ console.log('AGETN  ', transaction.id)
           if (transaction.dependencies.length > 0 && transaction.status === 'pending' && !allDependentsHaveEmptyDependencies && !hasLinearDependency && this.hasExtendedCycleDependency(transaction, transactionsToExecute)) {
             // Handle extended cycle (N-agent cycle)
             const cyclePartners = this.findCyclePartners(transaction, transactionsToExecute);
+            cyclePartners.unshift(transaction);
             const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
             for(let i = 0; i < cyclePartners.length; i++)
             {
               let thisAgent = this.agents.get(cyclePartners[i].agentName) as GenericAgent;
-             // const agentSpecificTask = this.parseConversationResultForAgent(groupedContext.lastTransactionResult, cyclePartners[i].agentName);
-              //  thisAgent?.receiveContext({ 'User Requirements:': agentSpecificTask});
-             const agentSpecificTask = groupedContext.lastTransactionResult
-              thisAgent?.receiveContext({ 'User Requirements:': agentSpecificTask});
+              const agentSpecificTask = this.parseConversationResultForAgent(groupedContext.previousResult, cyclePartners[i].agentName);
+              thisAgent?.receiveContext({ 'PREVIOUS:': agentSpecificTask});
             }
             console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
             if (cyclePartners.length > 0) {
@@ -887,19 +903,20 @@ agentSpecificTask = transaction.transactionPrompt as string; //transactionGroupP
       }
       
       // Extract content between bracket tags for this agent
-      // Handle both formats: [AGENT:AgentName] and [AGENT: AgentName] (with space)
-      const startTag1 = `[AGENT:${agentName}]`;
-      const startTag2 = `[AGENT: ${agentName}]`;
+      // Handle formats: [AGENT: AgentName, id] and legacy formats
+      const startTagPattern = new RegExp(`\\[AGENT:\\s*${agentName}(?:,\\s*[^\\]]+)?\\]`);
       const endTag = `[/AGENT]`;
       
-      console.log(`🔍 Looking for tags: "${startTag1}" OR "${startTag2}" and "${endTag}"`);
+      const startTagMatch = resultText.match(startTagPattern);
+      let startIndex = -1;
+      let startTagLength = 0;
       
-      let startIndex = resultText.indexOf(startTag1);
-      let startTagLength = startTag1.length;
-      
-      if (startIndex === -1) {
-        startIndex = resultText.indexOf(startTag2);
-        startTagLength = startTag2.length;
+      if (startTagMatch) {
+        startIndex = startTagMatch.index!;
+        startTagLength = startTagMatch[0].length;
+        console.log(`🔍 Found start tag: "${startTagMatch[0]}" at index ${startIndex}`);
+      } else {
+        console.log(`🔍 No matching start tag found for agent: ${agentName}`);
       }
       
       const endIndex = resultText.indexOf(endTag, startIndex);
@@ -1348,7 +1365,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     const cycleTransactions: SagaTransaction[] = [];
     const visited = new Set<string>();
     const currentPath: string[] = [];
-    
+    //With dynamic creation of transaactions have to add first transactions
     const findCycle = (txId: string): boolean => {
       const pathIndex = currentPath.indexOf(txId);
       if (pathIndex !== -1) {
@@ -1581,7 +1598,8 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       timestamp: new Date()
     };
     const agent = this.agents.get(iteratingTransaction.agentName);
-   
+    //Saving the first result as it contains all the dynamic agents
+    
     while(iteration < 2){
       if(iteration === 1){
          request.userQuery = '';
@@ -1597,8 +1615,9 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         agent?.receiveContext({'YOUR TASK:': agentDefinitionPrompt});
         agent?.receiveContext(result.result);
         if(iteration === 0){
+          
             this.contextManager.updateContext(iteratingTransaction.agentName, {
-        lastTransactionResult: result.result,
+        previousResult: result.result,
         transactionId: iteratingTransaction.id,
         timestamp: new Date()
       });
@@ -1618,7 +1637,6 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       }
       finalResult = result;
     }
-    
     console.log(`✅ Self-referencing chain completed with single execution of all data`);
     
     return {
@@ -1905,8 +1923,8 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     let allProcessedData: any[] = [];
     let cycleCounter =  cycleTransactions.length;
 
-    const groupedAgentContext = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
-    const lastResult = JSON.stringify(groupedAgentContext.lastTransactionResult);
+//    const groupedAgentContext = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+//const lastResult = JSON.stringify(groupedAgentContext.lastTransactionResult);
     
     // Continue processing until all chunks are retrieved
     while (hasMoreChunks) {
@@ -1965,7 +1983,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           }
         );
 
-          if (transaction.agentName === 'DataFilteringAgent' && i === 0) {
+          if ( i === 0) {
               cycleContext.agentSpecificTask = cycleContext.agentSpecificTask.replace(/{page}/g, page.toString());
               console.log('AGENT SPECIFIC TASK', cycleContext.agentSpecificTask)
           }
@@ -1982,7 +2000,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         }
         
         // Extract pagination info from DataFilteringAgent result
-        if (transaction.agentName === 'DataFilteringAgent' && finalResult.result) {
+        if (transaction.agentType === 'tool' && finalResult.result) {
           // Handle nested AgentResult structure
           let result = finalResult.result;
           

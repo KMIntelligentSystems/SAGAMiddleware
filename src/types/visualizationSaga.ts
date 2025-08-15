@@ -69,6 +69,7 @@ export interface SagaTransaction {
   id: string;
   name: string;
   agentName: string;
+  agentType?: 'tool' | 'processing';
   dependencies: string[];
   transactionSetId?: string;
   transactionPrompt?: string,

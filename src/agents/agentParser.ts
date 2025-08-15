@@ -6,10 +6,11 @@ export class AgentParser {
   /**
    * Parses conversation context and creates TransactionSetCollection with processing and saving agent sets
    * Format: [AGENT: agentName, id] ... [/AGENT] and <flow>A1 -> A2 -> A3 -> A1 -- A4</flow>
-   * @param conversationText The text containing agent patterns and flow information
+   * @param conversationText The text containing agent patterns [AGENT: name, id]...[/AGENT]
+   * @param flowData The text containing flow information <flow>...</flow> and {"toolUsers": [...]}
    * @returns TransactionSetCollection with processing agents and data saving agent in separate sets
    */
-  static parseAndCreateSagaTransactions(conversationText: string | any): TransactionSetCollection {
+  static parseAndCreateSagaTransactions(conversationText: string | any, flowData?: string | any): TransactionSetCollection {
     // Handle both string input and object input with result property
     let textToParse: string;
     if (typeof conversationText === 'string') {
@@ -36,46 +37,74 @@ export class AgentParser {
       .replace(/\\\'/g, "'") // Replace escaped quotes
       .replace(/\\\"/g, '"'); // Replace escaped quotes
 
-    // Step 1: Parse name, description, and toolUsers JSON
+    // Step 1: Parse agents from conversationText
+    console.log(`AgentParser: Parsing agents from conversationText`);
+    
+    // Step 1.1: Parse flow data if provided
+    let flowToParse: string = '';
     let sagaName = 'Visualization_Saga'; // Default
     let sagaDescription = 'Data for the saga'; // Default
-    
-    // Parse Name and Description
-    const namePattern = /Name:\s*[\"']?([^\"'\n]+)[\"']?/;
-    const descriptionPattern = /Description:\s*[\"']?([^\"'\n]+)[\"']?/;
-    
-    const nameMatch = textToParse.match(namePattern);
-    const descriptionMatch = textToParse.match(descriptionPattern);
-    
-    if (nameMatch) {
-      sagaName = nameMatch[1].trim();
-      console.log(`AgentParser: Found saga name: ${sagaName}`);
-    }
-    
-    if (descriptionMatch) {
-      sagaDescription = descriptionMatch[1].trim();
-      console.log(`AgentParser: Found saga description: ${sagaDescription}`);
-    }
-    
-    // Parse toolUsers JSON
     let toolUsers: string[] = [];
-    const toolUsersPattern = /\{"toolUsers":\s*\[([^\]]+)\]\}/;
-    const toolUsersMatch = textToParse.match(toolUsersPattern);
     
-    if (toolUsersMatch) {
-      try {
-        const toolUsersString = toolUsersMatch[1];
-        toolUsers = toolUsersString.split(',').map(name => name.trim().replace(/"/g, ''));
-        console.log(`AgentParser: Found toolUsers:`, toolUsers);
-      } catch (error) {
-        console.log(`AgentParser: Error parsing toolUsers JSON:`, error);
+    if (flowData) {
+      if (typeof flowData === 'string') {
+        flowToParse = flowData;
+      } else if (flowData && typeof flowData === 'object' && flowData.result) {
+        flowToParse = flowData.result;
+      }
+      
+      // Clean up flow data string concatenation artifacts
+      flowToParse = flowToParse
+        .replace(/\'\s*\+\s*[\r\n]\s*\'/g, '') // Remove ' + \n '
+        .replace(/\'\s*\+\s*\'/g, '') // Remove ' + '
+        .replace(/\\\'/g, "'") // Replace escaped quotes
+        .replace(/\\\"/g, '"'); // Replace escaped quotes
+      
+      console.log(`AgentParser: Processing flow data of length ${flowToParse.length}`);
+      console.log(`AgentParser: First 200 characters of flow data: ${flowToParse.substring(0, 200)}`);
+      
+      // Parse Name and Description from flow data
+      const namePattern = /Name:\s*[\"']?([^\"'\n]+)[\"']?/;
+      const descriptionPattern = /Description:\s*[\"']?([^\"'\n]+)[\"']?/;
+      
+      const nameMatch = flowToParse.match(namePattern);
+      const descriptionMatch = flowToParse.match(descriptionPattern);
+      
+      if (nameMatch) {
+        sagaName = nameMatch[1].trim();
+        console.log(`AgentParser: Found saga name: ${sagaName}`);
+      }
+      
+      if (descriptionMatch) {
+        sagaDescription = descriptionMatch[1].trim();
+        console.log(`AgentParser: Found saga description: ${sagaDescription}`);
+      }
+      
+      // Parse toolUsers JSON from flow data
+      const toolUsersPattern = /\{"toolUsers":\s*(\[[^\]]+\])\}/;
+      const toolUsersMatch = flowToParse.match(toolUsersPattern);
+      
+      if (toolUsersMatch) {
+        try {
+          const toolUsersArray = JSON.parse(toolUsersMatch[1]);
+          toolUsers = toolUsersArray.map((name: string) => name.trim());
+          console.log(`AgentParser: Found toolUsers:`, toolUsers);
+        } catch (error) {
+          console.log(`AgentParser: Error parsing toolUsers JSON:`, error);
+          // Fallback to original parsing method
+          const toolUsersString = toolUsersMatch[1].replace(/[\[\]]/g, '');
+          toolUsers = toolUsersString.split(',').map(name => name.trim().replace(/"/g, ''));
+        }
       }
     }
     
     const agentPattern = /\[AGENT:\s*([^,]+),\s*([^\]]+)\](.*?)\[\/AGENT\]/gs;
-    const agentMap = new Map<string, { name: string; content: string; agentType: 'tool' | 'processing' }>();
+    const  agentMap = new Map<string, { name: string; content: string; agentType: 'tool' | 'processing' }>();
     
     console.log(`AgentParser: DEBUG - Looking for agent patterns in cleaned text`);
+    console.log(`AgentParser: DEBUG - Cleaned text length: ${textToParse.length}`);
+    console.log(`AgentParser: DEBUG - First 500 chars of cleaned text:`, JSON.stringify(textToParse.substring(0, 500)));
+    console.log(`AgentParser: DEBUG - Agent regex pattern:`, agentPattern);
     
     let match;
     while ((match = agentPattern.exec(textToParse)) !== null) {
@@ -89,10 +118,10 @@ export class AgentParser {
         contentLength: content.length
       });
       
-      // Determine agent type based on toolUsers list
-      const agentType: 'tool' | 'processing' = toolUsers.includes(agentName) ? 'tool' : 'processing';
+      // Initially set as processing - will be updated after flow parsing if needed
+      const agentType: 'tool' | 'processing' = 'processing';
       
-      console.log(`AgentParser: Found agent "${agentName}" with ID "${agentId}", type "${agentType}"`);
+      console.log(`AgentParser: Found agent "${agentName}" with ID "${agentId}", initial type "${agentType}"`);
       
       agentMap.set(agentId, { name: agentName, content, agentType });
     }
@@ -100,13 +129,13 @@ export class AgentParser {
     console.log(`AgentParser: DEBUG - Total agents found: ${agentMap.size}`);
 
     // Step 2: Parse flow and calculate dependencies with separation of concerns
-    const flowPattern = /<flow>([^<]+)<\/flow>/s;
-    const flowMatch = textToParse.match(flowPattern);
+    const flowPattern = /<flow>(.*?)<\/flow>/s;
+    const flowMatch = flowToParse.match(flowPattern);
     
-    console.log(`AgentParser: DEBUG - Looking for flow pattern in text`);
-    const flowIndex = textToParse.indexOf('<flow>');
+    console.log(`AgentParser: DEBUG - Looking for flow pattern in flow data`);
+    const flowIndex = flowToParse.indexOf('<flow>');
     if (flowIndex >= 0) {
-      const flowText = textToParse.substring(flowIndex, flowIndex + 100);
+      const flowText = flowToParse.substring(flowIndex, flowIndex + 100);
       console.log(`AgentParser: DEBUG - Text around <flow>:`, JSON.stringify(flowText));
     }
     console.log(`AgentParser: DEBUG - Flow regex result:`, flowMatch);
@@ -115,8 +144,24 @@ export class AgentParser {
     let separationOfConcerns: { dependencies: string[], lastElement: string } | null = null;
     
     if (flowMatch) {
-      const flowString = flowMatch[1].trim();
-      console.log(`AgentParser: Found flow: ${flowString}`);
+      const fullFlowContent = flowMatch[1].trim();
+      console.log(`AgentParser: Found full flow content: ${fullFlowContent}`);
+      
+      console.log('toolUsers     ',toolUsers)
+      // Update agent types based on toolUsers array (now that we have the complete list)
+      agentMap.forEach((agent, agentId) => {
+        console.log('AGENTS NAME',agent.name)
+         console.log('AGENTS type',agent.agentType)
+        const updatedType: 'tool' | 'processing' = toolUsers.includes(agent.name) ? 'tool' : 'processing';
+        if (updatedType !== agent.agentType) {
+          console.log(`AgentParser: Updating agent "${agent.name}" type from "${agent.agentType}" to "${updatedType}"`);
+          agentMap.set(agentId, { ...agent, agentType: updatedType });
+        }
+      });
+      
+      // Extract just the flow diagram part (before any JSON)
+      const flowString = fullFlowContent.split('\n')[0].trim();
+      console.log(`AgentParser: Found flow diagram: ${flowString}`);
       
       // Check for separation of concerns pattern (-- separator)
       let flow: string[];
@@ -194,21 +239,6 @@ export class AgentParser {
         console.log(`AgentParser: Added separation of concerns element ${lastElement} with no dependencies`);
         
         // If we have flow dependencies but no agent definitions, create placeholder agents
-        if (agentMap.size === 0) {
-          const allAgentIds = [...new Set([...flow, lastElement])];
-          allAgentIds.forEach(agentId => {
-            // Determine agent type for placeholder based on toolUsers list
-            const placeholderName = `Agent_${agentId}`;
-            const agentType: 'tool' | 'processing' = toolUsers.includes(placeholderName) ? 'tool' : 'processing';
-            
-            agentMap.set(agentId, {
-              name: placeholderName,
-              content: `Placeholder agent for ${agentId}`,
-              agentType: agentType
-            });
-            console.log(`AgentParser: Created placeholder agent for ${agentId} with type ${agentType}`);
-          });
-        }
       }
     } else {
       // If no sequence, all agents have no dependencies
@@ -230,13 +260,14 @@ export class AgentParser {
         id: agentId,
         name: `${agentInfo.name} Transaction`,
         agentName: agentInfo.name,
+        agentType: agentInfo.agentType,
         dependencies: dependencies[agentId] || [],
         compensationAction: 'cleanup_conversation_state',
         status: 'pending',
         transactionPrompt: agentInfo.content
       };
 
-      console.log(`AgentParser: Created transaction ${agentId} for ${agentInfo.name} with dependencies: [${transaction.dependencies.join(', ')}]`);
+      console.log(`AgentParser: Created transaction ${agentId} for ${agentInfo.name} (type: ${agentInfo.agentType}) with dependencies: [${transaction.dependencies.join(', ')}]`);
       allTransactions.push(transaction);
     });
 
@@ -271,21 +302,20 @@ export class AgentParser {
   /**
    * Creates and registers GenericAgent instances from SagaTransaction objects using sagaCoordinator
    * @param transactions Array of SagaTransaction objects
-   * @param defaultLLMConfig Default LLM configuration to use for created agents
    * @param sagaCoordinator SagaCoordinator instance to register agents with
    * @returns Array of GenericAgent instances (primarily for fallback when no coordinator)
    */
-  static createGenericAgentsFromTransactions(transactions: SagaTransaction[], defaultLLMConfig: LLMConfig, sagaCoordinator?: any): GenericAgent[] {
+  static createGenericAgentsFromTransactions(transactions: SagaTransaction[], sagaCoordinator?: any): GenericAgent[] {
     return transactions.map(transaction => {
-      // Determine agent type based on transaction agent name (already set in agentMap)
-      const agentType: 'tool' | 'processing' = 'processing'; // Default, will be overridden by agentMap data
+      // Use agent type from transaction (set during parsing based on agentMap data)
+      const agentType: 'tool' | 'processing' = transaction.agentType || 'processing';
       
       const agentDefinition: AgentDefinition = {
         name: transaction.agentName,
         backstory: `Dynamic agent created from SAGA transaction with ID ${transaction.id}`,
         taskDescription: transaction.transactionPrompt || `Process tasks for ${transaction.agentName}`,
         taskExpectedOutput: 'Structured response based on task requirements',
-        llmConfig: defaultLLMConfig,
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
         agentType: agentType
       };
@@ -307,21 +337,21 @@ export class AgentParser {
 
   /**
    * Comprehensive method to parse conversation context and create both SagaTransactions and GenericAgents
-   * @param conversationText The text containing agent patterns and sequence information, or an object with result property
-   * @param defaultLLMConfig Default LLM configuration to use for created agents
+   * @param conversationText The text containing agent patterns [AGENT: name, id]...[/AGENT]
+   * @param flowData The text containing flow information <flow>...</flow> and {"toolUsers": [...]}
    * @param sagaCoordinator Optional SagaCoordinator instance to register agents with (agents are registered automatically)
    * @returns Object containing SagaTransaction array and GenericAgent array (agents mainly for fallback scenarios)
    */
-  static parseAndCreateSagaComponents(conversationText: string | any, defaultLLMConfig: LLMConfig, sagaCoordinator?: any): {
+  static parseAndCreateSagaComponents(conversationText: string | any, flowData?: string | any, sagaCoordinator?: any): {
     transactions: SagaTransaction[],
     agents: GenericAgent[]
   } {
     console.log('AgentParser: Starting comprehensive parsing for SAGA components...');
     
-    const transactionCollection = this.parseAndCreateSagaTransactions(conversationText);
+    const transactionCollection = this.parseAndCreateSagaTransactions(conversationText, flowData);
     // Extract all transactions from the collection sets
     const transactions: SagaTransaction[] = transactionCollection.sets.flatMap(set => set.transactions);
-    const agents = this.createGenericAgentsFromTransactions(transactions, defaultLLMConfig, sagaCoordinator);
+    const agents = this.createGenericAgentsFromTransactions(transactions, sagaCoordinator);
     
     console.log(`AgentParser: Created ${transactions.length} transactions and ${agents.length} agents`);
     
@@ -330,13 +360,13 @@ export class AgentParser {
 
   /**
    * Main method to parse conversation context, create agents, and return transactions
-   * @param conversationText The text containing agent patterns
-   * @param defaultLLMConfig Default LLM configuration to use for created agents
+   * @param conversationText The text containing agent patterns [AGENT: name, id]...[/AGENT]
+   * @param flowData The text containing flow information <flow>...</flow> and {"toolUsers": [...]}
    * @param sagaCoordinator Optional SagaCoordinator instance to register agents with
    * @returns Array of SagaTransaction objects
    */
-  static parseAndCreateAgents(conversationText: string | any,  sagaCoordinator?: any): TransactionSetCollection {
-    const transactionCollection = this.parseAndCreateSagaTransactions(conversationText);
+  static parseAndCreateAgents(conversationText: string | any, flowData?: string | any, sagaCoordinator?: any): TransactionSetCollection {
+    const transactionCollection = this.parseAndCreateSagaTransactions(conversationText, flowData);
     // Extract all transactions from the collection sets
     const transactions: SagaTransaction[] = transactionCollection.sets.flatMap(set => set.transactions);
     

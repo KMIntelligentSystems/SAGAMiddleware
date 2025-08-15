@@ -28,7 +28,7 @@ export class SagaWorkflow {
   
   constructor(config: HumanInLoopConfig) {
     this.config = config;
-    this.coordinator = new SagaCoordinator();
+    
     this.ragServerConfig = createMCPServerConfig({
       name: "rag-server",
       transport: "stdio",
@@ -36,6 +36,8 @@ export class SagaWorkflow {
       args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
       timeout: 600000
     });
+    this.coordinator = new SagaCoordinator(this.ragServerConfig);
+
     this.eventBusClient = new SAGAEventBusClient(config.eventBus.url);
     
     // Initialize TransactionRegistry
