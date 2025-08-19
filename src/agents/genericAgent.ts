@@ -45,7 +45,6 @@ export class GenericAgent {
       const llmResult = await this.invokeLLM(prompt);
       
       const result = llmResult;
-      console.log('GENERIC RESULT   ', result)
       
       return {
         agentName: this.definition.name,
@@ -110,7 +109,10 @@ export class GenericAgent {
        }
        
        this.context.push(`${this.definition.name} received context: \n${contextWithQuestions}`);
-    }
+      /* for (let i = 0;i< this.context.length;i++   ){
+          console.log('CONTEXT TEST ', this.context[i])
+       }*/
+      }
 
   getContext(): string[] {
     return this.context;

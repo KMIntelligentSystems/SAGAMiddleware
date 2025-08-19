@@ -80,6 +80,17 @@ export class DataResultProcessor {
       console.log('📊 DataResultProcessor: Successfully parsed JSON data');
       return parsed;
     } catch (error) {
+      // Look for JSON array or object in the text
+      const jsonMatch = cleanedString.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          console.log('📊 DataResultProcessor: Successfully extracted and parsed JSON from text');
+          return parsed;
+        } catch (extractError) {
+          console.log('⚠️ DataResultProcessor: Could not parse extracted JSON');
+        }
+      }
       console.log('⚠️ DataResultProcessor: Could not parse as JSON, returning as string');
       return cleanedString;
     }

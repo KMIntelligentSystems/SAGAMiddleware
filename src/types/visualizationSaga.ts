@@ -160,7 +160,7 @@ That is, it is a cyclical flow and this must be depicted in the flow sequnce.
 Your final output will have this simple format:
 <flow>The agent ids depicted as descibed</flow>. For example:
 <flow>Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...-> Data_Rpocessing_Id_n -> Data_Fetching_Id  -- Data_Saving_Id</flow> substituting for the real agent ids.
-
+Remember the ids are in [AGENT name, id] and you only examine as far as each agent's end tag: [/AGENT]. Anything outside these tags is irrelvant for your purposes.
 2. Your second task is to nominate those agents which are tool users and provide their names in the following format:
 {"toolUsers": [agent names]}
 `

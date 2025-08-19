@@ -10,7 +10,7 @@ export class AgentParser {
    * @param flowData The text containing flow information <flow>...</flow> and {"toolUsers": [...]}
    * @returns TransactionSetCollection with processing agents and data saving agent in separate sets
    */
-  static parseAndCreateSagaTransactions(conversationText: string | any, flowData?: string | any): TransactionSetCollection {
+  static parseAndCreateSagaTransactions(conversationText: string | any, flowData?: string | any, sagaCoordinator?: any): TransactionSetCollection {
     // Handle both string input and object input with result property
     let textToParse: string;
     if (typeof conversationText === 'string') {
@@ -25,6 +25,12 @@ export class AgentParser {
     if (!textToParse) {
       console.log('AgentParser: No conversation text provided');
       return this.createEmptyCollection();
+    }
+    if(textToParse.includes('[ / AGENT]')){
+      textToParse = textToParse.replace('[ / AGENT]', '[/AGENT]');
+    }
+     if(textToParse.includes('/AGENT]') && !textToParse.includes('[/AGENT]')){
+      textToParse = textToParse.replace('/AGENT]', '[/AGENT]');
     }
 
     console.log(`AgentParser: Processing text of length ${textToParse.length}`);
@@ -246,12 +252,37 @@ export class AgentParser {
         dependencies[id] = [];
       });
     }
+     
+    if (sagaCoordinator && typeof sagaCoordinator.registerAgentFlows === 'function') {
+          if (separationOfConcerns && separationOfConcerns.dependencies) {
+            sagaCoordinator.registerAgentFlows(separationOfConcerns.dependencies);
+          }
+    }
 
     console.log(`AgentParser: Calculated dependencies:`, dependencies);
     if (separationOfConcerns) {
       console.log(`AgentParser: Separation of concerns:`, separationOfConcerns);
     }
+/*
+AgentParser: Calculated dependencies: {
+  'SQ-001': [ 'DNM-002' ],
+  'DNM-002': [ 'ACC-003' ],
+  'ACC-003': [ 'LSP-004' ],
+  'LSP-004': [ 'SQ-001' ],
+  'FTS-005': []
+}
+AgentParser: Separation of concerns: {
+  dependencies: [ 'SQ-001', 'DNM-002', 'ACC-003', 'LSP-004', 'SQ-001' ],
+  lastElement: 'FTS-005'
+}
 
+AgentParser: Created transaction SQ-001 for StructuredQueryBuilder (type: tool) with dependencies: [DNM-002]
+AgentParser: Created transaction DNM-002 for PageNormalizer (type: processing) with dependencies: [ACC-003]
+AgentParser: Created transaction ACC-003 for PageAccumulator (type: processing) with dependencies: [LSP-004]
+AgentParser: Created transaction LSP-004 for PageLocalPersistPrep (type: processing) with dependencies: [SQ-001]
+AgentParser: Created transaction FTS-005 for FinalTotalsSaver (type: tool) with dependencies: []
+
+*/
     // Step 3: Create SagaTransaction objects and divide into processing and saving sets
     const allTransactions: SagaTransaction[] = [];
     
@@ -366,7 +397,7 @@ export class AgentParser {
    * @returns Array of SagaTransaction objects
    */
   static parseAndCreateAgents(conversationText: string | any, flowData?: string | any, sagaCoordinator?: any): TransactionSetCollection {
-    const transactionCollection = this.parseAndCreateSagaTransactions(conversationText, flowData);
+    const transactionCollection = this.parseAndCreateSagaTransactions(conversationText, flowData,  sagaCoordinator);
     // Extract all transactions from the collection sets
     const transactions: SagaTransaction[] = transactionCollection.sets.flatMap(set => set.transactions);
     
