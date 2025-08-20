@@ -198,6 +198,80 @@ if(definition.agentType === 'tool'){
     return false;
   }
 
+  private hasLinearDependencyFromFlow(transaction: SagaTransaction): boolean {
+    // Check if this transaction is part of a linear chain in any agent flow
+    for (const flow of this.agentFlows) {
+      const transactionIndex = flow.indexOf(transaction.id);
+      if (transactionIndex === -1) continue;
+      
+      // Linear chain: no repeated elements AND more than one element
+      const uniqueElements = new Set(flow);
+      if (uniqueElements.size === flow.length && flow.length > 1) {
+        console.log(`📏 Linear chain detected for ${transaction.id} in flow: ${flow.join(' -> ')}`);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private hasSelfReferencingDependencyFromFlow(transaction: SagaTransaction): boolean {
+    // Check if this transaction is in a self-referencing flow (2 identical elements)
+    for (const flow of this.agentFlows) {
+      if (flow.length === 2 && flow[0] === flow[1] && flow[0] === transaction.id) {
+        console.log(`🔄 Self-referencing dependency detected for ${transaction.id} in flow: ${flow.join(' -> ')}`);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private getLinearPartnersFromFlow(transaction: SagaTransaction, transactions: SagaTransaction[]): SagaTransaction[] {
+    const linearPartners: SagaTransaction[] = [];
+    
+    // Find the agent flow that contains this transaction
+    for (const flow of this.agentFlows) {
+      const transactionIndex = flow.indexOf(transaction.id);
+      if (transactionIndex === -1) continue;
+      
+      // Check if this is a linear flow (no repeated elements)
+      const uniqueElements = new Set(flow);
+      if (uniqueElements.size === flow.length && flow.length > 1) {
+        // Collect all transactions in the linear flow
+        for (const flowAgentId of flow) {
+          const partner = transactions.find(t => t.id === flowAgentId);
+          if (partner && !linearPartners.includes(partner)) {
+            linearPartners.push(partner);
+          }
+        }
+        break;
+      }
+    }
+    
+    console.log(`📏 Linear partners for ${transaction.id} from flow:`, linearPartners.map(t => `${t.id}(${t.agentName})`));
+    return linearPartners;
+  }
+
+  private getSelfReferencingPartnersFromFlow(transaction: SagaTransaction, transactions: SagaTransaction[]): SagaTransaction[] {
+    const selfRefPartners: SagaTransaction[] = [];
+    
+    // Find the agent flow that contains this transaction
+    for (const flow of this.agentFlows) {
+      if (flow.length === 2 && flow[0] === flow[1] && flow[0] === transaction.id) {
+        // For self-referencing, just return the transaction itself
+        const partner = transactions.find(t => t.id === transaction.id);
+        if (partner) {
+          selfRefPartners.push(partner);
+        }
+        break;
+      }
+    }
+    
+    console.log(`🔄 Self-referencing partners for ${transaction.id} from flow:`, selfRefPartners.map(t => `${t.id}(${t.agentName})`));
+    return selfRefPartners;
+  }
+
   async ensureAgentMCPCapabilities(): Promise<void> {
     console.log('🔧 Ensuring all agents have MCP capabilities...');
     for (const [name, agent] of this.agents.entries()) {
@@ -657,35 +731,59 @@ sleep(ms: number) {
             result = await this.executeSagaTransaction(transaction, request);
           }
           
-          if (transaction.dependencies.length > 0 && !allDependentsHaveEmptyDependencies){
-            // Check for linear chain: ['tx-2'] -> ['tx-5'] -> ['tx-6'] -> []
-            const linearChainInfo = this.analyzeLinearChain(transaction, transactionsToExecute);
-            
-            if (linearChainInfo.isSelfReferencing) {
-              // Special case: 'tx-2' -> 'tx-5' -> 'tx-5' (iterative saving)
-              console.log('🔄 Self-referencing linear chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> '));
-            // const agent = this.agents.get('TransactionGroupingAgent');
-             
-              result = await this.executeSelfReferencingChain(linearChainInfo.chain, request);
-          hasLinearDependency = true;
+          // Flow-based dependency detection - prioritize agentFlow patterns over dependency analysis
+          if (transaction.dependencies.length > 0 && !allDependentsHaveEmptyDependencies) {
+            // 1. Check for self-referencing flow first (highest priority)
+            if (this.hasSelfReferencingDependencyFromFlow(transaction)) {
+              console.log('🔄 Self-referencing flow detected from agentFlow');
+              const selfRefPartners = this.getSelfReferencingPartnersFromFlow(transaction, transactionsToExecute);
               
-              // Mark all chain transactions as processed
-              for (const chainTx of linearChainInfo.chain) {
-                processedInCycle.add(chainTx.id);
-              }
-            } else if (linearChainInfo.isLinearChain) {
-              // Regular linear chain ending in []: just set flag
-              console.log('📏 Linear chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> ') + ' -> []');
+              result = await this.executeSelfReferencingChain(selfRefPartners, request);
               hasLinearDependency = true;
-            } else {
-              // Not a linear chain (could be part of cycle or other complex dependency)
-              console.log(`⚠️ Transaction ${transaction.id} has dependencies but is not a linear chain - likely part of cycle`);
-              hasLinearDependency = false;
+              
+              // Mark all self-referencing transactions as processed
+              for (const selfRefTx of selfRefPartners) {
+                processedInCycle.add(selfRefTx.id);
+              }
             }
-          } 
-console.log('ALL ZERO ',allDependentsHaveEmptyDependencies)
-console.log('ALL ZEROWITH',hasLinearDependency)
-console.log('AGETN  ', transaction.id)
+            // 2. Check for linear flow 
+            else if (this.hasLinearDependencyFromFlow(transaction)) {
+              console.log('📏 Linear flow detected from agentFlow');
+              const linearPartners = this.getLinearPartnersFromFlow(transaction, transactionsToExecute);
+              
+              // Execute linear chain in sequence
+              console.log(`📏 Executing linear chain: ${linearPartners.map(t => t.agentName).join(' -> ')}`);
+              for (const linearTx of linearPartners) {
+                if (!processedInCycle.has(linearTx.id)) {
+                  result = await this.executeSagaTransaction(linearTx, request);
+                  processedInCycle.add(linearTx.id);
+                }
+              }
+              hasLinearDependency = true;
+            }
+            // 3. Fallback to dependency analysis for complex cases
+            else {
+              const linearChainInfo = this.analyzeLinearChain(transaction, transactionsToExecute);
+              
+              if (linearChainInfo.isSelfReferencing) {
+                console.log('🔄 Self-referencing dependency chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> '));
+                result = await this.executeSelfReferencingChain(linearChainInfo.chain, request);
+                hasLinearDependency = true;
+                
+                for (const chainTx of linearChainInfo.chain) {
+                  processedInCycle.add(chainTx.id);
+                }
+              } else if (linearChainInfo.isLinearChain) {
+                console.log('📏 Linear dependency chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> ') + ' -> []');
+                hasLinearDependency = true;
+              } else {
+                console.log(`⚠️ Transaction ${transaction.id} has complex dependencies - likely part of cycle`);
+                hasLinearDependency = false;
+              }
+            }
+          }
+
+          // Handle cyclic flows
           if (transaction.dependencies.length > 0 && transaction.status === 'pending' && !allDependentsHaveEmptyDependencies && !hasLinearDependency && this.hasCycleDependencyFromFlow(transaction)) {
             // Handle extended cycle (N-agent cycle)
             const cyclePartners = this.getCyclePartnersFromFlow(transaction, transactionsToExecute);
