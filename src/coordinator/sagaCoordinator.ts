@@ -4,7 +4,8 @@ import {
   SagaEvent, 
   AgentResult,
   WorkingMemory,
-  LLMConfig
+  LLMConfig,
+  MCPServerConfig
 } from '../types/index.js';
 import { 
   SagaState, 
@@ -45,21 +46,33 @@ export class SagaCoordinator extends EventEmitter {
   private currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
   private  conversationAgentCompleted = false;
-   private ragServerConfig: any;
+   private mcpServers: Record<string, MCPServerConfig>;
   private agentFlows: string[][] = [];
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
-  constructor(ragServerConfig: any) {
+  constructor(mcpServers: Record<string, MCPServerConfig>) {
     super();
   //  this.agentParser = agentParser;
     this.contextManager = new ContextManager();
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
-    this.ragServerConfig = ragServerConfig;
+    this.mcpServers = mcpServers;
   }
 
   registerAgent(definition: AgentDefinition): void {
+    // BEFORE creating GenericAgent, intelligently assign servers based on tools
+    if (definition.agentType === 'tool' && definition.mcpTools && definition.mcpTools.length > 0) {
+      // Use getServersForTools to determine which servers this agent needs
+      definition.mcpServers = this.getServersForTools(definition.mcpTools);
+    } else if (definition.agentType === 'tool' && (!definition.mcpServers || definition.mcpServers.length === 0)) {
+      // Fallback: if it's a tool agent but no tools specified, provide all servers
+      definition.mcpServers = this.getServersForTools(['execute_python']);
+   //   definition.mcpServers = Object.values(this.mcpServers);
+      console.log(`🔧 Tool agent ${definition.name} has no specific tools defined, providing all MCP servers`);
+    }
+    
+    // THEN create GenericAgent with the enhanced definition
     const agent = new GenericAgent(definition);
     this.agents.set(definition.name, agent);
     this.agentDefinitions.set(definition.name, definition);
@@ -71,10 +84,12 @@ export class SagaCoordinator extends EventEmitter {
             maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
             apiKey: process.env.OPENAI_API_KEY
     }
-    if(definition.agentType === 'tool'){
+
+    /*
+if(definition.agentType === 'tool'){
       definition.mcpServers = [this.ragServerConfig];
     }
-
+    */
     console.log(`🔧 Registered agent: ${definition.name}`);
     console.log(`🔧 MCP servers: ${definition.mcpServers?.map(s => s.name).join(', ') || 'none'}`);
     console.log(`🔧 MCP tools: ${definition.mcpTools?.join(', ') || 'none'}`);
@@ -82,6 +97,42 @@ export class SagaCoordinator extends EventEmitter {
 
   registerAgentFlows(agentFlow: string[]){
     this.agentFlows.push(agentFlow);
+  }
+
+  /**
+   * Intelligently determine which MCP servers are needed based on the tools an agent requires
+   */
+  private getServersForTools(tools: string[]): MCPServerConfig[] {
+    const serverMap: Record<string, keyof typeof this.mcpServers> = {
+      'execute_python': 'execution',
+      'execute_typescript': 'execution', 
+      'semantic_search': 'rag',
+      'get_chunks': 'rag',
+      'index_file': 'rag',
+      'structured_query': 'rag',
+      'calculate_energy_totals': 'rag',
+      'save_processed_data': 'rag',
+      'process_data_chunk': 'rag'
+    };
+    
+    const requiredServers = new Set<keyof typeof this.mcpServers>();
+    tools.forEach(tool => {
+      const server = serverMap[tool];
+      if (server && this.mcpServers[server]) {
+        requiredServers.add(server);
+      }
+    });
+    
+    // If no specific mapping found, provide all available servers as fallback
+    if (requiredServers.size === 0) {
+      console.log(`⚠️ No server mapping found for tools: ${tools.join(', ')}. Providing all available servers.`);
+      return Object.values(this.mcpServers);
+    }
+    
+    const selectedServers = Array.from(requiredServers).map(key => this.mcpServers[key]).filter(Boolean);
+    console.log(`🎯 Selected MCP servers for tools [${tools.join(', ')}]: ${selectedServers.map(s => s.name).join(', ')}`);
+    
+    return selectedServers;
   }
 
   private getCyclePartnersFromFlow(transaction: SagaTransaction, transactions: SagaTransaction[]): SagaTransaction[] {
@@ -1735,7 +1786,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         transactionId: iteratingTransaction.id,
         timestamp: new Date()
       });
-      console.log('ITERATION ZERO ', result.result)
+  //    console.log('ITERATION ZERO ', result.result)
       } else{
         const groupCtx = this.contextManager.getContext(iteratingTransaction.agentName) as WorkingMemory;
         this.contextManager.updateContext(iteratingTransaction.agentName, {
@@ -1743,7 +1794,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         transactionId: iteratingTransaction.id,
         timestamp: new Date()
       });
-       console.log('ITERATION NOT ZERO ', groupCtx.previousResult)
+     //  console.log('ITERATION NOT ZERO ', groupCtx.previousResult)
       }
         iteration++;
     }
@@ -2087,9 +2138,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         
         // Execute the transaction with cycle context
         finalResult = await this.executeSagaTransactionWithContext(transaction, request, cycleContext);
-     //   console.log('RAW FINAL RESULT:', finalResult);
-  console.log('RAW FINAL RESULT TYPE:', typeof finalResult.result);
-  console.log('RAW FINAL RESULT LENGTH:', finalResult.result?.length);
+  
         
         if (!finalResult.success) {
           console.error(`❌ Cycle transaction failed: ${transaction.agentName} - ${finalResult.error}`);
@@ -2191,6 +2240,8 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
                     hasValidChunks = true;
                   }
                 }
+
+
                 
                 page = maxEndRow;
                 hasMoreChunks = hasValidChunks;
@@ -2252,7 +2303,9 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
         allProcessedData = allProcessedData.concat(finalResult.result.data);
         console.log(`📦 Collected ${finalResult.result.data.length} records, total: ${allProcessedData.length}`);
       }
-      
+      this.agents.forEach(agent =>{
+        agent.deleteContext();
+      })
       iteration++;
       
       if (hasMoreChunks) {
@@ -2383,8 +2436,8 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     const baseContext = await this.buildSagaTransactionContext(transaction, request);
     
     // Add cycle-specific enhancements
-    let enhancedTask = baseContext.agentSpecificTask || '';
-    console.log('BASE CONTEXT', baseContext.agentSpecificTask)
+    let enhancedTask = '';//baseContext.agentSpecificTask || '';
+    
     // Add cycle context information
     enhancedTask += `\n\nEXTENDED CYCLE PROCESSING CONTEXT:\n`;
     enhancedTask += `- You are agent ${cycleMetadata.cyclePosition + 1} of ${cycleMetadata.totalInCycle} in a processing cycle\n`;
@@ -2437,7 +2490,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     }
     
     return {
-     ...baseContext,
+    // ...baseContext,
       agentSpecificTask: enhancedTask,
       page: cycleMetadata.page || 1,
       extendedCycleDependency: {

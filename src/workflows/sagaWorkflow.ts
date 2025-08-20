@@ -14,6 +14,7 @@ import {AgentParser } from '../agents/agentParser.js'
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
   private ragServerConfig: any;
+  private codeGenServerConfig: any;
   private initialized: boolean = false;
   private eventBusClient: SAGAEventBusClient;
   private config: HumanInLoopConfig;
@@ -29,14 +30,30 @@ export class SagaWorkflow {
   constructor(config: HumanInLoopConfig) {
     this.config = config;
     
-    this.ragServerConfig = createMCPServerConfig({
-      name: "rag-server",
-      transport: "stdio",
-      command: "node",
-      args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
-      timeout: 600000
-    });
-    this.coordinator = new SagaCoordinator(this.ragServerConfig);
+    // Create multiple MCP server configurations
+    const mcpServers = {
+      rag: createMCPServerConfig({
+        name: "rag-server",
+        transport: "stdio",
+        command: "node",
+        args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
+        timeout: 600000
+      }),
+      execution: createMCPServerConfig({
+        name: "execution-server",
+        transport: "stdio",
+        command: "node",
+        args: ["C:/repos/codeGen-mcp-server/dist/server.js", "--stdio"],
+        timeout: 300000
+      })
+    };
+
+    // Store for backward compatibility
+    this.ragServerConfig = mcpServers.rag;
+    this.codeGenServerConfig = mcpServers.execution;
+    
+    // Pass all servers to coordinator
+    this.coordinator = new SagaCoordinator(mcpServers);
 
     this.eventBusClient = new SAGAEventBusClient(config.eventBus.url);
     
@@ -78,7 +95,8 @@ export class SagaWorkflow {
     
     // Connect to RAG server
     try {
-      await connectToMCPServer(this.ragServerConfig);
+    //  await connectToMCPServer(this.ragServerConfig);
+      await connectToMCPServer(this.codeGenServerConfig);
       console.log('✅ Connected to RAG MCP server');
     } catch (error) {
       throw new Error(`Failed to connect to RAG server: ${error}`);

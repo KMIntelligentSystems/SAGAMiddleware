@@ -609,3 +609,36 @@ RAG MCP Server started in stdio mode*/
 
 // Singleton instance for global access
 export const mcpClientManager = new MCPClientManagerImpl();
+
+/*
+How the MCP client connects to multiple stdio servers:
+
+  Each MCP server runs as a separate process with its own stdio transport. Here's the connection flow:
+
+  1. Agent Definition Configuration: Agents specify which MCP servers they need via mcpServers array in their AgentDefinition:
+  mcpServers: [
+    {
+      name: "execution-server",
+      transport: "stdio",
+      command: "node",
+      args: ["./your-execution-server.js"]
+    },
+    {
+      name: "rag-server",
+      transport: "stdio",
+      command: "uvx",
+      args: ["mcp-server-rag"]
+    }
+  ]
+  2. Process Spawning: For each server config, the StdioClientTransport at mcpClient.ts:191-195 spawns a separate child process:
+    - Server 1: Spawns node ./your-execution-server.js
+    - Server 2: Spawns uvx mcp-server-rag
+  3. Independent Communication: Each server has its own stdio channel:
+    - Client maintains separate Client instances (line 220)
+    - Each with dedicated StdioClientTransport (line 221)
+    - Stored in Maps by server name (lines 220-222)
+  4. Tool Routing: When executing tools, executeMCPToolCall at genericAgent.ts:874-915 searches all connected servers to find which one provides the requested tool.
+
+  Key Point: Each stdio MCP server is a completely separate process. The client connects to multiple servers by spawning multiple processes and maintaining separate communication channels with each one. Your       
+  execute_python and execute_typescript tools will be available once your execution server process is connected alongside your existing RAG server process.
+*/

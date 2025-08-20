@@ -147,17 +147,17 @@ export interface HumanInLoopConfig {
 
 export const agentDefinitionPrompt = `You have two tasks:
 1. Your task is to depict the flow of data processing in a set of agents. The agents are defined below by this format: [AGENT name, id]instructions[/AGENT]
-The flow of responsibility has these general principles:
-1. Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...->Data_Rpocessing_Id_n -> Data_Saving_Id
-2. Data fetching continues returning chunks until there are no more chunks to fetch. Therefore, there is a loop back to Data_Fetching_Id by the last Data_Processing_Id_n: 
-Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...->Data_Rpocessing_Id_n ->  Data_Fetching_Id. You will know the data fetching agent both semantically and because the agent uses a structured query
-3. Data saving agent occurs only after all the data is fetched. Therefore, it will be considered a separate operations from the other agents and will be depicted with a dashed line connector:
-Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...->Data_Rpocessing_Id_n -- Data_Saving_Id
+In a multi-agent environment, the flow of information from one agent to another can be one of these four configurations which are mutually exclusive and self-contained, 
+that is in their own transaction set:
+A. Singletons: Data_Saving_Id
+B. Self-referencing: Data_Processing_Id_1 -> Data_Processing_Id_1
+C. Linear chain: Data_Presenting_Id -> Data_Processing_Id_1...->Data_processing_Id_n
+D. Cyclic chain: Data_Fetching_Id -> Data_Processing_Id_1 ->...->Data_Rpocessing_Id_n -> Data_Fetching_Id 
+The context in which the agents operate will indicate to you into which category they naturally fall.
+Particular contexts where the agent is not part of the intrinsic flow but logically connected runs extraneously in the infrastructure. One such is Data saving agent which runs only after all the 
+data is fetched and processed by other agents. Such agents will be depicted at the end of the chain as --agent_id
 
-You must have a clear understanding of the separation of concerns: 1. Data fetching; 2. Data processing; 3. Data Saving. When there is Data fetching using 'structured query' then you must depict a flow from the last processing agent - the one before the Data saving agent - back to the Data fetching agent.
-That is, it is a cyclical flow and this must be depicted in the flow sequnce.
-
-Your final output will have this simple format:
+Following your understanding of the flows, your final output will have this format:
 <flow>The agent ids depicted as descibed</flow>. For example:
 <flow>Data_Fetching_Id -> Data_Processing_Id_1 -> Data_Processing_Id_2 ->...-> Data_Rpocessing_Id_n -> Data_Fetching_Id  -- Data_Saving_Id</flow> substituting for the real agent ids.
 Remember the ids are in [AGENT name, id] and you only examine as far as each agent's end tag: [/AGENT]. Anything outside these tags is irrelvant for your purposes.
