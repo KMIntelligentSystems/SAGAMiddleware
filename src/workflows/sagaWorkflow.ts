@@ -345,7 +345,7 @@ Focus: Only array extraction
         const agentType = agentTypes.get(agentName);
         
         if (agentType === 'tool') {
-          agent = this.createAgentFromLLMPrompts(agentName, [this.ragServerConfig]);
+          agent = this.createAgentFromLLMPrompts(agentName, [this.codeGenServerConfig]);
         } else {
           agent = this.createAgentFromLLMPrompts(agentName);
         }

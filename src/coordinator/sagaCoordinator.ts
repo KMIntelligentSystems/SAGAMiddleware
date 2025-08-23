@@ -58,6 +58,7 @@ export class SagaCoordinator extends EventEmitter {
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
     this.mcpServers = mcpServers;
+    this.agentFlows.push(['tx-2', 'tx-2'])
   }
 
   registerAgent(definition: AgentDefinition): void {
@@ -97,6 +98,7 @@ if(definition.agentType === 'tool'){
 
   registerAgentFlows(agentFlow: string[]){
     this.agentFlows.push(agentFlow);
+    console.log('AGENT FLOW ', this.agentFlows)
   }
 
   /**
@@ -201,6 +203,8 @@ if(definition.agentType === 'tool'){
   private hasLinearDependencyFromFlow(transaction: SagaTransaction): boolean {
     // Check if this transaction is part of a linear chain in any agent flow
     for (const flow of this.agentFlows) {
+      console.log('FLOW ', flow)
+      console.log('ID ', transaction.id)
       const transactionIndex = flow.indexOf(transaction.id);
       if (transactionIndex === -1) continue;
       
@@ -253,6 +257,57 @@ if(definition.agentType === 'tool'){
     return linearPartners;
   }
 
+   private async executeSagaTransactionWithLinearContext(
+    transaction: SagaTransaction,
+    linearTransactions: SagaTransaction[]
+  ): Promise<AgentResult> {
+   
+    const processedInCycle = new Set<string>();
+    let result: AgentResult = {agentName: '',
+      result: '',
+      success: false,
+      timestamp: new Date()
+    };
+    for (const linearTx of linearTransactions) {
+        if (!processedInCycle.has(linearTx.id)) {
+           let agent = this.agents.get(linearTx.agentName);
+          if(transaction.id === linearTx.id){
+            result = await agent?.execute({}) as AgentResult;
+          }
+          else{
+            const res = result?.result as AgentResult
+            console.log('HERE IN LINEAR',res?.result)
+            const cleanCode = this.cleanPythonCode(res?.result || '')
+            result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+          }
+          processedInCycle.add(linearTx.id);        
+    }
+  }
+    // Execute with enhanced context
+    return {agentName: transaction.agentName,
+  result: result,
+  success: true,
+  timestamp: new Date(
+    
+  )};
+  }
+
+  private cleanPythonCode(rawCode: string): string {
+    // Handle JavaScript-style concatenated strings with + operators
+    let cleaned = rawCode
+      // Remove string concatenation operators and newlines
+      .replace(/'\s*\+\s*$/gm, '')
+      .replace(/'\s*\+\s*'/g, '')
+      .replace(/`/g, "'")  // Fix backticks to quotes
+      // Remove leading/trailing quotes and handle escape sequences
+      .replace(/^'/, '')
+      .replace(/'$/, '')
+      .replace(/\\n/g, '\n')
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"');
+    
+    return cleaned.trim();
+  }
   private getSelfReferencingPartnersFromFlow(transaction: SagaTransaction, transactions: SagaTransaction[]): SagaTransaction[] {
     const selfRefPartners: SagaTransaction[] = [];
     
@@ -471,8 +526,12 @@ sleep(ms: number) {
 
         if(transactionSet.id === 'data-loading-set' && setResult.result){
  // Parse agent patterns from conversation context and create generic agents
+ /*
+Have to have trans grouper as self-reflect as 
+ */
           { 
               const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+
               dynamicTransactionSet = AgentParser.parseAndCreateAgents(
                  groupedContext.previousResult,
                  setResult.result,
@@ -713,26 +772,17 @@ sleep(ms: number) {
         transaction.transactionPrompt = transactionSet.prompt;
         transaction.transactionSetId = transactionSet.id;
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
-        
-       
-        
-        // Check if transaction has dependencies where ALL dependents have no dependencies
-        let hasLinearDependency = false;
-        let allDependentsHaveEmptyDependencies = false;
-        if (transaction.dependencies.length > 0) {
-          const dependentTransactions = transactionsToExecute.filter(tx => 
-            transaction.dependencies.includes(tx.id)
-          );
-            allDependentsHaveEmptyDependencies = dependentTransactions.every(depTx => 
-            depTx.dependencies.length === 0
-          );
-          //tx-4 ->tx-2 -> []
-          if (allDependentsHaveEmptyDependencies) {
-            result = await this.executeSagaTransaction(transaction, request);
+         for (const flow of this.agentFlows) {
+              const transactionIndex = flow.indexOf(transaction.id)
+               if (transactionIndex === -1 ){
+                console.log('IN SINNGLETON ')
+                result = await this.executeSagaTransaction(transaction, request);
+            } 
+            break;
           }
-          
-          // Flow-based dependency detection - prioritize agentFlow patterns over dependency analysis
-          if (transaction.dependencies.length > 0 && !allDependentsHaveEmptyDependencies) {
+        
+          let hasLinearDependency = false;
+          if (transaction.dependencies.length > 0 /*&& !allDependentsHaveEmptyDependencies*/) {
             // 1. Check for self-referencing flow first (highest priority)
             if (this.hasSelfReferencingDependencyFromFlow(transaction)) {
               console.log('🔄 Self-referencing flow detected from agentFlow');
@@ -745,6 +795,7 @@ sleep(ms: number) {
               for (const selfRefTx of selfRefPartners) {
                 processedInCycle.add(selfRefTx.id);
               }
+              this.agentFlows = [];
             }
             // 2. Check for linear flow 
             else if (this.hasLinearDependencyFromFlow(transaction)) {
@@ -753,38 +804,11 @@ sleep(ms: number) {
               
               // Execute linear chain in sequence
               console.log(`📏 Executing linear chain: ${linearPartners.map(t => t.agentName).join(' -> ')}`);
-              for (const linearTx of linearPartners) {
-                if (!processedInCycle.has(linearTx.id)) {
-                  result = await this.executeSagaTransaction(linearTx, request);
-                  processedInCycle.add(linearTx.id);
-                }
-              }
-              hasLinearDependency = true;
-            }
-            // 3. Fallback to dependency analysis for complex cases
-            else {
-              const linearChainInfo = this.analyzeLinearChain(transaction, transactionsToExecute);
-              
-              if (linearChainInfo.isSelfReferencing) {
-                console.log('🔄 Self-referencing dependency chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> '));
-                result = await this.executeSelfReferencingChain(linearChainInfo.chain, request);
-                hasLinearDependency = true;
-                
-                for (const chainTx of linearChainInfo.chain) {
-                  processedInCycle.add(chainTx.id);
-                }
-              } else if (linearChainInfo.isLinearChain) {
-                console.log('📏 Linear dependency chain detected:', linearChainInfo.chain.map(t => t.id).join(' -> ') + ' -> []');
-                hasLinearDependency = true;
-              } else {
-                console.log(`⚠️ Transaction ${transaction.id} has complex dependencies - likely part of cycle`);
-                hasLinearDependency = false;
-              }
-            }
-          }
+              const result = this.executeSagaTransactionWithLinearContext(transaction, linearPartners)
 
-          // Handle cyclic flows
-          if (transaction.dependencies.length > 0 && transaction.status === 'pending' && !allDependentsHaveEmptyDependencies && !hasLinearDependency && this.hasCycleDependencyFromFlow(transaction)) {
+                hasLinearDependency = true;
+            } else if (transaction.dependencies.length > 0 && transaction.status === 'pending' && !hasLinearDependency
+             && this.hasCycleDependencyFromFlow(transaction)) {
             // Handle extended cycle (N-agent cycle)
             const cyclePartners = this.getCyclePartnersFromFlow(transaction, transactionsToExecute);
             let containsTransaction = false;
@@ -840,7 +864,7 @@ sleep(ms: number) {
             } else {
               throw new Error(`Extended cycle detected but no partners found for ${transaction.id}`);
             }
-          } else if (transaction.status === 'pending' && this.hasCircularDependency(transaction, transactionsToExecute)) {
+          }/* else if (transaction.status === 'pending' && this.hasCircularDependency(transaction, transactionsToExecute)) {
             // Handle traditional 2-agent circular dependency
             const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
             console.log('🔄  Circularpartner:', circularPartner?.agentName);
@@ -849,33 +873,22 @@ sleep(ms: number) {
             } else {
               throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
             }
-          } else if (transaction.status === 'pending' ) {
-            // Regular transaction execution
-            result = await this.executeSagaTransaction(transaction, request);
+          } */
           }
-        } /*else if (this.hasCircularDependency(transaction, transactionsToExecute)) {
-          // Handle traditional 2-agent circular dependency
-          const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
-          console.log('🔄  Circularpartner:', circularPartner?.agentName);
-          if (circularPartner) {
-            result = await this.executeCircularDependencyLoop(transaction, circularPartner, request);
-          } else {
-            throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
+      
+       if (!result.success && !hasLinearDependency)
+         {
+          for (const flow of this.agentFlows) {
+              const transactionIndex = flow.indexOf(transaction.id)
+               if (transactionIndex === -1 ){
+                console.log(`❌ Transaction failed: ${transaction.name} - ${result.result}`);
+                this.sagaState!.errors.push(`${transaction.name}: ${result.error}`);
+                  // Execute compensations for completed transactions
+                  //  await this.executeCompensations();
+                 throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
+            } 
+            break;
           }
-        }*/ 
-       else if (transaction.status === 'pending' ){
-          // Regular transaction execution
-          result = await this.executeSagaTransaction(transaction, request);
-        } 
-        
-        if (!result.success) {
-          console.log(`❌ Transaction failed: ${transaction.name} - ${result.error}`);
-          this.sagaState!.errors.push(`${transaction.name}: ${result.error}`);
-          
-          // Execute compensations for completed transactions
-          await this.executeCompensations();
-          
-          throw new Error(`Transaction ${transaction.name} failed: ${result.error}`);
         }
         // Each agent gets its own instructions from the bracket parsing - no context passing needed
         counter++;
@@ -897,6 +910,7 @@ sleep(ms: number) {
         });
         }
         else{
+        console.log('HERE IN THIS', transaction.agentName)
             this.contextManager.updateContext(transaction.agentName, {
           lastTransactionResult: result.result,
           transactionId: transaction.id,
@@ -1073,46 +1087,32 @@ sleep(ms: number) {
     if (transaction.agentName === 'ConversationAgent') {
     //  console.log('TRANSACTION GROUPING  ', transaction.transactionPrompt)
     //  console.log('AGENT ',this.agents.get('TransactionGroupingAgent'))
-      this.agents.get('TransactionGroupingAgent')?.receiveContext({'TransactionGroupingAgent_Prompt': transaction.transactionPrompt})
+      this.agents.get('TransactionGroupingAgent')?.receiveContext({'TransactionGroupingAgent_Prompt': agentDefinitionPrompt})//transaction.transactionPrompt
       // ConversationAgent needs the entire user query for human-in-the-loop conversations
       agentSpecificTask = request.userQuery || '';
     } 
      else if(transaction.agentName === 'TransactionGroupingAgent')//
     {
-   /*   if(transactionSetId == 'processing-set'){
-
-             const lastRes = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
-            console.log('LAST ', JSON.stringify(lastRes.lastTransactionResult))
-           // const transactionGroupingAgent =this.agents.get('TransactionGroupingAgent');
-          //  transactionGroupingAgent?.receiveContext({'Step 2:': transactionGroupPrompt});
-      } else if(transactionSetId == 'saving-set'){
-         const transactionGroupingAgent =this.agents.get('TransactionGroupingAgent');
-            transactionGroupingAgent?.receiveContext({'Step 3:': transactionSavingPrompt});
-      }*/
-
       if(!this.conversationAgentCompleted){
-agentSpecificTask = transaction.transactionPrompt as string; //transactionGroupPrompt;
+        agentSpecificTask = transaction.transactionPrompt as string; //transactionGroupPrompt;
         agentSpecificTask += 'User Requirements:' + this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
         this.conversationAgentCompleted = true;
+        
       }
-      else {
-     /*   const filteringAgentResult: WorkingMemory = this.contextManager.getContext('DataFilteringAgent') as WorkingMemory;
-         agentSpecificTask ='Your task is to provide the DataSavingAgent requirements as provided by the user. You will find the data saving requirents and pass explicit instructions to the DataSavingAgent';
-         //Finalization of DataFilteringAgent ' + JSON.stringify(filteringAgentResult.lastTransactionResult);
-         agentSpecificTask += '**CRITICAL**\n concentrate only on Data Savings: as this is critical to the next agent. The data operations before the Data Savings have been completed and are no longer relevant to data saving. Ensure that only the items of Data Saving are provided such as the tool name and collection. Only provide information about saving not querying'
-         const initialContext = this.contextManager.getContext('TransactionGroupingAgent')
-         agentSpecificTask += 'User Requirements for saving processed data:' + JSON.stringify(initialContext?.lastTransactionResult); //this.parseConversationResultForAgent(conversationContext.lastTransactionResult, transaction.agentName);
-         //const foundTransaction = SAGA_TRANSACTIONS.find(transaction => transaction.agentName === 'TransactionGroupingAgent');
-       // foundTransaction?.dependencies.push('tx-5');*/
-
-      }
-      
-     
     }
     else{
-    
+     
       const currPrompt = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
-        agentSpecificTask = this.parseConversationResultForAgent(JSON.stringify(currPrompt.lastTransactionResult), transaction.agentName);
+      let prompt = JSON.stringify(currPrompt.previousResult);
+       if(transaction.agentType === 'tool'){
+        console.log(' CURR PROMPT',prompt)
+        if(prompt.includes('"code": {code}')){
+          const res = this.contextManager.getContext(transaction.agentName) as WorkingMemory;
+          prompt = prompt.replace('"code": {code}', '"code": {' + JSON.stringify(res.lastActionResult) + '}')
+
+        }
+      }
+        agentSpecificTask = this.parseConversationResultForAgent(prompt, transaction.agentName);
 
        console.log('TRANSACTION PROMPT',  agentSpecificTask)
 

@@ -25,7 +25,7 @@ export class AgentParser {
     if (!textToParse) {
       console.log('AgentParser: No conversation text provided');
       return this.createEmptyCollection();
-    }
+    }                          
     if(textToParse.includes('[ / AGENT]')){
       textToParse = textToParse.replace('[ / AGENT]', '[/AGENT]');
     }
@@ -148,7 +148,7 @@ export class AgentParser {
     
     const dependencies: { [agentId: string]: string[] } = {};
     let separationOfConcerns: { dependencies: string[], lastElement: string } | null = null;
-    
+    let flow: string[] = [];
     if (flowMatch) {
       const fullFlowContent = flowMatch[1].trim();
       console.log(`AgentParser: Found full flow content: ${fullFlowContent}`);
@@ -170,7 +170,7 @@ export class AgentParser {
       console.log(`AgentParser: Found flow diagram: ${flowString}`);
       
       // Check for separation of concerns pattern (-- separator)
-      let flow: string[];
+      
       let lastElement: string | null = null;
       
       if (flowString.includes('--')) {
@@ -254,9 +254,8 @@ export class AgentParser {
     }
      
     if (sagaCoordinator && typeof sagaCoordinator.registerAgentFlows === 'function') {
-          if (separationOfConcerns && separationOfConcerns.dependencies) {
-            sagaCoordinator.registerAgentFlows(separationOfConcerns.dependencies);
-          }
+      console.log('HERE IN REGISTER')
+        sagaCoordinator.registerAgentFlows(flow);
     }
 
     console.log(`AgentParser: Calculated dependencies:`, dependencies);
