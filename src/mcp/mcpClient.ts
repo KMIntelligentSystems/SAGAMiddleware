@@ -2,7 +2,6 @@
 //import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
 import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
 import { globalDataProcessor, ProcessedDataWithKey } from '../processing/dataResultProcessor.js';
-
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
@@ -279,7 +278,16 @@ RAG MCP Server started in stdio mode*/
     }
     return allTools;
   }
-
+/*
+MCP tool execute_python raw response: {
+  "content": [],
+  "success": false,
+  "stdout": "",
+  "stderr": "File \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1755927018024.py\", line 50\r\n    if cols[0] == 'date/time\r\n                  ^\r\nSyntaxError: unterminated string literal (detected at line 50)",
+  "error": "Command failed: py \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1755927018024.py\"\n  File \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1755927018024.py\", line 50\r\n    if cols[0] == 'date/time\r\n                  ^\r\nSyntaxError: unterminated string literal (detected at line 50)\r\n",
+  "filename": "script_1755927018024.py"
+}
+*/
   async callTool(serverName: string, toolCall: MCPToolCall, context?: ToolCallContext): Promise<any> {
     // First, intercept and enhance the tool call if needed
     const enhancedToolCall = await this.interceptAndEnhance(toolCall, context || {});
@@ -374,9 +382,9 @@ RAG MCP Server started in stdio mode*/
             return textContent;
           }
         }
-        return response.content;
+        return response;
       }
-      return response.content;
+      return response;
     } catch (error) {
       throw new Error(`MCP tool call failed for ${enhancedToolCall.name} on server ${serverName}: ${error instanceof Error ? error.message : String(error)}`);
     }

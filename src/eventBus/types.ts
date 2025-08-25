@@ -27,7 +27,6 @@ export interface EventBusConfig {
   reconnectionAttempts?: number;
   timeout?: number;
 }
-
 // Event type definitions for better type safety
 export type SAGAEventType = 
   | 'start_visualization_saga'

@@ -50,7 +50,6 @@ export class ContextManager {
     if (!history || history.length < steps) {
       return false;
     }
-
     const targetContext = history[history.length - steps];
     this.workingMemory.set(agentName, targetContext);
     this.contextHistory.set(agentName, history.slice(0, -steps));

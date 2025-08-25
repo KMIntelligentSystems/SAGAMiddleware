@@ -7,7 +7,6 @@ export class TransactionManager {
 
   async startTransaction(agentName: string): Promise<string> {
     const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
     const transaction: Transaction = {
       id: transactionId,
       agentName,

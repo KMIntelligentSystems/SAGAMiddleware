@@ -2,6 +2,7 @@ import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/i
 import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { OpenAI } from 'openai';
 
+
 export class GenericAgent {
   private availableTools: any[] = [];
   private availableResources: any[] = [];
@@ -48,7 +49,7 @@ export class GenericAgent {
       
       return {
         agentName: this.definition.name,
-        result,
+        result: result,
         success: true,
         timestamp: startTime
       };
@@ -579,7 +580,7 @@ export class GenericAgent {
            
             return {
               agentName: this.getName(),
-              result: message.content || "",
+              result: message || "",
               success: true,
               timestamp: new Date()
             };
@@ -773,7 +774,7 @@ export class GenericAgent {
     
     console.log("Reached maximum iterations, returning last conversation state");
     // If we reach here, return the last response instead of throwing error
-    const lastMessage = conversationHistory[conversationHistory.length - 1];
+    const lastMessage = conversationHistory[conversationHistory.length - 1]; // "content": [],
     if (lastMessage && lastMessage.content) {
    //   return typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
 
@@ -886,6 +887,7 @@ export class GenericAgent {
           console.log(`Found tool ${toolCall.name} on server ${serverName}`);
           try {
             // Pass the stored MCP tool call context for enhancement
+            //returns  "content": [],
             return await mcpClientManager.callTool(serverName, toolCall, this.mcpToolCallContext);
           } catch (error) {
             if (error instanceof Error && error.message.includes('timed out')) {

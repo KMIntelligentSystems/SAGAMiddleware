@@ -7,7 +7,6 @@ export interface HumanApprovalStage {
   artifacts: ApprovalArtifacts;
   interactionToken: string;
 }
-
 export interface ApprovalArtifacts {
   transactionId: string;
   specification?: ChartSpecification;

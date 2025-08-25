@@ -10,7 +10,6 @@ export interface ThreadMessage {
   userMessage: string;
   messageTimestamp: Date;
 }
-
 export interface ThreadResponse {
   success: boolean;
   threadId: string;

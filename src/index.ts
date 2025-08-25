@@ -4,7 +4,6 @@ export { ContextManager } from './sublayers/contextManager.js';
 export { ValidationManager, SchemaValidator } from './sublayers/validationManager.js';
 export { TransactionManager } from './sublayers/transactionManager.js';
 export { MCPClientManagerImpl, mcpClientManager } from './mcp/mcpClient.js';
-export { DataPreprocessor, dataPreprocessor } from './preprocessing/dataPreprocessor.js';
 export * from './types/index.js';
 
 // Visualization workflow exports
@@ -13,11 +12,7 @@ export {
   ConversationManager 
 } from './services/conversationManager.js';
 
-export { 
-  createRequirementsInitializerAgent,
-  createConversationManagerAgent,
-  createRequirementsValidatorAgent
-} from './agents/visualizationSagaAgents.js';
+
 
 export * from './types/visualization.js';
 export * from './types/visualizationSaga.js';
@@ -26,29 +21,6 @@ import { SagaCoordinator } from './coordinator/sagaCoordinator.js';
 import { AgentDefinition, MCPServerConfig } from './types/index.js';
 import { mcpClientManager } from './mcp/mcpClient.js';
 
-/*export function createSagaMiddleware(): SagaCoordinator {
-  return new SagaCoordinator(null);
-}
-
-// Enhanced SAGA middleware with MCP support
-export function createEnhancedSagaMiddleware(options?: {
-  autoConnectMCPServers?: MCPServerConfig[];
-}): SagaCoordinator {
-  const coordinator = new SagaCoordinator();
-  
-  // Auto-connect to MCP servers if provided
-  if (options?.autoConnectMCPServers) {
-    Promise.all(
-      options.autoConnectMCPServers.map(server => 
-        mcpClientManager.connect(server).catch(error => 
-          console.error(`Failed to auto-connect to MCP server ${server.name}:`, error)
-        )
-      )
-    );
-  }
-  
-  return coordinator;
-}*/
 
 export function createAgentDefinition(config: {
   name: string;

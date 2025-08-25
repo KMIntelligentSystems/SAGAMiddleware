@@ -2,6 +2,7 @@ import { GenericAgent } from './genericAgent.js';
 import { AgentDefinition, LLMConfig } from '../types/index.js';
 import { SagaTransaction, TransactionSetCollection, TransactionSet } from '../types/visualizationSaga.js';
 
+
 export class AgentParser {
   /**
    * Parses conversation context and creates TransactionSetCollection with processing and saving agent sets
@@ -25,7 +26,9 @@ export class AgentParser {
     if (!textToParse) {
       console.log('AgentParser: No conversation text provided');
       return this.createEmptyCollection();
-    }                          
+    }   
+    // Replace [AGENT followed by space with [AGENT: (handles cases like '[AGENT Python Executor')
+    textToParse = textToParse.replace(/\[AGENT\s+([^:,\]]+)/g, '[AGENT: $1');                       
     if(textToParse.includes('[ / AGENT]')){
       textToParse = textToParse.replace('[ / AGENT]', '[/AGENT]');
     }
@@ -117,7 +120,7 @@ export class AgentParser {
       const agentName = match[1].trim();
       const agentId = match[2].trim();
       const content = match[3].trim();
-      
+      //AgentParser: DEBUG - Raw match results: { agentName: ': name', agentId: 'id', contentLength: 3 }
       console.log(`AgentParser: DEBUG - Raw match results:`, {
         agentName,
         agentId,
@@ -126,10 +129,12 @@ export class AgentParser {
       
       // Initially set as processing - will be updated after flow parsing if needed
       const agentType: 'tool' | 'processing' = 'processing';
-      
+      //AgentParser: Found agent ": name" with ID "id", initial type "processing"
       console.log(`AgentParser: Found agent "${agentName}" with ID "${agentId}", initial type "${agentType}"`);
-      
-      agentMap.set(agentId, { name: agentName, content, agentType });
+      if(agentId !== 'id' && !agentName.includes('name')){
+         agentMap.set(agentId, { name: agentName, content, agentType });
+      }
+     
     }
     
     console.log(`AgentParser: DEBUG - Total agents found: ${agentMap.size}`);
@@ -155,6 +160,10 @@ export class AgentParser {
       
       console.log('toolUsers     ',toolUsers)
       // Update agent types based on toolUsers array (now that we have the complete list)
+      //AGENTS NAME : name
+      //AGENTS type processing
+      //AGENTS NAME PythonDataNormalizationCoder
+
       agentMap.forEach((agent, agentId) => {
         console.log('AGENTS NAME',agent.name)
          console.log('AGENTS type',agent.agentType)
@@ -297,6 +306,9 @@ AgentParser: Created transaction FTS-005 for FinalTotalsSaver (type: tool) with 
         transactionPrompt: agentInfo.content
       };
 
+//AgentParser: Created transaction id for : name (type: processing) with dependencies: []
+//AgentParser: Created transaction CODER_PY_001 for PythonDataNormalizationCoder (type: processing) with dependencies: [TOOL_EXEC_001]
+//AgentParser: Created transaction TOOL_EXEC_001 for ExecutePythonToolCaller (type: tool) with dependencies: []
       console.log(`AgentParser: Created transaction ${agentId} for ${agentInfo.name} (type: ${agentInfo.agentType}) with dependencies: [${transaction.dependencies.join(', ')}]`);
       allTransactions.push(transaction);
     });

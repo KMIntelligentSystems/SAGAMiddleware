@@ -21,7 +21,8 @@ import {
   SetExecutionResult,
   TransactionSet,
   transactionSavingPrompt,
-  agentDefinitionPrompt
+  agentDefinitionPrompt,
+  groupingAgentPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -268,6 +269,8 @@ if(definition.agentType === 'tool'){
       success: false,
       timestamp: new Date()
     };
+    const groupingTransaction = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+
     for (const linearTx of linearTransactions) {
         if (!processedInCycle.has(linearTx.id)) {
            let agent = this.agents.get(linearTx.agentName);
@@ -279,10 +282,16 @@ if(definition.agentType === 'tool'){
             console.log('HERE IN LINEAR',res?.result)
             const cleanCode = this.cleanPythonCode(res?.result || '')
             result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+            const agentName = agent?.getName() as string
+            console.log('OUT LINEAR ', agentName)
+             console.log('OUT LINEAR  1 ', result.result)
+          //  const ctx = this.contextManager.getContext(agentName) as WorkingMemory;
+           // ctx.lastActionResult = JSON.stringify(result.result);
           }
           processedInCycle.add(linearTx.id);        
     }
   }
+  console.log('RESULT_2', result.result)
     // Execute with enhanced context
     return {agentName: transaction.agentName,
   result: result,
@@ -515,21 +524,22 @@ sleep(ms: number) {
         const setStartTime = new Date();
         
         try {
-          // Execute the transaction set using existing workflow logic
-          const setResult = await this.executeSagaWorkflow(
-            request,
-            `${workflowId}_${setId}`,
-            transactionSet,
-            contextSet,
-            lastExecutionResult
-          );
-
-        if(transactionSet.id === 'data-loading-set' && setResult.result){
- // Parse agent patterns from conversation context and create generic agents
- /*
-Have to have trans grouper as self-reflect as 
- */
-          { 
+          // Execute the transgrouping result - 
+          //'<flow>EDCG-001 -> PTC-001</flow>\n{"toolUsers": ["PythonToolCaller"]}'
+        
+      let setResult: AgentResult = {agentName: '',
+      result: '',
+      success: false,
+      timestamp: new Date()
+    };
+        if(transactionSet.id === 'data-loading-set'){
+                setResult = await this.executeSagaWorkflow(
+                request,
+                `${workflowId}_${setId}`,
+                transactionSet,
+                contextSet,
+                lastExecutionResult
+              );
               const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
 
               dynamicTransactionSet = AgentParser.parseAndCreateAgents(
@@ -537,7 +547,10 @@ Have to have trans grouper as self-reflect as
                  setResult.result,
                  this // Pass the coordinator instance to register agents
               );
-          }
+        } else if(transactionSet.id === 'data-validating-set'){
+          console.log('TRANS NAME ',transactionSet.name)
+            dynamicTransactionSet?.executionOrder.push('data-validating-set');
+            dynamicTransactionSet?.sets.push(transactionSet);
         }
 
           const setEndTime = new Date();
@@ -608,8 +621,8 @@ Have to have trans grouper as self-reflect as
             console.log(`⚠️ Dynamic set '${setId}' not found, skipping`);
             continue;
           }
-
-          console.log(`📋 Processing dynamic set: ${dynamicSet.name} (${setId})`);
+// Processing dynamic set: Data Loading Pipeline (data-validating-set)
+          console.log(`📋 Processing dynamic set: ${dynamicSet.name} (${setId})`);//['processing-set']
 
           // Handle specific set types with placeholder if-statements
           if (setId === 'processing-set') {
@@ -637,7 +650,41 @@ Have to have trans grouper as self-reflect as
            }
           }
 
-          }
+          } if (setId === 'data-validating-set' && dynamicSet.name === 'Data Validating Pipeline'){
+                let sagaTransactionName = '';
+                /*
+LAST RESULT   {
+  setId: 'processing-set',
+  success: true,
+  result: null,
+  executionTime: 1,
+  transactionResults: {},
+  metadata: {
+    startTime: 2025-08-24T23:07:33.912Z,
+    endTime: 2025-08-24T23:07:33.913Z,
+    transactionsExecuted: 2,
+    transactionsFailed: 0
+  }
+}
+
+                */
+                console.log('LAST RESULT  ',lastExecutionResult);
+                dynamicSet.transactions.forEach((transaction: SagaTransaction) => {
+                  for (const flow of this.agentFlows) {
+                  const transactionIndex = flow.indexOf(transaction.id);
+                  if (transactionIndex === -1) continue;}
+                  sagaTransactionName = transaction.agentName
+                }) 
+              
+                const toolAgent = this.agents.get(sagaTransactionName);
+                const toolCtx = toolAgent?.getContext()
+                const agent = this.agents.get('TransactionGroupingAgent');
+                if(dynamicSet.prompt){
+                  agent?.receiveContext({'YOUR TASK:': dynamicSet.prompt})
+                }
+                agent?.receiveContext({'Tool_Call_Result: ': lastExecutionResult?.result})
+                agent?.receiveContext({'Code_Cut: ': toolCtx})
+        }
 
           // Execute the dynamic set using existing workflow logic
           const dynamicSetStartTime = new Date();
@@ -671,7 +718,7 @@ Have to have trans grouper as self-reflect as
 
             setExecutionResults[`dynamic_${setId}`] = dynamicExecutionResult;
             lastExecutionResult = dynamicExecutionResult;
-
+           
             if (!dynamicSetResult.success) {
               overallResult.success = false;
               overallResult.error = `Dynamic set ${setId} failed: ${dynamicSetResult.error}`;
@@ -911,29 +958,23 @@ Have to have trans grouper as self-reflect as
         }
         else{
         console.log('HERE IN THIS', transaction.agentName)
-            this.contextManager.updateContext(transaction.agentName, {
-          lastTransactionResult: result.result,
-          transactionId: transaction.id,
-          timestamp: new Date()
-        });
+         for (const flow of this.agentFlows) {
+              const transactionIndex = flow.indexOf(transaction.id)
+               if (transactionIndex === -1 ){
+                  this.contextManager.updateContext(transaction.agentName, {
+                  lastTransactionResult: result.result,
+                  transactionId: transaction.id,
+                  timestamp: new Date()
+                });  
+              } else {
+                const toolCtx = this.contextManager.getContextHistory(transaction.agentName) as WorkingMemory;
+                console.log('TOOL AGENT ',transaction.agentName)
+                result.result = toolCtx.lastActionResult;
+              }
+          }   
         }
-      
-
         console.log(`✅ Transaction completed: ${transaction.name}`);
-          // All transactions completed successfully
-     /*   this.visualizationSagaState!.status = 'completed';
-       this.visualizationSagaState!.endTime = new Date();
-        this.emit('visualization_transaction_completed', { 
-          transaction: transaction.id,
-          name: transaction.name, 
-          result: result.result,
-          sagaState: this.visualizationSagaState
-        });*/
       }
- 
-  
-    //  await this.transactionManager.commitTransaction(transactionId);
-      
       console.log(`🎉 SAGA completed successfully: ${workflowId}`);
 
  return {

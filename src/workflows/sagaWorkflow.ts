@@ -1,5 +1,5 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
-import { createMCPServerConfig, connectToMCPServer, dataPreprocessor } from '../index.js';
+import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { SagaWorkflowRequest, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
@@ -190,9 +190,9 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-2',
         backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'Your task has two time based sequences. The first constructs detailed agent configurations for data querying and manipulation. The second is calling the data saving operations for which you provide the required information',
+        taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set for the first part of the data processing and provide the necessary information for the second part of saving data'
+        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
       }/*,
      {
         agentName: 'DataLoadingAgent',
@@ -575,79 +575,6 @@ SEQUENCE:
   }
 
   /**
-     * Handle graph request from browser via Event Bus using Enhanced SAGA
-     */
-    /*private async handleBrowserGraphRequest(message: any): Promise<void> {
-      try {
-        console.log(`📊 Processing enhanced graph request from browser...`);
-        
-        // Extract data from the message
-        const { data } = message;
-        const threadId = data.threadId || `browser_${Date.now()}`;
-        const userQuery = data.userQuery || data.query || 'Show me coal energy output trends over the last 3 days';
-        
-        // Create enhanced browser request with three key inputs
-        const browserRequest: BrowserGraphRequest = {
-          // Input 1: Requirements for the graph
-          userQuery,
-          
-          // Input 2: Data requirements including date ranges, output fields, and graph type
-          correlationId: message.messageId || `corr_${Date.now()}`
-        };
-
-  
-  
-        console.log(`📋 Requirements: ${browserRequest.userQuery}`);
-   
-        
-        // Execute the enhanced human-in-the-loop SAGA
-        const result = await this.executeSimpleVisualizationSAGA(browserRequest);
-        
-        // Publish enhanced result back to event bus for the browser
-        this.eventBusClient['publishEvent']('enhanced_saga_result', {
-          result,
-          workflowId: '',//browserRequest.requestId,
-          threadId: '',//browserRequest.threadId,
-          success: result.success,
-          correlationId: browserRequest.correlationId,
-         // processingTime: result.processingTime,
-        //  refinementCycles: result.refinementCycles,
-          source: 'enhanced-human-in-loop-saga',
-          enhancedFeatures: {
-            requirementsAnalysis: true,
-            dataAnalysis: true,
-            enhancedCoding: true,
-            interactiveDemo: true,
-            qualityMetrics: true
-          }
-        }, 'broadcast');
-        
-        if (result.success) {
-          
-         
-        } else {
-        //  console.log(`❌ Enhanced browser graph request failed: ${result.reason}`);
-        }
-        
-      } catch (error) {
-        console.error(`💥 Error handling enhanced browser graph request:`, error);
-        
-        // Publish error back to event bus
-        this.eventBusClient['publishEvent']('enhanced_saga_error', {
-          error: error instanceof Error ? error.message : String(error),
-          workflowId: message.data?.workflowId || `enhanced_browser_error_${Date.now()}`,
-          threadId: message.data?.threadId,
-          correlationId: message.messageId,
-          source: 'enhanced-human-in-loop-saga',
-          enhancedContext: {
-            phase: 'request_processing',
-            services: ['requirements-service', 'data-analysis-service', 'coding-service']
-          }
-        }, 'broadcast');
-      }
-    }*/
-  
-  /**
    * Execute visualization SAGA specifically for OpenAI thread requests
    */
   private async executeThreadVisualizationSAGA(browserRequest: BrowserGraphRequest, threadId: string): Promise<void> {
@@ -698,117 +625,7 @@ SEQUENCE:
       }
     }
   }
-
-  /*  async executeSimpleVisualizationSAGA(browserRequest: BrowserGraphRequest): Promise<AgentResult> {
-    console.log('\n📊 Executing Simple Visualization SAGA');
-    console.log('==========================================');
-
-    try {
-      // Get the active transaction set from registry
-      const activeTransactionSet = this.transactionRegistry.getActiveTransactionSet();
-      if (!activeTransactionSet) {
-        throw new Error('No active transaction set found in registry');
-      }
-      
-      console.log(`🔄 Using transaction set: ${activeTransactionSet.name} with ${activeTransactionSet.transactions.length} transactions`);
-      
-      // Get the active context set for this transaction set
-      const activeContextSet = this.contextRegistry.getContextSetForTransactionSet(activeTransactionSet.name);
-      
-      console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
-      
-      // Pass transaction ordering and context to coordinator
-      const result = await this.coordinator.executeSagaWorkflow(
-        browserRequest, 
-        `simple_saga_${Date.now()}`,
-        activeTransactionSet.transactions,
-        activeContextSet
-      );
-      
-      return result;
-  //    this.displaySAGAResults(result, 'Simple Visualization');
-    } catch (error) {
-      console.error('❌ Simple SAGA failed:', error);
-      const transactionId = ';ll'
-      return await this.handleFailure(transactionId, error, 'sagaState');
-    }
-  }*/
-
-   /**
-     * Handle system failure
-     */
-    private async handleFailure(
-      transactionId: string,
-      error: any,
-      sagaState: any
-    ): Promise<AgentResult> {
-      await this.executeDistributedCompensation(transactionId, sagaState);
-      
-   /*   sagaState.status = 'failed';
-      sagaState.endTime = new Date();
-      sagaState.errors.push(error instanceof Error ? error.message : String(error));
-      
-      await this.persistenceManager.saveTransactionState(transactionId, sagaState);
-  */
-      return {
-        success: false,
-        agentName: '',
-        result: '',
-        error: 'error',
-        timestamp: new Date()
-      //  transactionId,
-       // reason: 'system_failure',
-       // processingTime: sagaState.endTime.getTime() - sagaState.startTime.getTime(),
-      //  humanInteractionTime: this.calculateHumanInteractionTime(sagaState),
-       // servicesUsed: sagaState.completedServices
-      };
-    }
-  
-    /**
-     * Execute compensation actions across all services
-     */
-    private async executeDistributedCompensation(
-      transactionId: string,
-      sagaState: AgentResult
-    ): Promise<void> {
-      console.log(`🔄 Executing distributed compensation for transaction ${transactionId}`);
-      
-      // Cancel any pending human approvals
-    //  await this.humanInteractionService.cancelApprovals(transactionId, 'Transaction failed');
-      
-      // Execute service-specific compensations
-    /*  for (const [serviceId, service] of sagaState.services.entries()) {
-        if (service.status === 'completed') {
-          console.log(`↪️ Compensating service: ${serviceId}`);
-          // In real implementation, would call service-specific compensation
-        }
-      }
-    }*/
-  
-    /**
-     * Calculate total time spent in human interactions
-     */
- /*   private calculateHumanInteractionTime(sagaState: AgentResult): number {
-      // In real implementation, would track actual human interaction time
-      return 30000; // Demo: 30 seconds
-    }*/
-  
-    /**
-     * Persist final artifacts to long-term storage
-     */
-   /* private async persistFinalArtifacts(deliverable: FinalDeliverable, transactionId: string): Promise<void> {
-      console.log(`💾 Persisting final artifacts for transaction ${transactionId}`);
-      
-      // In real implementation, would save to database, file system, or cloud storage
-      // For demo, just log the artifacts
-      console.log(`📄 Documentation: ${deliverable.documentation.substring(0, 100)}...`);
-      console.log(`🔧 Deployment instructions ready`);
-      console.log(`📦 Version: ${deliverable.version}`);
-    }*/
-  
 }
-}
-
 
 // Main execution function
 export async function runVisualizationSAGAExample(): Promise<void> {
@@ -861,58 +678,6 @@ export async function runVisualizationSAGAExample(): Promise<void> {
     console.log('');
     console.log('Press Ctrl+C to exit...');
 
-  /*  const choice = await createVisualizationMenu();
-
-    switch (choice) {
-      case '1':
-        console.log('\n🔄 Running Simple Time Series Query...');
-        await processor.executeSimpleVisualizationSAGA();
-        break;
-      
-      case '2':
-        console.log('\n🔄 Running Complex Multi-filter Query...');
-        await processor.executeComplexVisualizationSAGA();
-        break;
-      
-      case '3':
-        console.log('\n🔄 Running Conversation-based Requirements...');
-        await processor.executeConversationBasedSAGA();
-        break;
-      
-      case '4':
-        console.log('\n🔄 Running Failure Recovery Demo...');
-        await processor.executeFailureRecoverySAGA();
-        break;
-      
-      case '5':
-        console.log('\n🔄 Running Batch Processing...');
-        await processor.executeBatchProcessingSAGA();
-        break;
-      
-      case '6':
-        console.log('\n🔄 Running All Examples...');
-        await processor.executeSimpleVisualizationSAGA();
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Brief pause
-        await processor.executeComplexVisualizationSAGA();
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await processor.executeConversationBasedSAGA();
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await processor.executeFailureRecoverySAGA();
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await processor.executeBatchProcessingSAGA();
-        console.log('\n🎉 All examples completed!');
-        break;
-      
-      case '0':
-        console.log('👋 Goodbye!');
-        process.exit(0);
-        break;
-      
-      default:
-        console.log('❌ Invalid choice. Please run again and select 0-6.');
-        process.exit(1);
-    }
-*/
     console.log('\n✨ Visualization SAGA processing complete!');
     console.log('Press any key to exit...');
     

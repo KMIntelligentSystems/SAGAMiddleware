@@ -132,7 +132,6 @@ export class SAGAEventBusClient {
     console.log(`✅ Enhanced start-graph-request routed to human-in-loop processor`);
     console.log(`📊 Priority: ${this.calculatePriority(browserRequest)}, Estimated duration: ${this.estimateProcessingTime(browserRequest)}ms`);
   }
-
   /**
    * Validate and parse incoming browser request
    */

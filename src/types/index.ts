@@ -2,7 +2,6 @@ export interface AgentDependency {
   agentName: string;
   required: boolean;
 }
-
 export interface MCPServerConfig {
   name: string;
   command?: string;

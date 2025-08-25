@@ -148,6 +148,7 @@ export class SchemaValidator implements AgentValidator {
     return { isValid: errors.length === 0, errors, warnings };
   }
 
+  
   // Validate MCP tool availability
   async validateMCPToolAvailability(toolNames: string[]): Promise<ValidationResult> {
     const errors: string[] = [];

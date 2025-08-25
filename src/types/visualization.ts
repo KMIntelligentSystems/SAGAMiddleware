@@ -74,7 +74,6 @@ export interface ChartSpecification {
     tickInterval?: number | string;
     format?: string;
   };
-  
   yAxis: {
     field: string;
     label: string;

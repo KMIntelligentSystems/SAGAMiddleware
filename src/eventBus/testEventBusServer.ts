@@ -12,7 +12,6 @@ try {
   console.error('   This is only needed for event bus testing');
   process.exit(1);
 }
-
 /**
  * Simple event bus server for local testing
  * This simulates a distributed event bus for SAGA coordination

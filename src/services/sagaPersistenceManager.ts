@@ -4,7 +4,6 @@ import {
   SAGACheckpoint,
   HumanInLoopConfig
 } from '../types/humanInLoopSaga.js';
-import { SagaState } from '../types/visualizationSaga.js';
 
 export class SAGAPersistenceManager extends EventEmitter {
   private transactionStates: Map<string, HumanInLoopSAGAState> = new Map();

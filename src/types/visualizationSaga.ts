@@ -1,5 +1,4 @@
 // SAGA state management for visualization workflow
-import { HumanInLoopSAGAState, HumanApprovalStage, HumanDecision } from './humanInLoopSaga.js';
 
 export interface SagaState {
   id: string;
@@ -7,49 +6,6 @@ export interface SagaState {
   currentTransaction: number;
   totalTransactions: number;
   
-  // Human-in-the-loop extensions
-  /*humanInLoop?: {
-    enabled: boolean;
-    currentStage?: HumanApprovalStage['stage'];
-    pendingApproval?: HumanApprovalStage;
-    decisions: HumanDecision[];
-    totalHumanTime?: number; // milliseconds spent in human interaction
-  };
-  
-  // Requirements gathering state
-  requirementsState: {
-    threadId?: string;
-    conversationComplete: boolean;
-    requirementsExtracted: boolean;
-    validationComplete: boolean;
-    extractedRequirements?: any;
-  };
-  
-  // Data filtering state  
-  dataFilteringState: {
-    queryStarted: boolean;
-    queryComplete: boolean;
-    filteringComplete: boolean;
-    dataValidated: boolean;
-    filteredData?: any;
-    metadata?: any;
-  };
-  
-  // Chart specification state
-  chartSpecState: {
-    analysisComplete: boolean;
-    specificationGenerated: boolean;
-    specificationValidated: boolean;
-    chartSpec?: any;
-  };
-  
-  // Visualization report state
-  reportState: {
-    narrativeGenerated: boolean;
-    dataEnhanced: boolean;
-    outputValidated: boolean;
-    finalOutput?: any;
-  };*/
   
   errors: string[];
   startTime: Date;
@@ -164,6 +120,8 @@ Remember the ids are in [AGENT name, id] and you only examine as far as each age
 2. Your second task is to nominate those agents which are tool users and provide their names in the following format:
 {"toolUsers": [agent names]}
 `
+export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in code. You will receive the output of a tool call which runs python
+code sent to it. This output will register either success or failure. In the case of failure, you will provide a report to the coding agent with specifics to fix the code `;
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive
@@ -552,6 +510,25 @@ export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
   }*/
 ];
 
+export const SAGA_VALIDATION_TRANSACTIONS: SagaTransaction[] = [
+  // Transaction Set 1: Requirements Gathering SAGA
+  { id: 'tx-2',
+    name: 'Coordinator',
+    agentName: 'TransactionGroupingAgent',
+     dependencies: ['tx-2'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }/*,
+  {
+    id: 'tx-2-1',
+    name: 'Index files',
+    agentName: 'DataLoadingAgent',
+     dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }*/
+];
+
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
@@ -707,6 +684,12 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       description: 'Final transaction grouping and data saving with self-referencing iterations',
       prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_CONVERSATION_TRANSACTIONS
+    },
+     { id: 'data-validating-set',
+      name: 'Data Validating Pipeline',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: groupingAgentPrompt,
+      transactions: SAGA_VALIDATION_TRANSACTIONS
     }/*,
     {
       id: 'data-processing-set',
@@ -735,12 +718,14 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       dependencies: ['data-processing-set']
     }*/
   ],
-  executionOrder: ['data-loading-set'/*, 'data-processing-set', 'data-saving-set'*/],
+  executionOrder: ['data-loading-set', 'data-validating-set'/*, 'data-processing-set', 'data-saving-set'*/],
   metadata: {
     version: '1.0.0',
     created: new Date()
   }
 };
+
+
 
 export interface SagaWorkflowRequest {
   userQuery?: string;

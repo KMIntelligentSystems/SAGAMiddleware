@@ -5,7 +5,6 @@ export interface ContextRegistryConfig {
   eventBusUrl: string;
   defaultContextSet?: string;
 }
-
 export interface DataSource {
   id: string;
   name: string;

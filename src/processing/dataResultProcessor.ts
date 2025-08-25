@@ -56,7 +56,6 @@ export class DataResultProcessor {
 
     return processedData;
   }
-
   /**
    * Generic data cleaning - removes formatting artifacts
    */

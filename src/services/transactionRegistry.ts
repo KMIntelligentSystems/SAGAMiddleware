@@ -5,8 +5,6 @@ export interface TransactionRegistryConfig {
   eventBusUrl: string;
   defaultTransactionSet?: string;
 }
-
-
 export interface Transaction {
   id: string;
   name: string;
