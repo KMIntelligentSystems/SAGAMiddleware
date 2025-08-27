@@ -71,7 +71,7 @@ export class DataResultProcessor {
     
     // Remove extra whitespace and newlines
     cleanedString = cleanedString.replace(/\n\s*\n/g, '\n').trim();
-    console.log('CLEANED STRING  ',cleanedString)
+//console.log('CLEANED STRING  ',cleanedString)
     
     // Try to parse as JSON
     try {

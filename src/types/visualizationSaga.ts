@@ -120,8 +120,10 @@ Remember the ids are in [AGENT name, id] and you only examine as far as each age
 2. Your second task is to nominate those agents which are tool users and provide their names in the following format:
 {"toolUsers": [agent names]}
 `
-export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in code. You will receive the output of a tool call which runs python
-code sent to it. This output will register either success or failure. In the case of failure, you will provide a report to the coding agent with specifics to fix the code `;
+export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in python code. You will receive the output of a tool call which runs python
+code sent to it. This output will register either success or failure. In the case of failure, 
+you will provide a report to the coding agent with specifics to fix the code. You will also provide the coding agent with the code if it is defective. If there
+are no errors then simply provide the tool response to the coding agent. You must provide your report in this format: [AGENT: {name}, {id}] your report [/AGENT] `;
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive

@@ -54,6 +54,7 @@ export class GenericAgent {
         timestamp: startTime
       };
     } catch (error) {
+      console.log('EXE ERROR')
       return {
         agentName: this.definition.name,
         result: null,
@@ -553,7 +554,7 @@ export class GenericAgent {
         if (!message.tool_calls || message.tool_calls.length === 0) {
           if (hasPreviousToolCalls) {
             console.log('✅ Analysis complete - OpenAI processed tool results and provided final answer');
-            console.log('Final analysis content length:', message.content?.length || 0);
+            console.log('Final analysis content length:', message.content);
             
             return {
               agentName: this.getName(),
@@ -633,17 +634,30 @@ export class GenericAgent {
                 success: true,
                 timestamp: new Date()
               };
+            } else{
+                const resultContent = JSON.stringify(toolResult);
+              console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
+              console.log(`Raw result length: ${resultContent.length} characters`);
+              
+              return {
+                agentName: this.getName(),
+                result: resultContent,
+                success: true,
+                timestamp: new Date()
+              };
+
             }
             
-            const resultContent = JSON.stringify(toolResult);
+           /* const resultContent = JSON.stringify(toolResult);
             console.log(`Tool result length: ${resultContent.length} characters`);
             
             conversationHistory.push({
               role: "tool",
               tool_call_id: toolCall.id,
               content: resultContent
-            });
+            });*/
           } catch (error) {
+            console.log('GEN ERROR ',error)
             conversationHistory.push({
               role: "tool",
               tool_call_id: toolCall.id,
