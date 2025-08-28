@@ -520,15 +520,7 @@ export const SAGA_VALIDATION_TRANSACTIONS: SagaTransaction[] = [
      dependencies: ['tx-2'],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  }/*,
-  {
-    id: 'tx-2-1',
-    name: 'Index files',
-    agentName: 'DataLoadingAgent',
-     dependencies: [],
-    compensationAction: 'cleanup_conversation_state',
-    status: 'pending'
-  }*/
+  }
 ];
 
 // Transaction definitions for visualization SAGA
@@ -687,12 +679,7 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_CONVERSATION_TRANSACTIONS
     },
-     { id: 'data-validating-set',
-      name: 'Data Validating Pipeline',
-      description: 'Final transaction grouping and data saving with self-referencing iterations',
-      prompt: groupingAgentPrompt,
-      transactions: SAGA_VALIDATION_TRANSACTIONS
-    }/*,
+     /*,
     {
       id: 'data-processing-set',
       name: 'Data Processing Pipeline',
@@ -720,13 +707,33 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       dependencies: ['data-processing-set']
     }*/
   ],
-  executionOrder: ['data-loading-set', 'data-validating-set'/*, 'data-processing-set', 'data-saving-set'*/],
+  executionOrder: ['data-loading-set'/*, 'data-processing-set', 'data-saving-set'*/],
   metadata: {
     version: '1.0.0',
     created: new Date()
   }
 };
 
+
+export const SAGA_VALIDATION_COLLECTION: TransactionSetCollection = {
+  id: 'saga-validation-collection',
+  name: 'SAGA Validation Flow',
+  description: 'Standard validating',
+  sets: 
+  [
+     { id: 'data-validating-set',
+      name: 'Data Validating Pipeline',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: groupingAgentPrompt,
+      transactions: SAGA_VALIDATION_TRANSACTIONS
+    }
+  ],
+  executionOrder: [ 'data-validating-set'],
+  metadata: {
+    version: '1.0.0',
+    created: new Date()
+  }
+};
 
 
 export interface SagaWorkflowRequest {

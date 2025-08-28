@@ -36,19 +36,23 @@ import { ContextSetDefinition } from '../services/contextRegistry.js';
 import { csvContent } from '../test/testData.js';
 
 export class SagaCoordinator extends EventEmitter {
-  private agents: Map<string, GenericAgent> = new Map();
+  agents: Map<string, GenericAgent> = new Map();
   private agentDefinitions: Map<string, AgentDefinition> = new Map();
   private executionOrder: string[] = [];
-  private contextManager: ContextManager;
+  contextManager: ContextManager;
   private validationManager: ValidationManager;
   private transactionManager: TransactionManager;
   private activeExecutions: Set<string> = new Set();
   private sagaState: SagaState | null = null;
-  private currentExecutingTransactionSet: SagaTransaction[] | null = null;
+//  private currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
   private  conversationAgentCompleted = false;
    private mcpServers: Record<string, MCPServerConfig>;
-  private agentFlows: string[][] = [];
+  agentFlows: string[][] = [];
+  currentExecutingTransactionSet: TransactionSet =  { id: '',
+                          name: '',
+                          description: '',
+                          transactions: [] };
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
@@ -138,48 +142,21 @@ if(definition.agentType === 'tool'){
     return selectedServers;
   }
 
-  private getCyclePartnersFromFlow(transaction: SagaTransaction, transactions: SagaTransaction[]): SagaTransaction[] {
+  private getCyclePartnersFromFlow(transaction: SagaTransaction/*, transactions: SagaTransaction[]*/): SagaTransaction[] {
     const cyclePartners: SagaTransaction[] = [];
-    
     // Find the agent flow that contains this transaction
     for (const flow of this.agentFlows) {
-      const transactionIndex = flow.indexOf(transaction.id);
-      if (transactionIndex === -1) continue;
-      
-      // Check for cycles by finding repeated agent IDs in the flow
-      const seenIds = new Set<string>();
-      const cycleSegments: string[][] = [];
-      let currentSegment: string[] = [];
-      
-      for (let i = 0; i < flow.length; i++) {
-        const agentId = flow[i];
-        
-        if (seenIds.has(agentId)) {
-          // Found a cycle - the segment from the first occurrence to here forms a cycle
-          const firstOccurrence = flow.indexOf(agentId);
-          const cycleSegment = flow.slice(firstOccurrence, i + 1);
-          cycleSegments.push(cycleSegment);
-          
-          // If our transaction is part of this cycle, collect all partners
-          if (cycleSegment.includes(transaction.id)) {
-            for (const cycleAgentId of cycleSegment) {
-              const partner = transactions.find(t => t.id === cycleAgentId);
-              if (partner && !cyclePartners.includes(partner)) {
-                cyclePartners.push(partner);
-              }
-            }
-          }
-        }
-        
-        seenIds.add(agentId);
+    //  const transactionIndex = flow.indexOf(transaction.id);
+      if (transaction.id === 'tx-2'){
+        cyclePartners.push(transaction)
       }
-      
-      // If we found cycle partners, we're done
-      if (cyclePartners.length > 0) {
-        break;
+      else{
+          this.currentExecutingTransactionSet.transactions.forEach((transaction: SagaTransaction) => {
+              cyclePartners.push(transaction)
+          });
       }
+
     }
-    
     console.log(`🔗 Cycle partners for ${transaction.id} from flow:`, cyclePartners.map(t => `${t.id}(${t.agentName})`));
     return cyclePartners;
   }
@@ -484,7 +461,7 @@ sleep(ms: number) {
     collection: TransactionSetCollection,
     workflowId: string = `collection_${Date.now()}`,
     contextSet?: ContextSetDefinition
-  ): Promise<AgentResult> {
+  ): Promise<SetExecutionResult> {
     console.log(`🚀 Executing Transaction Set Collection: ${collection.name} (${collection.id})`);
     
     let overallResult: AgentResult = {
@@ -555,8 +532,7 @@ sleep(ms: number) {
               );
         } else if(transactionSet.id === 'data-validating-set'){
           console.log('TRANS NAME ',transactionSet.name)
-            dynamicTransactionSet?.executionOrder.push('data-validating-set');
-            dynamicTransactionSet?.sets.push(transactionSet);
+            dynamicTransactionSet =collection;
         }
 
           const setEndTime = new Date();
@@ -616,13 +592,14 @@ sleep(ms: number) {
         }
       }
 
-      // Execute dynamic transaction set collection if it was created
-      if (dynamicTransactionSet && dynamicTransactionSet.sets && dynamicTransactionSet.sets.length > 0) {
-        console.log(`🔄 Processing dynamic transaction set collection: ${dynamicTransactionSet.name}`);
-        let priorSet: TransactionSet = { id: '',
+       let priorSet: TransactionSet = { id: '',
                           name: '',
                           description: '',
                           transactions: [] };
+      // Execute dynamic transaction set collection if it was created
+      if (dynamicTransactionSet && dynamicTransactionSet.sets && dynamicTransactionSet.sets.length > 0) {
+        console.log(`🔄 Processing dynamic transaction set collection: ${dynamicTransactionSet.name}`);
+       
         // Process dynamic sets in their execution order
         for (const setId of dynamicTransactionSet.executionOrder) { 
           const dynamicSet = dynamicTransactionSet.sets.find(s => s.id === setId);335
@@ -661,46 +638,7 @@ sleep(ms: number) {
           }
 
           } if (setId === 'data-validating-set' && dynamicSet.name === 'Data Validating Pipeline'){
-                let sagaTransactionName = '';
-                let sagaTransactionId = '';
-                console.log('LAST RESULT  ',lastExecutionResult);
-                const names: string[] =[];
-                 const ids: string[] =[];
-                priorSet.transactions.forEach((transaction: SagaTransaction) => {
-                  console.log('NAME ', transaction.agentName)
-                  for (const flow of this.agentFlows) {
-                    console.log('FLOW 1', flow)
-                  const transactionIndex = flow.indexOf(transaction.id);
-                  if (transactionIndex === -1 || transaction.agentName === 'TransactionGroupingAgent') continue;}
-                  names.push(transaction.agentName);
-                  ids.push(transaction.id);
-                  sagaTransactionName = transaction.agentName;
-                  sagaTransactionId = transaction.id;
-                }) 
-               // sagaTransactionName = lastExecutionResult?.
-              console.log('LATEST LINEAR ',sagaTransactionName)
-              try{
-                   const toolCtx = this.contextManager.getContext(sagaTransactionName) as WorkingMemory;
-                const agent = this.agents.get('TransactionGroupingAgent');
-                agent?.deleteContext();
-                if(dynamicSet.prompt){
-                  if(names.length-2){
-                     const priorName =  names[names.length-2]
-                     const priorId =  ids[names.length-2]
-                      const prompt = dynamicSet.prompt + 'name: ' + priorName + ' id: ' +  priorId
-                      agent?.receiveContext({'YOUR TASK:': prompt})
-                  }
-                
-                }
-                console.log('TOOL CTX ', toolCtx.lastActionResult)
-                console.log('TOOL CTX PREV', toolCtx.previousResult)
-                agent?.receiveContext({'Tool_Call_Result: ': lastExecutionResult?.result})
-                agent?.receiveContext({'Code_Cut: ': toolCtx.previousResult});
-                this.agentFlows[0].unshift('tx-2');
-                this.agentFlows[0].push('tx-2');
-              } catch(error){
-                console.log('ERROR 1', error)
-              }
+               
                
         }
 
@@ -722,7 +660,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
               success: dynamicSetResult.success,
               result: dynamicSetResult.result,
               executionTime: dynamicSetEndTime.getTime() - dynamicSetStartTime.getTime(),
-              transactionResults: {},
+              transactionResults: {setId: priorSet},
               metadata: {
                 startTime: dynamicSetStartTime,
                 endTime: dynamicSetEndTime,
@@ -735,7 +673,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
               dynamicExecutionResult.error = dynamicSetResult.error;
             }
 
-            setExecutionResults[`dynamic_${setId}`] = dynamicExecutionResult;
+            setExecutionResults[setId] = dynamicExecutionResult;
             lastExecutionResult = dynamicExecutionResult;
            
             if (!dynamicSetResult.success) {
@@ -761,14 +699,14 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
               }
             };
 
-            setExecutionResults[`dynamic_${setId}`] = dynamicExecutionResult;
+            setExecutionResults[setId] = dynamicExecutionResult;
             overallResult.success = false;
             overallResult.error = `Dynamic set ${setId} failed with error: ${error}`;
             break;
           }
         }
       }
-
+      
       // Aggregate results
       overallResult.result = {
         ...overallResult.result,
@@ -783,7 +721,24 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
     }
 
     console.log(`✅ Collection execution completed. Success: ${overallResult.success}`);
-    return overallResult;
+    
+    // Return a SetExecutionResult instead of the dictionary
+    const collectionResult: SetExecutionResult = {
+      setId: collection.id,
+      success: overallResult.success,
+      result: overallResult.result,
+      error: overallResult.error,
+      executionTime: new Date().getTime() - new Date().getTime(), // Will be calculated properly
+      transactionResults: setExecutionResults,
+      metadata: {
+        startTime: new Date(),
+        endTime: new Date(),
+        transactionsExecuted: Object.keys(setExecutionResults).length,
+        transactionsFailed: Object.values(setExecutionResults).filter(r => !r.success).length
+      }
+    };
+    
+    return collectionResult;
   }
 
   async executeSagaWorkflow(
@@ -815,7 +770,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
     let counter = 0;
     try {
       // Store the current executing transaction set and context set
-      this.currentExecutingTransactionSet = transactionsToExecute;
+     // this.currentExecutingTransactionSet = transactionsToExecute;
       this.contextManager.setActiveContextSet(contextSet)
    
       const processedInCycle = new Set<string>(); // Track transactions already processed in cycles
@@ -878,7 +833,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
              && this.hasCycleDependencyFromFlow(transaction)) {
             // Handle extended cycle (N-agent cycle)
             hasCycles = true;
-            const cyclePartners = this.getCyclePartnersFromFlow(transaction, transactionsToExecute);
+            const cyclePartners = this.getCyclePartnersFromFlow(transaction);
             let containsTransaction = false;
             cyclePartners.forEach(partner => {
               if(partner.agentName === transaction.agentName){
@@ -983,7 +938,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
       };
     } finally {
       // Clear the current executing transaction set and context set
-      this.currentExecutingTransactionSet = null;
+     // this.currentExecutingTransactionSet = null;
    //   this.currentContextSet = null;
     }
   }
@@ -3145,27 +3100,21 @@ Task Context: ${taskContext}
     };
     
     // Execute each transaction in the cycle
+    let context = {}
     for (let i = 0; i < cyclePartners.length; i++) {
       const transaction = cyclePartners[i];
       console.log(`🔄 Executing cycle step ${i + 1}/${cyclePartners.length}: ${transaction.agentName}`);
       
       // Execute the transaction
-      result = await this.executeSagaTransaction(transaction, request);
+      const agent = this.agents.get(transaction.agentName);
+      result = await agent?.execute(context) as AgentResult
+      console.log('GENERAL RESULT ', result.result)
+     // result = await this.executeSagaTransaction(transaction, request);
       
       // Update context for next agent in cycle
-      const nextIndex = (i + 1) % cyclePartners.length;
-      const nextTransaction = cyclePartners[nextIndex];
-      
-      if (i < cyclePartners.length - 1) {
-        this.contextManager.updateContext(nextTransaction.agentName, {
-          lastTransactionResult: result.result,
-          transactionId: `from_${transaction.id}`,
-          timestamp: new Date(),
-          receivedFrom: transaction.agentName,
-          processedInCycle: true
-        });
-        console.log(`🔗 Passed ${transaction.agentName} output to ${nextTransaction.agentName}`);
-      }
+    //  const nextIndex = (i + 1) % cyclePartners.length;
+    //  const nextTransaction = cyclePartners[nextIndex];
+      context = {'Information_to_assist_you: ': result.result}
     }
     
     // Mark all cycle transactions as processed

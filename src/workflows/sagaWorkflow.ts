@@ -1,10 +1,10 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import { SagaWorkflowRequest, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection } from '../types/visualizationSaga.js';
+import {SAGA_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, groupingAgentPrompt } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
-import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig } from '../types/index.js';
+import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory } from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
@@ -601,6 +601,57 @@ SEQUENCE:
         `thread_saga_${threadId}_${Date.now()}`,
         activeContextSet
       );
+      
+      this.coordinator.getAgents
+      let sagaTransactionName = '';
+            let sagaTransactionId = '';
+            const names: string[] =[];
+            const ids: string[] =[];
+            const transResults: SetExecutionResult = result.transactionResults['processing-set'];
+            Object.values(transResults.transactionResults).forEach((transactionSet: TransactionSet) => {
+            this.coordinator.currentExecutingTransactionSet = transactionSet;
+          transactionSet.transactions.forEach((transaction: SagaTransaction) => {
+            console.log('NAME ', transaction.agentName)
+            for (const flow of this.coordinator.agentFlows) {
+                console.log('FLOW 1', flow)
+                const transactionIndex = flow.indexOf(transaction.id);
+                if (transactionIndex === -1 || transaction.agentName === 'TransactionGroupingAgent') continue;}
+                    names.push(transaction.agentName);
+                    ids.push(transaction.id);
+                    sagaTransactionName = transaction.agentName;
+                    sagaTransactionId = transaction.id;
+            }) 
+          });
+            console.log('LATEST LINEAR ',sagaTransactionName)
+            try{
+                  const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
+                  const agent = this.coordinator.agents.get('TransactionGroupingAgent');
+                  agent?.deleteContext();
+                  if(groupingAgentPrompt){
+                    if(names.length-1){
+                        const priorName =  names[names.length-1]
+                        const priorId =  ids[names.length-1]
+                        const prompt = groupingAgentPrompt + 'name: ' + priorName + ' id: ' +  priorId //eg coder before tool caller
+                        agent?.receiveContext({'YOUR TASK:': prompt})
+                    }  
+                  }
+                  console.log('TOOL CTX ', toolCtx.lastActionResult)
+                  console.log('TOOL CTX PREV', toolCtx.previousResult)
+                  agent?.receiveContext({'Tool_Call_Result: ': result.result})
+                  agent?.receiveContext({'Code_Cut: ': toolCtx.previousResult});
+                  this.coordinator.agentFlows[0].unshift('tx-2');
+                  this.coordinator.agentFlows[0].push('tx-2');
+            } catch(error){
+                console.log('ERROR 1', error)
+            }
+
+       const resultNext = await this.coordinator.executeTransactionSetCollection(
+        browserRequest,
+        SAGA_VALIDATION_COLLECTION,
+        `thread_saga_${threadId}_${Date.now()}`,
+        activeContextSet
+      );
+      
       console.log('HEERERERWQRWER')
       // Send response back to thread
       if (result.success) {
