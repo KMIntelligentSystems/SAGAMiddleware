@@ -44,15 +44,12 @@ export class SagaCoordinator extends EventEmitter {
   private transactionManager: TransactionManager;
   private activeExecutions: Set<string> = new Set();
   private sagaState: SagaState | null = null;
-//  private currentExecutingTransactionSet: SagaTransaction[] | null = null;
+  currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
   private  conversationAgentCompleted = false;
    private mcpServers: Record<string, MCPServerConfig>;
   agentFlows: string[][] = [];
-  currentExecutingTransactionSet: TransactionSet =  { id: '',
-                          name: '',
-                          description: '',
-                          transactions: [] };
+
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
@@ -145,18 +142,30 @@ if(definition.agentType === 'tool'){
   private getCyclePartnersFromFlow(transaction: SagaTransaction/*, transactions: SagaTransaction[]*/): SagaTransaction[] {
     const cyclePartners: SagaTransaction[] = [];
     // Find the agent flow that contains this transaction
-    for (const flow of this.agentFlows) {
+    
     //  const transactionIndex = flow.indexOf(transaction.id);
       if (transaction.id === 'tx-2'){
         cyclePartners.push(transaction)
       }
-      else{
-          this.currentExecutingTransactionSet.transactions.forEach((transaction: SagaTransaction) => {
+      for (const flow of this.agentFlows) {
+        for (const flowAgentId of flow) {
+          this.agents.forEach(agent => {
+            if(agent.getId() === flowAgentId){
+              const transaction: SagaTransaction = {
+                id: flowAgentId,
+                name: 'Child',
+                agentName: agent.getName(),
+                dependencies: [],
+                compensationAction: 'cleanup_conversation_state',
+                status: 'pending'
+              }
+              console.log('CYCLE PARTNERS ', transaction.agentName)
               cyclePartners.push(transaction)
+            }
           });
-      }
-
     }
+    cyclePartners.push(transaction);
+  }
     console.log(`🔗 Cycle partners for ${transaction.id} from flow:`, cyclePartners.map(t => `${t.id}(${t.agentName})`));
     return cyclePartners;
   }
@@ -834,18 +843,10 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
             // Handle extended cycle (N-agent cycle)
             hasCycles = true;
             const cyclePartners = this.getCyclePartnersFromFlow(transaction);
-            let containsTransaction = false;
-            cyclePartners.forEach(partner => {
-              if(partner.agentName === transaction.agentName){
-                  containsTransaction = true;
-              }
-            })
-            if(!containsTransaction){
-                 cyclePartners.unshift(transaction);
-            }
            
             console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
             result = await this.executeGeneralCycle(cyclePartners, request, processedInCycle);
+            return result;
           }/* else if (transaction.status === 'pending' && this.hasCircularDependency(transaction, transactionsToExecute)) {
             // Handle traditional 2-agent circular dependency
             const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);

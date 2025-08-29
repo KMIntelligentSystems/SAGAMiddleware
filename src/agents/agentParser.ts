@@ -30,7 +30,7 @@ export class AgentParser {
     // Replace [AGENT followed by space with [AGENT: (handles cases like '[AGENT Python Executor')
     textToParse = textToParse.replace(/\[AGENT\s+([^:,\]]+)/g, '[AGENT: $1');                       
     if(textToParse.includes('[ / AGENT]')){
-      textToParse = textToParse.replace('[ / AGENT]', '[/AGENT]');
+      textToParse = textToParse.replace(/\[\s*\/\s*AGENT\]/g, '[/AGENT]');
     }
      if(textToParse.includes('/AGENT]') && !textToParse.includes('[/AGENT]')){
       textToParse = textToParse.replace('/AGENT]', '[/AGENT]');
@@ -353,6 +353,7 @@ AgentParser: Created transaction FTS-005 for FinalTotalsSaver (type: tool) with 
       const agentType: 'tool' | 'processing' = transaction.agentType || 'processing';
       
       const agentDefinition: AgentDefinition = {
+        id: transaction.id,
         name: transaction.agentName,
         backstory: `Dynamic agent created from SAGA transaction with ID ${transaction.id}`,
         taskDescription: transaction.transactionPrompt || `Process tasks for ${transaction.agentName}`,

@@ -40,6 +40,7 @@ export function createAgentDefinition(config: {
 }): AgentDefinition {
   console.log("DEF  ", config.apiKey)
   return {
+    id: config.name,
     name: config.name,
     taskDescription: config.task,
     agentType: config.agentType,

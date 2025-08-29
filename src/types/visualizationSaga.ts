@@ -124,6 +124,10 @@ export const groupingAgentPrompt = `Your role is coordination based on your anal
 code sent to it. This output will register either success or failure. In the case of failure, 
 you will provide a report to the coding agent with specifics to fix the code. You will also provide the coding agent with the code if it is defective. If there
 are no errors then simply provide the tool response to the coding agent. You must provide your report in this format: [AGENT: {name}, {id}] your report [/AGENT] `;
+
+export const codingAgentPrompt = `The code you created has errors. Look at the errors and a fix that has been provided. You can also see the code with errors. 
+Understand the problems and provide clean and complete python code that fixes the problems.
+`
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive

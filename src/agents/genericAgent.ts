@@ -1,6 +1,41 @@
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
 import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { OpenAI } from 'openai';
+// Assuming you've already imported the GoogleGenerativeAI class
+//import { GoogleGenerativeAI } from '@google/genai';
+import { GoogleGenAI, mcpToTool, FunctionCallingConfigMode } from '@google/genai';
+
+// Initialize the client
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY as string,
+});
+
+
+
+async function run() {
+  try {
+    const prompt = "What are the key differences between a lion and a tiger?";
+
+
+    const result = await genAI.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: prompt,
+    });
+    
+    // Correct way to get the text from the response
+    const text = result.text;
+    
+    if (text) {
+      console.log(text);
+    } else {
+      console.log("No text content found in the response.");
+    }
+
+  } catch (error) {
+    console.error("An error occurred:", error);
+  }
+}
+
 
 
 export class GenericAgent {
@@ -21,6 +56,10 @@ export class GenericAgent {
 
   getName(): string {
     return this.definition.name;
+  }
+  
+  getId(): string{
+    return this.definition.id;
   }
 
   getDependencies(): string[] {
@@ -130,6 +169,10 @@ export class GenericAgent {
     this.definition = defn;
   }
 
+  setTaskDescription(task: string){
+    this.definition.taskDescription = task;
+  }
+
   deleteContext(){
     this.context = [];
   }
@@ -226,6 +269,8 @@ export class GenericAgent {
         throw new Error(`Unsupported LLM provider: ${config.provider}`);
     }
   }
+
+  
 
   private async invokeOpenAI(prompt: string, config: LLMConfig): Promise<AgentResult> {
     const { OpenAI } = await import('openai');
@@ -351,6 +396,8 @@ export class GenericAgent {
       return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
     }
 
+    
+
    const userMessage: OpenAI.ChatCompletionMessageParam = {
     role: "user",
     content: prompt,
@@ -378,6 +425,172 @@ export class GenericAgent {
     return response.choices[0].message.content || "";*/
   
   }
+//https://github.com/googleapis/js-genai/blob/main/sdk-samples/chat_afc.ts
+    private async invokeGemini(prompt: string, config: LLMConfig, ai: GoogleGenAI): Promise<AgentResult> {
+    const { OpenAI } = await import('openai');
+    
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+const chat = await ai.chats.create({
+    model: 'gemini-2.5-flash',
+    config: {
+      tools: [],//mcpToTool(weatherClient, multiplyClient)
+      toolConfig: {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.AUTO,
+        },
+      },
+    },
+  });
+    // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
+    if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
+      const tools = this.availableTools.map(tool => {
+        // Fix schema for get_chunks tool
+        console.log("TOOL NAME ",tool.name)
+        if (tool.name === 'get_chunks') {
+          return {
+            type: "function" as const,
+            function: {
+              name: tool.name,
+              description: "Retrieve chunks from a collection",
+              parameters: {
+                type: "object",
+                properties: {
+                  collection: { 
+                    type: "string", 
+                    description: "Collection name to retrieve chunks from" 
+                  },
+                  limit: { 
+                    type: "integer", 
+                    description: "Maximum number of chunks to retrieve",
+                    default: 10
+                  },
+                  ids: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Optional array of specific chunk IDs to retrieve"
+                  }
+                },
+                required: ["collection"]
+              }
+            }
+          };
+        } else if (tool.name === 'index-file') {
+          return {
+            type: "function" as const,
+            function: {
+              name: tool.name,
+              description: "Index a file into a vector collection",
+              parameters: {
+                type: "object",
+                properties: {
+                  filePath: { 
+                    type: "string", 
+                    description: "Path to the file to index" 
+                  },
+                  collection: { 
+                    type: "string", 
+                    description: "Name of the collection to store the indexed data" 
+                  },
+                  metadata: {
+                    type: "object",
+                    description: "Optional metadata for the indexed file",
+                    properties: {
+                      type: { type: "string" },
+                      source: { type: "string" },
+                      indexedAt: { type: "string" }
+                    }
+                  }
+                },
+                required: ["filePath", "collection"]
+              }
+            }
+          };
+        } else if (tool.name === 'calculate_energy_totals') {
+          return {
+            type: "function" as const,
+            function: {
+              name: tool.name,
+              description: "Calculate energy totals from records with grouping and operations",
+              parameters: {
+                type: "object",
+                properties: {
+                  energyRecords: {
+                    type: "array",
+                    description: "Array of energy data records",
+                    items: { type: "object" }
+                  },
+                  groupBy: {
+                    type: "array",
+                    description: "Array of field names to group by",
+                    items: { type: "string" }
+                  },
+                  operation: {
+                    type: "string",
+                    description: "Operation to perform (sum, avg, max, min)",
+                    enum: ["sum", "avg", "max", "min"]
+                  }
+                },
+                required: ["energyRecords", "groupBy", "operation"]
+              }
+            }
+          };
+        }
+        
+        return {
+          type: "function" as const,
+          function: {
+            name: tool.name,
+            description: tool.description || `Execute ${tool.name} tool`,
+            parameters: tool.inputSchema || {
+              type: "object",
+              properties: {},
+              required: []
+            }
+          }
+        };
+      });
+      
+      // For chunk_requester agent, ALWAYS force tool calls
+    //  const isChunkRequester = this.definition.name === 'chunk_requester';
+   //   console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
+      
+      // Set forceToolUse to false to allow more natural tool selection
+      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
+    }
+
+    
+
+   const userMessage: OpenAI.ChatCompletionMessageParam = {
+    role: "user",
+    content: prompt,
+  };
+    const response = await client.chat.completions.create({
+       messages: [userMessage],
+        model: config.model,
+      //  temperature: 0.3,
+     //   maxTokens: 3000,
+    });
+   return  {
+     agentName: this.getName(),
+     result: response.choices[0].message.content as string,
+     success: true,
+     timestamp: new Date()}
+ 
+    // No tools available, use regular completion
+  /*  const response = await client.chat.completions.create({
+      model: config.model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: config.temperature || 0.7,
+      max_tokens: config.maxTokens || 1000
+    });
+
+    return response.choices[0].message.content || "";*/
+  
+  }
+
+ 
 
   private async invokeAnthropic(prompt: string, config: LLMConfig): Promise<AgentResult> {
     const { Anthropic } = await import('@anthropic-ai/sdk');

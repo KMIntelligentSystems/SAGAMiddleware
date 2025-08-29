@@ -25,6 +25,7 @@ export interface MCPResource {
 }
 
 export interface AgentDefinition {
+  id: string;
   name: string;
   backstory: string;
   taskDescription: string;

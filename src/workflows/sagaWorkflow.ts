@@ -1,7 +1,7 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import {SAGA_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, groupingAgentPrompt } from '../types/visualizationSaga.js';
+import {SAGA_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, groupingAgentPrompt, codingAgentPrompt } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory } from '../types/index.js';
@@ -397,6 +397,7 @@ Focus: Only array extraction
       let context = basePrompt.context || {};
       // Create agent definition using information from llmPrompts
       const agentDefinition: AgentDefinition = {
+        id: '',
         name: agentName,
         backstory: basePrompt.backstory,
         taskDescription: basePrompt.taskDescription,
@@ -608,14 +609,15 @@ SEQUENCE:
             const names: string[] =[];
             const ids: string[] =[];
             const transResults: SetExecutionResult = result.transactionResults['processing-set'];
+            
             Object.values(transResults.transactionResults).forEach((transactionSet: TransactionSet) => {
-            this.coordinator.currentExecutingTransactionSet = transactionSet;
           transactionSet.transactions.forEach((transaction: SagaTransaction) => {
             console.log('NAME ', transaction.agentName)
             for (const flow of this.coordinator.agentFlows) {
                 console.log('FLOW 1', flow)
                 const transactionIndex = flow.indexOf(transaction.id);
                 if (transactionIndex === -1 || transaction.agentName === 'TransactionGroupingAgent') continue;}
+                    this.coordinator.currentExecutingTransactionSet?.push(transaction);
                     names.push(transaction.agentName);
                     ids.push(transaction.id);
                     sagaTransactionName = transaction.agentName;
@@ -628,17 +630,19 @@ SEQUENCE:
                   const agent = this.coordinator.agents.get('TransactionGroupingAgent');
                   agent?.deleteContext();
                   if(groupingAgentPrompt){
-                    if(names.length-1){
-                        const priorName =  names[names.length-1]
-                        const priorId =  ids[names.length-1]
+                    if(names){
+                        const priorName =  names[0]
+                        const priorId =  ids[0]
                         const prompt = groupingAgentPrompt + 'name: ' + priorName + ' id: ' +  priorId //eg coder before tool caller
                         agent?.receiveContext({'YOUR TASK:': prompt})
+                        const codeAgent = this.coordinator.agents.get(priorName);
+                        codeAgent?.setTaskDescription(codingAgentPrompt);
                     }  
                   }
                   console.log('TOOL CTX ', toolCtx.lastActionResult)
                   console.log('TOOL CTX PREV', toolCtx.previousResult)
-                  agent?.receiveContext({'Tool_Call_Result: ': result.result})
-                  agent?.receiveContext({'Code_Cut: ': toolCtx.previousResult});
+                  agent?.receiveContext({'Tool_Call_Result: ': transResults.result})
+                  agent?.receiveContext({'Previous_Code: ': toolCtx.previousResult});
                   this.coordinator.agentFlows[0].unshift('tx-2');
                   this.coordinator.agentFlows[0].push('tx-2');
             } catch(error){
