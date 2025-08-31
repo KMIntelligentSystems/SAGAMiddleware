@@ -33,7 +33,7 @@ import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
-import { csvContent } from '../test/testData.js';
+import { groupingAgentResult, groupingAgentFailedResult } from '../test/testData.js';
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -60,7 +60,7 @@ export class SagaCoordinator extends EventEmitter {
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
     this.mcpServers = mcpServers;
-    this.agentFlows.push(['tx-2', 'tx-2'])
+    this.agentFlows.push(['tx-2','tx-3', 'tx-2'])
   }
 
   registerAgent(definition: AgentDefinition): void {
@@ -144,14 +144,17 @@ if(definition.agentType === 'tool'){
     // Find the agent flow that contains this transaction
     
     //  const transactionIndex = flow.indexOf(transaction.id);
-      if (transaction.id === 'tx-2'){
+     /* if (transaction.id === 'tx-2'){
         cyclePartners.push(transaction)
-      }
+      }*/
       for (const flow of this.agentFlows) {
         for (const flowAgentId of flow) {
           this.agents.forEach(agent => {
             if(agent.getId() === flowAgentId){
-              const transaction: SagaTransaction = {
+              if(flowAgentId === 'tx-2'){
+                 cyclePartners.push(transaction)
+              } else {
+                const transaction: SagaTransaction = {
                 id: flowAgentId,
                 name: 'Child',
                 agentName: agent.getName(),
@@ -159,12 +162,13 @@ if(definition.agentType === 'tool'){
                 compensationAction: 'cleanup_conversation_state',
                 status: 'pending'
               }
+               cyclePartners.push(transaction)
+              }
               console.log('CYCLE PARTNERS ', transaction.agentName)
-              cyclePartners.push(transaction)
             }
           });
     }
-    cyclePartners.push(transaction);
+  //  cyclePartners.push(transaction);
   }
     console.log(`🔗 Cycle partners for ${transaction.id} from flow:`, cyclePartners.map(t => `${t.id}(${t.agentName})`));
     return cyclePartners;
@@ -472,7 +476,13 @@ sleep(ms: number) {
     contextSet?: ContextSetDefinition
   ): Promise<SetExecutionResult> {
     console.log(`🚀 Executing Transaction Set Collection: ${collection.name} (${collection.id})`);
-    
+
+    let priorSet: TransactionSet = { id: '',
+                          name: '',
+                          description: '',
+                          transactions: [] 
+    };
+
     let overallResult: AgentResult = {
       agentName: 'saga_coordinator_collection',
       result: {
@@ -488,7 +498,7 @@ sleep(ms: number) {
     const sharedContext: { [key: string]: any } = {};
     let lastExecutionResult: SetExecutionResult | undefined = undefined;
     let dynamicTransactionSet: TransactionSetCollection | undefined = undefined;
-         
+   
     try {
       // Process sets in the specified execution order
       for (const setId of collection.executionOrder) {
@@ -499,7 +509,6 @@ sleep(ms: number) {
 
      
         console.log(`📋 Processing set: ${transactionSet.name} (${setId})`);
-
         // Check set dependencies
         if (!this.canExecuteSet(transactionSet, setExecutionResults)) {
           console.log(`⏭️ Skipping set ${setId} - dependencies not met`);
@@ -514,32 +523,68 @@ sleep(ms: number) {
         }
 
         const setStartTime = new Date();
-        
+       
         try {
           // Execute the transgrouping result - 
           //'<flow>EDCG-001 -> PTC-001</flow>\n{"toolUsers": ["PythonToolCaller"]}'
         
       let setResult: AgentResult = {agentName: '',
       result: '',
-      success: false,
+      success: true,
       timestamp: new Date()
     };
+
+    
         if(transactionSet.id === 'data-loading-set'){
-                setResult = await this.executeSagaWorkflow(
+           const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'TransactionGroupingAgent')
+           const agent = this.agents?.get('TransactionGroupingAgent');
+           agent?.receiveContext({'YOUR TASK': conversationContext});
+           //test start
+           setResult.result = groupingAgentResult;
+           this.contextManager.updateContext('TransactionGroupingAgent', {
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-2',
+                  timestamp: new Date()
+                }); 
+
+            this.contextManager.updateContext('TransactionGroupingAgent', {
+                  previousResult: setResult.result,
+                  transactionId: 'tx-2',
+                  timestamp: new Date()
+            }); 
+            //end 
+         /*  setResult = await this.executeSagaWorkflow(
                 request,
                 `${workflowId}_${setId}`,
                 transactionSet,
                 contextSet,
                 lastExecutionResult
-              );
+              );*/
+              
+              priorSet = transactionSet;
+        } else if (transactionSet.id === 'agent-generating-set') {
+             console.log('TRANS NAME ',transactionSet.name)
               const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
-
-              dynamicTransactionSet = AgentParser.parseAndCreateAgents(
-                 groupedContext.previousResult,
-                 setResult.result,
-                 this // Pass the coordinator instance to register agents
+              const response = groupedContext.lastTransactionResult;
+              console.log('RESPONSE  ', response)
+              const agent = this.agents?.get('TransactionGroupingAgent');
+              const prompt = transactionSet.prompt || '';
+              agent?.setTaskDescription(prompt);
+              agent?.deleteContext();
+              agent?.receiveContext({'THE AGENTS': response})
+              this.agentFlows[0] = ['tx-2']
+              setResult = await agent?.execute({}) || {agentName: '',
+                                                                  result: '',
+                                                                  success: true,
+                                                                  timestamp: new Date()
+                                                                };
+          
+                dynamicTransactionSet = AgentParser.parseAndCreateAgents(
+                groupedContext.previousResult,
+                setResult.result,
+                this // Pass the coordinator instance to register agents
               );
-        } else if(transactionSet.id === 'data-validating-set'){
+        }else if(transactionSet.id === 'code-validating-set'){
           console.log('TRANS NAME ',transactionSet.name)
             dynamicTransactionSet =collection;
         }
@@ -577,6 +622,7 @@ sleep(ms: number) {
           }
 
         } catch (error) {
+          console.log('ERROR ',error)
           const setEndTime = new Date();
           const executionResult: SetExecutionResult = {
             setId: transactionSet.id,
@@ -601,10 +647,7 @@ sleep(ms: number) {
         }
       }
 
-       let priorSet: TransactionSet = { id: '',
-                          name: '',
-                          description: '',
-                          transactions: [] };
+      
       // Execute dynamic transaction set collection if it was created
       if (dynamicTransactionSet && dynamicTransactionSet.sets && dynamicTransactionSet.sets.length > 0) {
         console.log(`🔄 Processing dynamic transaction set collection: ${dynamicTransactionSet.name}`);
@@ -617,7 +660,7 @@ sleep(ms: number) {
             continue;
           }
           
-// Processing dynamic set: Data Loading Pipeline (data-validating-set)
+// Processing dynamic set: Data Loading Pipeline (code-validating-set)
           console.log(`📋 Processing dynamic set: ${dynamicSet.name} (${setId})`);//['processing-set']
 
           // Handle specific set types with placeholder if-statements
@@ -646,7 +689,7 @@ sleep(ms: number) {
            }
           }
 
-          } if (setId === 'data-validating-set' && dynamicSet.name === 'Data Validating Pipeline'){
+          } if (setId === 'code-validating-set' && dynamicSet.name === 'Code Validating Pipeline'){
                
                
         }
@@ -801,12 +844,13 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
         
         transaction.transactionPrompt = transactionSet.prompt;
         transaction.transactionSetId = transactionSet.id;
+        //When had tx-2 -> tx-2 tx-1 was run in singleton
         console.log(`🔄 Executing Transaction: ${transaction.name} (${transaction.id})`);
          for (const flow of this.agentFlows) {
               const transactionIndex = flow.indexOf(transaction.id)
                if (transactionIndex === -1 ){
                 console.log('IN SINNGLETON ')
-                result = await this.executeSagaTransaction(transaction, request);
+                
             } 
             break;
           }
@@ -879,23 +923,8 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
         // Each agent gets its own instructions from the bracket parsing - no context passing needed
         counter++;
 
-        // Update context with transaction result from TRANSACTIONGROUPINGAGENT
-        //that agent provides good copy of ConversationAgent
-        if(transaction.agentName == 'DataCoordinatingAgent'){
-          console.log('SAGA RESULT ', result.result)
-          const initialConversation = this.contextManager.getContext('ConversationAgent');
-              this.contextManager.updateContext('TransactionGroupingAgent', {
-          lastTransactionResult: initialConversation?.lastTransactionResult,
-          transactionId: transaction.id,
-          timestamp: new Date()
-        });
-            this.contextManager.updateContext('ConversationAgent', {
-          lastTransactionResult: result.result,
-          transactionId: transaction.id,
-          timestamp: new Date()
-        });
-        }
-        else{
+  
+    
         console.log('HERE IN THIS', transaction.agentName)
          for (const flow of this.agentFlows) {
               const transactionIndex = flow.indexOf(transaction.id)
@@ -912,7 +941,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
                 result.result = toolCtx.lastActionResult;
               }
           }   
-        }
+        
         console.log(`✅ Transaction completed: ${transaction.name}`);
       }
       console.log(`🎉 SAGA completed successfully: ${workflowId}`);
@@ -3102,14 +3131,39 @@ Task Context: ${taskContext}
     
     // Execute each transaction in the cycle
     let context = {}
+    let validated = true;
     for (let i = 0; i < cyclePartners.length; i++) {
       const transaction = cyclePartners[i];
       console.log(`🔄 Executing cycle step ${i + 1}/${cyclePartners.length}: ${transaction.agentName}`);
+      if(i === 0 && transaction.id === 'tx-2'){
+        const agent = this.agents.get(transaction.agentName);
+        const ctx = agent?.getContext();
+        context = 'FIRST INPUT: ' + ctx + ' SECOND INPUT: ' + groupingAgentFailedResult;
+        continue;
+      } 
       
+      if(i > 0 && transaction.id === 'tx-2' && validated){
+        const transAgent = this.agents.get(transaction.agentName);
+        transAgent?.deleteContext();
+        transAgent?.receiveContext({AGENT_FLOW: groupingAgentResult});
+        transAgent?.setTaskDescription(agentDefinitionPrompt);
+      } else{
+        const transAgent = this.agents.get(transaction.agentName);
+       // transAgent?.receiveContext({'USE THE VALIDATION RESULTS TO ASSIST YOU IN YOUR TASK': result.result});
+        transAgent?.receiveContext({'USE THE VALIDATION RESULTS TO ASSIST YOU IN YOUR TASK:':` From:${transaction.agentName} `})
+      }
+
+
       // Execute the transaction
       const agent = this.agents.get(transaction.agentName);
       result = await agent?.execute(context) as AgentResult
       console.log('GENERAL RESULT ', result.result)
+      
+      if(transaction.agentName === 'ValidatingAgent'){
+        if(JSON.stringify(result.result).includes('false')){
+          validated = false;
+        }
+      }
      // result = await this.executeSagaTransaction(transaction, request);
       
       // Update context for next agent in cycle
@@ -3118,18 +3172,12 @@ Task Context: ${taskContext}
       context = {'Information_to_assist_you: ': result.result}
     }
     
-    // Mark all cycle transactions as processed
-    for (const cycleTx of cyclePartners) {
-      processedInCycle.add(cycleTx.id);
-      this.contextManager.updateContext(cycleTx.agentName, {
+    this.contextManager.updateContext('TransactionGroupingAgent',  {
         lastTransactionResult: result.result,
-        transactionId: cycleTx.id,
+        transactionId: 'tx-2',
         timestamp: new Date(),
         processedInCycle: true
       });
-    }
-    
-    this.contextManager.updateContext('TransactionGroupingAgent', {'cycleCompleted': true});
     
     return result;
   }

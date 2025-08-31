@@ -120,9 +120,16 @@ Remember the ids are in [AGENT name, id] and you only examine as far as each age
 2. Your second task is to nominate those agents which are tool users and provide their names in the following format:
 {"toolUsers": [agent names]}
 `
+export const dataValidatingAgentPrompt = `You will validate two inputs, one against the other. The first input is a set of instructions for the building of two agents.
+The second input is the formatted construction of those agents. There are certain rules that you must understand from the first input to determine if the second input follows the rules.
+The rules are:
+1. Does the output create two distinct agents with their tasks clearly defined based on your analysis of the first input?
+2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
+If these rules are not met, rectify the output accordingly`;
+
 export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in python code. You will receive the output of a tool call which runs python
 code sent to it. This output will register either success or failure. In the case of failure, 
-you will provide a report to the coding agent with specifics to fix the code. You will also provide the coding agent with the code if it is defective. If there
+you will provide a report to the coding agent with specifics to fix the code. That is explain the error and where the error occurs. The coding agent is then responsible to fix the error. If there
 are no errors then simply provide the tool response to the coding agent. You must provide your report in this format: [AGENT: {name}, {id}] your report [/AGENT] `;
 
 export const codingAgentPrompt = `The code you created has errors. Look at the errors and a fix that has been provided. You can also see the code with errors. 
@@ -492,28 +499,39 @@ Provide the information required to save the data`
 export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
   {
-    id: 'tx-1',
-    name: 'Start Conversation',
-    agentName: 'ConversationAgent',
-    dependencies: [],
+    id: 'tx-2',
+    name: 'Define agents',
+    agentName: 'TransactionGroupingAgent',
+    dependencies: ['tx-3'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  },
+  { id: 'tx-3',
+    name: 'Validator',
+    agentName: 'ValidatingAgent',
+     dependencies: ['tx-2'],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
   },
   { id: 'tx-2',
-    name: 'Index files',
+    name: 'Define flows',
     agentName: 'TransactionGroupingAgent',
-     dependencies: ['tx-2'],
-    compensationAction: 'cleanup_conversation_state',
-    status: 'pending'
-  }/*,
-  {
-    id: 'tx-2-1',
-    name: 'Index files',
-    agentName: 'DataLoadingAgent',
      dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  }*/
+  }
+];
+//this.agentFlows.push(['tx-2', 'tx-2']) to use agentDefinitionPrompt in sagaCoord constructor
+
+
+export const SAGA_AGENT_GEN_TRANSACTIONS: SagaTransaction[] = [
+  { id: 'tx-2',
+    name: 'Coordinator',
+    agentName: 'TransactionGroupingAgent',
+     dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }
 ];
 
 export const SAGA_VALIDATION_TRANSACTIONS: SagaTransaction[] = [
@@ -526,6 +544,8 @@ export const SAGA_VALIDATION_TRANSACTIONS: SagaTransaction[] = [
     status: 'pending'
   }
 ];
+
+
 
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
@@ -683,6 +703,12 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_CONVERSATION_TRANSACTIONS
     },
+    { id: 'agent-generating-set',
+      name: 'Agent Generating Pipeline',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: agentDefinitionPrompt,
+      transactions: SAGA_AGENT_GEN_TRANSACTIONS
+    }
      /*,
     {
       id: 'data-processing-set',
@@ -711,13 +737,32 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
       dependencies: ['data-processing-set']
     }*/
   ],
-  executionOrder: ['data-loading-set'/*, 'data-processing-set', 'data-saving-set'*/],
+  executionOrder: ['data-loading-set', 'agent-generating-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()
   }
 };
 
+export const SAGA_AGENT_GEN_COLLECTION: TransactionSetCollection = {
+  id: 'saga-agent-gen-collection',
+  name: 'SAGA Validation Flow',
+  description: 'Standard validating',
+  sets: 
+  [
+     { id: 'tx-2',
+      name: 'Coordinator',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: agentDefinitionPrompt,
+      transactions: SAGA_AGENT_GEN_TRANSACTIONS
+    }
+  ],
+  executionOrder: ['saga-agent-gen-collection'],
+  metadata: {
+    version: '1.0.0',
+    created: new Date()
+  }
+};
 
 export const SAGA_VALIDATION_COLLECTION: TransactionSetCollection = {
   id: 'saga-validation-collection',
@@ -725,14 +770,14 @@ export const SAGA_VALIDATION_COLLECTION: TransactionSetCollection = {
   description: 'Standard validating',
   sets: 
   [
-     { id: 'data-validating-set',
-      name: 'Data Validating Pipeline',
+     { id: 'code-validating-set',
+      name: 'Code Validating Pipeline',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
       prompt: groupingAgentPrompt,
       transactions: SAGA_VALIDATION_TRANSACTIONS
     }
   ],
-  executionOrder: [ 'data-validating-set'],
+  executionOrder: [ 'code-validating-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()

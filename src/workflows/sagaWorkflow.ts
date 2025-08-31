@@ -1,14 +1,14 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import {SAGA_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, groupingAgentPrompt, codingAgentPrompt } from '../types/visualizationSaga.js';
+import {SAGA_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,SAGA_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, groupingAgentPrompt, codingAgentPrompt,  dataValidatingAgentPrompt } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory } from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
-import { agentData } from '../test/testData.js'
+import { agentData, groupingAgentResult } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
 
 export class SagaWorkflow {
@@ -193,7 +193,19 @@ export class SagaWorkflow {
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
-      }/*,
+      }, 
+      {
+        agentName: 'ValidatingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-3',
+        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
+        to be amended in the JSON object that does not follow the rules.`
+        ,
+        taskDescription:  dataValidatingAgentPrompt,
+        taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
+      }
+      
+      /*,
      {
         agentName: 'DataLoadingAgent',
         agentType: 'tool',
@@ -339,15 +351,22 @@ Focus: Only array extraction
         agentTypes.set(prompt.agentName, prompt.agentType);
       }
 
+      // Create mapping from agentName to transactionId
+      const agentTransactionMapping = new Map<string, string>();
+      for (const prompt of contextSet.llmPrompts) {
+        agentTransactionMapping.set(prompt.agentName, prompt.transactionId);
+      }
+
       // Create agents dynamically from llmPrompts
       for (const agentName of uniqueAgentNames) {
         let agent: AgentDefinition;
         const agentType = agentTypes.get(agentName);
+        const transactionId = agentTransactionMapping.get(agentName);
         
         if (agentType === 'tool') {
-          agent = this.createAgentFromLLMPrompts(agentName, [this.codeGenServerConfig]);
+          agent = this.createAgentFromLLMPrompts(agentName, transactionId, [this.codeGenServerConfig]);
         } else {
-          agent = this.createAgentFromLLMPrompts(agentName);
+          agent = this.createAgentFromLLMPrompts(agentName, transactionId);
         }
         
         this.coordinator.registerAgent(agent);
@@ -357,7 +376,7 @@ Focus: Only array extraction
       console.log('✅ All SAGA agents registered');
     }
 
-    private createAgentFromLLMPrompts(agentName: string, mcpServers?: MCPServerConfig[]): AgentDefinition {
+    private createAgentFromLLMPrompts(agentName: string, transactionId?: string, mcpServers?: MCPServerConfig[]): AgentDefinition {
       // Get llmPrompts for this agent from the context registry
       const llmPrompts = this.contextRegistry.getLLMPromptsForAgent('visualization', agentName);
       
@@ -397,7 +416,7 @@ Focus: Only array extraction
       let context = basePrompt.context || {};
       // Create agent definition using information from llmPrompts
       const agentDefinition: AgentDefinition = {
-        id: '',
+        id: transactionId || '',
         name: agentName,
         backstory: basePrompt.backstory,
         taskDescription: basePrompt.taskDescription,
@@ -634,7 +653,7 @@ SEQUENCE:
                         const priorName =  names[0]
                         const priorId =  ids[0]
                         const prompt = groupingAgentPrompt + 'name: ' + priorName + ' id: ' +  priorId //eg coder before tool caller
-                        agent?.receiveContext({'YOUR TASK:': prompt})
+                        agent?.setTaskDescription(prompt);
                         const codeAgent = this.coordinator.agents.get(priorName);
                         codeAgent?.setTaskDescription(codingAgentPrompt);
                     }  
@@ -649,12 +668,12 @@ SEQUENCE:
                 console.log('ERROR 1', error)
             }
 
-       const resultNext = await this.coordinator.executeTransactionSetCollection(
+    /*   const resultNext = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
         SAGA_VALIDATION_COLLECTION,
         `thread_saga_${threadId}_${Date.now()}`,
         activeContextSet
-      );
+      );*/
       
       console.log('HEERERERWQRWER')
       // Send response back to thread
