@@ -629,23 +629,23 @@ SEQUENCE:
       // Execute SAGA through coordinator using the new executeTransactionSetCollection method
       //1.'data-loading-set': TransactionGroupingAgent result = 2 agents defined = groupingAgentResult
       //2. 'agent-generating-set': TransactionGroupingAgent  defines dynamic coder/tool caller 
-     /* const result: SetExecutionResult = await this.coordinator.executeTransactionSetCollection(
+      const result: SetExecutionResult = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
         SAGA_VISUALIZATION_COLLECTION, //DEFAULT_SAGA_COLLECTION,
         `thread_saga_${threadId}_${Date.now()}`,
         activeContextSet
       );
-      //pythonLogCodeResult
-     this.pythonLogAnalyzer.analyzeExecution(result.result);
-
-      let sagaTransactionName = '';
+      const pythonResult = this.pythonLogAnalyzer.analyzeExecution(result);
+      if(!pythonResult.isErrorFree){
+        console.log('ERROR RESULT ', pythonResult.errorDetails)
+            let sagaTransactionName = '';
             let sagaTransactionId = '';
             const names: string[] =[];
             const ids: string[] =[];
             const transResults: SetExecutionResult = result.transactionResults['processing-set'];
             
             Object.values(transResults.transactionResults).forEach((transactionSet: TransactionSet) => {
-          transactionSet.transactions.forEach((transaction: SagaTransaction) => {
+            transactionSet.transactions.forEach((transaction: SagaTransaction) => {
             console.log('NAME ', transaction.agentName)
             for (const flow of this.coordinator.agentFlows) {
                 console.log('FLOW 1', flow)
@@ -679,60 +679,22 @@ SEQUENCE:
                   agent?.receiveContext({'Previous_Code: ': toolCtx.previousResult});
                   this.coordinator.agentFlows[0].unshift('tx-2');
                   this.coordinator.agentFlows[0].push('tx-2');
+
+                  //IN ERROR FROM FIRST TOOL CALL CALL ITERATION TO FIX ERROR
+                this.createTestAgents();
+                  const result = await this.coordinator.executeTransactionSetCollection(
+                    browserRequest,
+                    SAGA_CODE_VALIDATION_COLLECTION,
+                    `thread_saga_${threadId}_${Date.now()}`,
+                    activeContextSet
+                  );
             } catch(error){
                 console.log('ERROR 1', error)
-            }*/
-            /*
-NAME  EnergyCSVNormalizer
-FLOW 1 [ 'tx-2' ]
-FLOW 1 [ 'EDN-01', 'PTI-01' ]
-NAME  PythonToolInvoker
-FLOW 1 [ 'tx-2' ]
-FLOW 1 [ 'EDN-01', 'PTI-01' ]
-LATEST LINEAR  PythonToolInvoker
-TOOL CTX  undefined
-TOOL CTX PREV ''python
-import pandas as pd
-import numpy as np
-import os
-       --------
-DYNAMIC 2 true
-✅ Collection execution completed. Success: true
-NAME  PandasDailyAveragingCoder
-FLOW 1 [ 'tx-2' ]
-FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
-NAME  MCPExecutePythonCaller
-FLOW 1 [ 'tx-2' ]
-FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
-LATEST LINEAR  MCPExecutePythonCaller
-TOOL CTX  undefined
-TOOL CTX PREV ''python
-import pandas as pd
-     
-*/
- /* IN ERROR FROM FIRST TOOL CALL CALL ITERATION TO FIX ERROR
-     this.createTestAgents();
-       const result = await this.coordinator.executeTransactionSetCollection(
-        browserRequest,
-        SAGA_CODE_VALIDATION_COLLECTION,
-        `thread_saga_${threadId}_${Date.now()}`,
-        activeContextSet
-      );*/
-      
- const result: SetExecutionResult = {
-            setId: '',
-            success: true,
-            result: pythonLogCodeResult,
-            executionTime: 12,
-            transactionResults: {},
-            metadata: {
-              startTime: new Date(),
-              endTime: new Date(),
-              transactionsExecuted: 123,
-              transactionsFailed: 0
             }
-          };
-   this.pythonLogAnalyzer.analyzeExecution(result.result);
+          } else{
+            console.log('HEERERERWQRWER')
+          }
+      
  
       console.log('HEERERERWQRWER')
       // Send response back to thread

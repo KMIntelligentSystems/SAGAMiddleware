@@ -471,6 +471,8 @@ cute_python tool.\n' +
   timestamp: 2025-09-03T21:12:00.968Z
 }
 `;
+export const flowData = `'<flow>CODE-DAILY-AVG-01 -> TOOL-CALL-EXEC-01</flow>\n' +
+    '{"toolUsers": ["MCPExecutePythonCaller"]}'`;
 
 export const codeWriterTaskDescription = `            Your task: Write a complete Python script that reads a CSV exported from Excel, normalizes the data into long format, and outputs:
     - A single combined CSV with columns: date/time, installation, energy_source, MW
@@ -709,13 +711,219 @@ export const codeExecutorResult = ` {
 `;
 
 export const pythonLogCodeResult = ` {
-  "content": [],
-  "success": true,
-  "stdout": "",
-  "stderr": "",
-  "filename": "script_1756934015527.py"
+  agentName: 'MCPExecutePythonCaller',
+  result: {
+    agentName: 'MCPExecutePythonCaller',
+    result: '{"content":[],"success":true,"stdout":"","stderr":"","filename":"script_1756934015527.py"}',
+    success: true,
+    timestamp: 2025-09-03T21:13:38.364Z
+  },
+  success: true,
+  timestamp: 2025-09-03T21:13:26.962Z
 }
-
 `;
+
+export const setExecutionResult = `{
+  "setId": "visualization-saga-collection",
+  "success": true,
+  "result": {
+    "workflowId": "thread_saga_thread_h8yBBgWkDd2vzTuk23c7GJhY_1757028911418",
+    "collectionId": "visualization-saga-collection",
+    "setResults": {
+      "visualization-loading-set": {
+        "setId": "visualization-loading-set",
+        "success": true,
+        "result": " {\n  agentName: 'MCPExecutePythonCaller',\n  result: {\n    agentName: 'MCPExecutePythonCaller',\n    result: '{\"content\":[],\"success\":true,\"std
+out\":\"\",\"stderr\":\"\",\"filename\":\"script_1756934015527.py\"}',\n    success: true,\n    timestamp: 2025-09-03T21:13:38.364Z\n  },\n  success: true,\n  timestamp:
+ 2025-09-03T21:13:26.962Z\n}\n",
+        "executionTime": 2,
+        "transactionResults": {},
+        "metadata": {
+          "startTime": "2025-09-04T23:35:11.418Z",
+          "endTime": "2025-09-04T23:35:11.420Z",
+          "transactionsExecuted": 3,
+          "transactionsFailed": 0
+        }
+      },
+      "agent-generating-set": {
+        "setId": "agent-generating-set",
+        "success": true,
+        "result": "'<flow>CODE-DAILY-AVG-01 -> TOOL-CALL-EXEC-01</flow>\n' +\n    '{\"toolUsers\": [\"MCPExecutePythonCaller\"]}'",
+        "executionTime": 26,
+        "transactionResults": {},
+        "metadata": {
+          "startTime": "2025-09-04T23:35:11.420Z",
+          "endTime": "2025-09-04T23:35:11.446Z",
+          "transactionsExecuted": 1,
+          "transactionsFailed": 0
+        }
+      },
+      "processing-set": {
+        "setId": "processing-set",
+        "success": true,
+        "result": " {\n  agentName: 'MCPExecutePythonCaller',\n  result: {\n    agentName: 'MCPExecutePythonCaller',\n    result: '{\"content\":[],\"success\":true,\"std
+out\":\"\",\"stderr\":\"\",\"filename\":\"script_1756934015527.py\"}',\n    success: true,\n    timestamp: 2025-09-03T21:13:38.364Z\n  },\n  success: true,\n  timestamp:
+ 2025-09-03T21:13:26.962Z\n}\n",
+        "executionTime": 1,
+        "transactionResults": {
+          "setId": {
+            "id": "processing-set",
+            "name": "Data Processing Set",
+            "description": "Processing agents that fetch, extract, normalize, group and aggregate data",
+            "transactions": [
+              {
+                "id": "CODE-DAILY-AVG-01",
+                "name": "PandasDailyAveragingCoder Transaction",
+                "agentName": "PandasDailyAveragingCoder",
+                "agentType": "processing",
+                "dependencies": [
+                  "TOOL-CALL-EXEC-01"
+                ],
+                "compensationAction": "cleanup_conversation_state",
+                "status": "pending",
+                "transactionPrompt": "Your task: Write complete, runnable Python code that:\n- Reads the input CSV at C:/repos/SAGAMiddleware/data/Output_one_hour_normal
+ized.csv\n- Computes daily average MW per installation per energy_source for the 4 days from 11/02/2023 to 11/05/2023, using only the 4:00–4:55 time window at 5-minute i
+nterv\nals\n- Writes a CSV with columns in this exact order and naming: date/time,installation,MW,energy_source\n  - date/time should be the date only (e.g., 11/02/2023)
+\n  - MW should be the average MW for that installation and energy_source on that date (include negative values if present)\n- Saves the output to: C:/repos/SAGAMiddlewa
+re/data/Output_one_hour_daily_avg.csv\n\nData details and constraints:\n- Input CSV columns: date/time,installation,MW,energy_source\n  - date/time format like: 11/02/20
+23 4:00\n  - One-hour window per day: 4:00 through 4:55 inclusive, at 5-minute intervals\n  - Data spans four dates: 11/02/2023, 11/03/2023, 11/04/2023, 11/05/2023\n- Co
+mpute averages per (date, installation, energy_source)\n- Keep MW as numeric; coerce non-numeric to NaN and drop those rows from averaging\n- Preserve negative MW readin
+gs in averaging (do not clip)\n- Grouping must include energy_source to avoid mixing categories\n- Output CSV must have only the aggregated rows with the exact header an
+d column order: date/time,installation,MW,energy_source\n\nImplementation guidance:\n- Use pandas\n- Steps:\n  1) Read CSV; parse date/time to datetime\n  2) Ensure MW i
+s numeric (coerce errors), drop rows where MW is NaN\n  3) Filter rows to dates 11/02/2023–11/05/2023 and time-of-day between 4:00 and 4:55 inclusive at 5-minute interva
+ls\n  4) Create a date-only string column for output formatting (MM/DD/YYYY), named date/time\n  5) Group by date/time, installation, energy_source; average MW\n  6) Reo
+rder columns exactly and write to C:/repos/SAGAMiddleware/data/Output_one_hour_daily_avg.csv with index=False\n\nAbsolute requirements:\n- Output ONLY Python code\n- The
+ very first character of your reply must be Python code (import, def, or variable)\n- The very last character of your reply must be Python code\n- No explanatory text\n-
+ No markdown\n- No comments\n- No surrounding quotes or code fences"
+              },
+              {
+                "id": "TOOL-CALL-EXEC-01",
+                "name": "MCPExecutePythonCaller Transaction",
+                "agentName": "MCPExecutePythonCaller",
+                "agentType": "tool",
+                "dependencies": [],
+                "compensationAction": "cleanup_conversation_state",
+                "status": "pending",
+                "transactionPrompt": "You are a tool calling agent. Take the Python code produced by the coding agent and execute it by making a single JSON-RPC request 
+to the MCP server to call the exe\ncute_python tool.\n\nInstructions:\n- Replace {code} below with the exact Python code produced by the coding agent (no modifications, 
+no added wrappers)\n- Ensure proper JSON string encoding so that the entire code is passed under the \"code\" field (preserve newlines)\n- Output only the JSON-RPC reque
+st object with no extra text or formatting\n\nTool call to send:\n{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\":
+ \"execute_python\",\n    \"arguments\": {\n      \"code\": {code}\n    }\n  }\n}"
+              }
+            ],
+            "dependencies": []
+          }
+        },
+        "metadata": {
+          "startTime": "2025-09-04T23:35:11.447Z",
+          "endTime": "2025-09-04T23:35:11.448Z",
+          "transactionsExecuted": 2,
+          "transactionsFailed": 0
+        }
+      }
+    },
+    "collectionResult": {}
+  },
+  "executionTime": 0,
+  "transactionResults": {
+    "visualization-loading-set": {
+      "setId": "visualization-loading-set",
+      "success": true,
+      "result": " {\n  agentName: 'MCPExecutePythonCaller',\n  result: {\n    agentName: 'MCPExecutePythonCaller',\n    result: '{\"content\":[],\"success\":true,\"stdou
+t\":\"\",\"stderr\":\"\",\"filename\":\"script_1756934015527.py\"}',\n    success: true,\n    timestamp: 2025-09-03T21:13:38.364Z\n  },\n  success: true,\n  timestamp:2 
+025-09-03T21:13:26.962Z\n}\n",
+      "executionTime": 2,
+      "transactionResults": {},
+      "metadata": {
+        "startTime": "2025-09-04T23:35:11.418Z",
+        "endTime": "2025-09-04T23:35:11.420Z",
+        "transactionsExecuted": 3,
+        "transactionsFailed": 0
+      }
+    },
+    "agent-generating-set": {
+      "setId": "agent-generating-set",
+      "success": true,
+      "result": "'<flow>CODE-DAILY-AVG-01 -> TOOL-CALL-EXEC-01</flow>\n' +\n    '{\"toolUsers\": [\"MCPExecutePythonCaller\"]}'",
+      "executionTime": 26,
+      "transactionResults": {},
+      "metadata": {
+        "startTime": "2025-09-04T23:35:11.420Z",
+        "endTime": "2025-09-04T23:35:11.446Z",
+        "transactionsExecuted": 1,
+        "transactionsFailed": 0
+      }
+    },
+    "processing-set": {
+      "setId": "processing-set",
+      "success": true,
+      "result": " {\n  agentName: 'MCPExecutePythonCaller',\n  result: {\n    agentName: 'MCPExecutePythonCaller',\n    result: '{\"content\":[],\"success\":true,\"stdou
+t\":\"\",\"stderr\":\"\",\"filename\":\"script_1756934015527.py\"}',\n    success: true,\n    timestamp: 2025-09-03T21:13:38.364Z\n  },\n  success: true,\n  timestamp: 2
+025-09-03T21:13:26.962Z\n}\n",
+      "executionTime": 1,
+      "transactionResults": {
+        "setId": {
+          "id": "processing-set",
+          "name": "Data Processing Set",
+          "description": "Processing agents that fetch, extract, normalize, group and aggregate data",
+          "transactions": [
+            {
+              "id": "CODE-DAILY-AVG-01",
+              "name": "PandasDailyAveragingCoder Transaction",
+              "agentName": "PandasDailyAveragingCoder",
+              "agentType": "processing",
+              "dependencies": [
+                "TOOL-CALL-EXEC-01"
+              ],
+              "compensationAction": "cleanup_conversation_state",
+              "status": "pending",
+              "transactionPrompt": "Your task: Write complete, runnable Python code that:\n- Reads the input CSV at C:/repos/SAGAMiddleware/data/Output_one_hour_normaliz
+ed.csv\n- Computes daily average MW per installation per energy_source for the 4 days from 11/02/2023 to 11/05/2023, using only the 4:00–4:55 time window at 5-minute int
+erv\nals\n- Writes a CSV with columns in this exact order and naming: date/time,installation,MW,energy_source\n  - date/time should be the date only (e.g., 11/02/2023)\n
+  - MW should be the average MW for that installation and energy_source on that date (include negative values if present)\n- Saves the output to: C:/repos/SAGAMiddleware
+/data/Output_one_hour_daily_avg.csv\n\nData details and constraints:\n- Input CSV columns: date/time,installation,MW,energy_source\n  - date/time format like: 11/02/2023
+ 4:00\n  - One-hour window per day: 4:00 through 4:55 inclusive, at 5-minute intervals\n  - Data spans four dates: 11/02/2023, 11/03/2023, 11/04/2023, 11/05/2023\n- Comp
+ute averages per (date, installation, energy_source)\n- Keep MW as numeric; coerce non-numeric to NaN and drop those rows from averaging\n- Preserve negative MW readings
+ in averaging (do not clip)\n- Grouping must include energy_source to avoid mixing categories\n- Output CSV must have only the aggregated rows with the exact header and 
+column order: date/time,installation,MW,energy_source\n\nImplementation guidance:\n- Use pandas\n- Steps:\n  1) Read CSV; parse date/time to datetime\n  2) Ensure MW is 
+numeric (coerce errors), drop rows where MW is NaN\n  3) Filter rows to dates 11/02/2023–11/05/2023 and time-of-day between 4:00 and 4:55 inclusive at 5-minute intervals
+\n  4) Create a date-only string column for output formatting (MM/DD/YYYY), named date/time\n  5) Group by date/time, installation, energy_source; average MW\n  6) Reord
+er columns exactly and write to C:/repos/SAGAMiddleware/data/Output_one_hour_daily_avg.csv with index=False\n\nAbsolute requirements:\n- Output ONLY Python code\n- Thev 
+ery first character of your reply must be Python code (import, def, or variable)\n- The very last character of your reply must be Python code\n- No explanatory text\n- N
+o markdown\n- No comments\n- No surrounding quotes or code fences"
+            },
+            {
+              "id": "TOOL-CALL-EXEC-01",
+              "name": "MCPExecutePythonCaller Transaction",
+              "agentName": "MCPExecutePythonCaller",
+              "agentType": "tool",
+              "dependencies": [],
+              "compensationAction": "cleanup_conversation_state",
+              "status": "pending",
+              "transactionPrompt": "You are a tool calling agent. Take the Python code produced by the coding agent and execute it by making a single JSON-RPC request to
+ the MCP server to call the exe\ncute_python tool.\n\nInstructions:\n- Replace {code} below with the exact Python code produced by the coding agent (no modifications, no
+ added wrappers)\n- Ensure proper JSON string encoding so that the entire code is passed under the \"code\" field (preserve newlines)\n- Output only the JSON-RPC request
+ object with no extra text or formatting\n\nTool call to send:\n{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \
+"execute_python\",\n    \"arguments\": {\n      \"code\": {code}\n    }\n  }\n}"
+            }
+          ],
+          "dependencies": []
+        }
+      },
+      "metadata": {
+        "startTime": "2025-09-04T23:35:11.447Z",
+        "endTime": "2025-09-04T23:35:11.448Z",
+        "transactionsExecuted": 2,
+        "transactionsFailed": 0
+      }
+    }
+  },
+  "metadata": {
+    "startTime": "2025-09-04T23:35:11.448Z",
+    "endTime": "2025-09-04T23:35:11.448Z",
+    "transactionsExecuted": 3,
+    "transactionsFailed": 0
+  }
+}`
 
 export { csvContent, agentData };

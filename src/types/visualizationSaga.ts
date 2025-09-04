@@ -714,6 +714,12 @@ export interface SetExecutionResult {
   };
 }
 
+export interface AnalysisResult {
+  isErrorFree: boolean;
+  errorDetails?: string;
+  message: string;
+}
+
 // Default Transaction Set Collection SAGA_CONVERSATION_TRANSACTIONS
 export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
   id: 'default-saga-collection',

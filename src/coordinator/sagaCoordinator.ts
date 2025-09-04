@@ -33,7 +33,7 @@ import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
-import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult } from '../test/testData.js';
+import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData } from '../test/testData.js';
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -488,7 +488,11 @@ sleep(ms: number) {
                           description: '',
                           transactions: [] 
     };
-
+  let setResult: AgentResult = {agentName: '',
+      result: '',
+      success: true,
+      timestamp: new Date()
+    };
     let overallResult: AgentResult = {
       agentName: 'saga_coordinator_collection',
       result: {
@@ -534,11 +538,7 @@ sleep(ms: number) {
           // Execute the transgrouping result - 
           //'<flow>EDCG-001 -> PTC-001</flow>\n{"toolUsers": ["PythonToolCaller"]}'
         this.activeTransactionSetId = transactionSet.id;
-      let setResult: AgentResult = {agentName: '',
-      result: '',
-      success: true,
-      timestamp: new Date()
-    };
+    
 
     
         if(transactionSet.id === 'data-loading-set'){
@@ -599,7 +599,7 @@ sleep(ms: number) {
           //Processing set: Agent Generating Pipeline (agent-generating-set)
           //TRANS NAME  Agent Generating Pipeline
 
-             console.log('TRANS NAME ',transactionSet.name)
+           /*  console.log('TRANS NAME ',transactionSet.name)
               const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
               const response = groupedContext.lastTransactionResult;
               console.log('RESPONSE  ', response)
@@ -613,7 +613,11 @@ sleep(ms: number) {
                                                                   result: '',
                                                                   success: true,
                                                                   timestamp: new Date()
-                                                                };
+                                                                };*/
+          //Begin test
+          const response = visualizationGroupingAgentsResult;
+          setResult.result = flowData;
+          //end test
           /*
 groupingAgentResult=
 RESPONSE   {
@@ -760,21 +764,44 @@ cute_python tool.\n' +
           const dynamicSetStartTime = new Date();
           try {
             //Executing linear chain: EnergyCSVNormalizer -> PythonToolInvoker
-            const dynamicSetResult = await this.executeSagaWorkflow(
+          /*  const dynamicSetResult = await this.executeSagaWorkflow(
               request,
               `${workflowId}_dynamic_${setId}`,
               dynamicSet,
               contextSet,
               lastExecutionResult
-            );
-//DYNAMIC 1 = codeExecutorResult
-/*
-DYNAMIC 1 {
-  agentName: 'PythonToolInvoker',
-  result: {
-    agentName: 'PythonToolInvoker',
-    result: `{"content":[],"success":false
-    success: true,
+            );*/
+        //test 
+        const dynamicSetResult = setResult //.result = pythonLogCodeResult;
+        dynamicSetResult.result = pythonLogCodeResult;
+        //end test
+   /*
+NAME  EnergyCSVNormalizer
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'EDN-01', 'PTI-01' ]
+NAME  PythonToolInvoker
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'EDN-01', 'PTI-01' ]
+LATEST LINEAR  PythonToolInvoker
+TOOL CTX  undefined
+TOOL CTX PREV ''python
+import pandas as pd
+import numpy as np
+import os
+       --------
+DYNAMIC 2 true
+✅ Collection execution completed. Success: true
+NAME  PandasDailyAveragingCoder
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
+NAME  MCPExecutePythonCaller
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
+LATEST LINEAR  MCPExecutePythonCaller
+TOOL CTX  undefined
+TOOL CTX PREV ''python
+import pandas as pd
+     
 */
 console.log('DYNAMIC 1', dynamicSetResult.result)
 console.log('DYNAMIC 2', dynamicSetResult.success)
