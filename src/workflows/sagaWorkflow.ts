@@ -1,15 +1,18 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import {SAGA_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,SAGA_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, groupingAgentPrompt, codingAgentPrompt,  dataValidatingAgentPrompt } from '../types/visualizationSaga.js';
+import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
+  SAGA_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
+  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
-import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory } from '../types/index.js';
+import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
-import { agentData, groupingAgentResult } from '../test/testData.js'
+import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResult, codeExecutorResult, visCodeWriterTaskDescription, visCodeExecutorTaskDescription, pythonLogCodeResult } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
+import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -21,6 +24,7 @@ export class SagaWorkflow {
   private transactionRegistry: TransactionRegistry;
   private contextRegistry: ContextRegistry;
   private conversationManager: ConversationManager;
+  private pythonLogAnalyzer: PythonLogAnalyzer;
   
   // Global thread and message retention
   private currentThreadId: string | null = null;
@@ -63,7 +67,7 @@ export class SagaWorkflow {
       defaultTransactionSet: 'visualization'
     };
     this.transactionRegistry = new TransactionRegistry(registryConfig);
-    
+    this.pythonLogAnalyzer = new PythonLogAnalyzer();
     // Initialize ContextRegistry
     const contextConfig: ContextRegistryConfig = {
       eventBusUrl: config.eventBus.url,
@@ -199,10 +203,18 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-3',
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
-        to be amended in the JSON object that does not follow the rules.`
-        ,
+        to be amended in the JSON object that does not follow the rules.`,
         taskDescription:  dataValidatingAgentPrompt,
         taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
+      },
+      {
+        agentName: 'VisualizationCoordinatingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-4',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: `Your role is coordinator. You will receive instructions which will indicate your specific task 
+        and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks'`,
+        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
       }
       
       /*,
@@ -615,14 +627,17 @@ SEQUENCE:
        
       
       // Execute SAGA through coordinator using the new executeTransactionSetCollection method
-      const result = await this.coordinator.executeTransactionSetCollection(
+      //1.'data-loading-set': TransactionGroupingAgent result = 2 agents defined = groupingAgentResult
+      //2. 'agent-generating-set': TransactionGroupingAgent  defines dynamic coder/tool caller 
+     /* const result: SetExecutionResult = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
-        DEFAULT_SAGA_COLLECTION,
+        SAGA_VISUALIZATION_COLLECTION, //DEFAULT_SAGA_COLLECTION,
         `thread_saga_${threadId}_${Date.now()}`,
         activeContextSet
       );
-      
-      this.coordinator.getAgents
+      //pythonLogCodeResult
+     this.pythonLogAnalyzer.analyzeExecution(result.result);
+
       let sagaTransactionName = '';
             let sagaTransactionId = '';
             const names: string[] =[];
@@ -643,7 +658,7 @@ SEQUENCE:
                     sagaTransactionId = transaction.id;
             }) 
           });
-            console.log('LATEST LINEAR ',sagaTransactionName)
+            console.log('LATEST LINEAR ',sagaTransactionName) //'PythonToolInvoker'
             try{
                   const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
                   const agent = this.coordinator.agents.get('TransactionGroupingAgent');
@@ -655,7 +670,7 @@ SEQUENCE:
                         const prompt = groupingAgentPrompt + 'name: ' + priorName + ' id: ' +  priorId //eg coder before tool caller
                         agent?.setTaskDescription(prompt);
                         const codeAgent = this.coordinator.agents.get(priorName);
-                        codeAgent?.setTaskDescription(codingAgentPrompt);
+                        codeAgent?.setTaskDescription(codingAgentErrorPrompt);
                     }  
                   }
                   console.log('TOOL CTX ', toolCtx.lastActionResult)
@@ -666,15 +681,59 @@ SEQUENCE:
                   this.coordinator.agentFlows[0].push('tx-2');
             } catch(error){
                 console.log('ERROR 1', error)
-            }
-
-    /*   const resultNext = await this.coordinator.executeTransactionSetCollection(
+            }*/
+            /*
+NAME  EnergyCSVNormalizer
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'EDN-01', 'PTI-01' ]
+NAME  PythonToolInvoker
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'EDN-01', 'PTI-01' ]
+LATEST LINEAR  PythonToolInvoker
+TOOL CTX  undefined
+TOOL CTX PREV ''python
+import pandas as pd
+import numpy as np
+import os
+       --------
+DYNAMIC 2 true
+✅ Collection execution completed. Success: true
+NAME  PandasDailyAveragingCoder
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
+NAME  MCPExecutePythonCaller
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
+LATEST LINEAR  MCPExecutePythonCaller
+TOOL CTX  undefined
+TOOL CTX PREV ''python
+import pandas as pd
+     
+*/
+ /* IN ERROR FROM FIRST TOOL CALL CALL ITERATION TO FIX ERROR
+     this.createTestAgents();
+       const result = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
-        SAGA_VALIDATION_COLLECTION,
+        SAGA_CODE_VALIDATION_COLLECTION,
         `thread_saga_${threadId}_${Date.now()}`,
         activeContextSet
       );*/
       
+ const result: SetExecutionResult = {
+            setId: '',
+            success: true,
+            result: pythonLogCodeResult,
+            executionTime: 12,
+            transactionResults: {},
+            metadata: {
+              startTime: new Date(),
+              endTime: new Date(),
+              transactionsExecuted: 123,
+              transactionsFailed: 0
+            }
+          };
+   this.pythonLogAnalyzer.analyzeExecution(result.result);
+ 
       console.log('HEERERERWQRWER')
       // Send response back to thread
       if (result.success) {
@@ -699,7 +758,159 @@ SEQUENCE:
       }
     }
   }
+
+    private createTestVisualizationAgents(){
+
+     const agentDefinition1: AgentDefinition = {
+        id: 'CODE-DAILY-AVG-01',
+        name: 'PandasDailyAveragingCoder',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: visCodeWriterTaskDescription ,//codeWriterTaskDescription, if errors then codingAgentErrorPrompt + visCodeWriterResult
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'processing'
+      };
+
+      this.coordinator.registerAgent(agentDefinition1);
+
+      const agentDefinition2: AgentDefinition = {
+        id: 'TOOL-CALL-EXEC-01',
+        name: 'MCPExecutePythonCaller',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,      
+        taskDescription: visCodeExecutorTaskDescription ,
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'tool'
+    };
+
+     this.coordinator.registerAgent(agentDefinition2);
+  }
+
+  private createTestVisualizationAgentsInError(){
+
+     const agentDefinition1: AgentDefinition = {
+        id: 'CODE-DAILY-AVG-01',
+        name: 'PandasDailyAveragingCoder',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: visCodeWriterTaskDescription ,//codeWriterTaskDescription, if errors then codingAgentErrorPrompt + visCodeWriterResult
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'processing'
+      };
+
+      this.coordinator.registerAgent(agentDefinition1);
+
+      const agentDefinition2: AgentDefinition = {
+        id: 'TOOL-CALL-EXEC-01',
+        name: 'MCPExecutePythonCaller',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,      
+        taskDescription: visCodeExecutorTaskDescription ,
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'tool'
+    };
+
+     this.coordinator.registerAgent(agentDefinition2);
+//In case of error run this
+      try{
+          const names: string[] = ['PandasDailyAveragingCoder', 'MCPExecutePythonCaller'];
+          const ids: string[]= [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ];
+          const agent = this.coordinator.agents.get('VisualizationCoordinatingAgent');
+          agent?.deleteContext();
+          if(groupingAgentPrompt){
+              if(names){
+                    const priorName =  names[0]
+                    const priorId =  ids[0]
+                    const prompt = groupingAgentPrompt + 'name: ' + priorName + ' id: ' +  priorId //eg coder before tool caller
+                    agent?.setTaskDescription(prompt);
+                    //const codeAgent = this.coordinator.agents.get(priorName);
+                    //codeAgent?.setTaskDescription(codingAgentPrompt);
+                }  
+            }
+                  agent?.receiveContext({'Tool_Call_Result: ': codeExecutorResult})
+                 // agent?.receiveContext({'Previous_Code: ':codeWriterResult });
+                //  this.coordinator.agentFlows[0].unshift('tx-2');
+                //  this.coordinator.agentFlows[0].push('tx-2');
+            } catch(error){
+                console.log('ERROR 1', error)
+            }
+
+    this.coordinator.agentFlows[0] = ['tx-2', 'EDN-01', 'PTI-01', 'tx-2']
+  }
+
+  private createTestAgents(){  
+      const agentDefinition1: AgentDefinition = {
+        id: 'EDN-01',
+        name: 'EnergyCSVNormalizer',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: codingAgentErrorPrompt + codeWriterResult ,//codeWriterTaskDescription,
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'processing'
+      };
+
+      this.coordinator.registerAgent(agentDefinition1);
+
+    const agentDefinition2: AgentDefinition = {
+      id: 'PTI-01',
+     name: 'PythonToolInvoker',
+      backstory: `Dynamic agent created from SAGA transaction with ID`,      
+      taskDescription: codeExecutorTaskDescription,
+      taskExpectedOutput: 'Structured response based on task requirements',
+     llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+     dependencies: [],
+      agentType: 'tool'
+    };
+
+     this.coordinator.registerAgent(agentDefinition2);
+/*
+NAME  EnergyCSVNormalizer
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'EDN-01', 'PTI-01' ]
+NAME  PythonToolInvoker
+FLOW 1 [ 'tx-2' ]
+FLOW 1 [ 'EDN-01', 'PTI-01' ]
+LATEST LINEAR  PythonToolInvoker
+TOOL CTX  undefined
+TOOL CTX PREV ''python
+import pandas as pd
+import numpy as np
+import os
+            
+*/
+    try{
+          const names: string[] = ['EnergyCSVNormalizer', 'PythonToolInvoker'];
+          const ids: string[]= [ 'EDN-01', 'PTI-01' ];
+          const agent = this.coordinator.agents.get('TransactionGroupingAgent');
+          agent?.deleteContext();
+          if(groupingAgentPrompt){
+              if(names){
+                    const priorName =  names[0]
+                    const priorId =  ids[0]
+                    const prompt = groupingAgentPrompt + 'name: ' + priorName + ' id: ' +  priorId //eg coder before tool caller
+                    agent?.setTaskDescription(prompt);
+                    //const codeAgent = this.coordinator.agents.get(priorName);
+                    //codeAgent?.setTaskDescription(codingAgentPrompt);
+                }  
+            }
+                  agent?.receiveContext({'Tool_Call_Result: ': codeExecutorResult})
+                 // agent?.receiveContext({'Previous_Code: ':codeWriterResult });
+                //  this.coordinator.agentFlows[0].unshift('tx-2');
+                //  this.coordinator.agentFlows[0].push('tx-2');
+            } catch(error){
+                console.log('ERROR 1', error)
+            }
+
+    this.coordinator.agentFlows[0] = ['tx-2', 'EDN-01', 'PTI-01', 'tx-2']
+  }
 }
+
+
 
 // Main execution function
 export async function runVisualizationSAGAExample(): Promise<void> {

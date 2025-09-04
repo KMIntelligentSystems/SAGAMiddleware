@@ -33,7 +33,7 @@ import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
-import { groupingAgentResult, groupingAgentFailedResult } from '../test/testData.js';
+import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult } from '../test/testData.js';
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -49,7 +49,8 @@ export class SagaCoordinator extends EventEmitter {
   private  conversationAgentCompleted = false;
    private mcpServers: Record<string, MCPServerConfig>;
   agentFlows: string[][] = [];
-
+  private activeTransactionSetId: string = '';
+  
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
@@ -60,7 +61,7 @@ export class SagaCoordinator extends EventEmitter {
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
     this.mcpServers = mcpServers;
-    this.agentFlows.push(['tx-2','tx-3', 'tx-2'])
+    this.agentFlows.push(['tx-4','tx-3', 'tx-4']) //'tx-2' for DEFAULT_SAGA_COLLECTIONS
   }
 
   registerAgent(definition: AgentDefinition): void {
@@ -150,6 +151,7 @@ if(definition.agentType === 'tool'){
       for (const flow of this.agentFlows) {
         for (const flowAgentId of flow) {
           this.agents.forEach(agent => {
+        
             if(agent.getId() === flowAgentId){
               if(flowAgentId === 'tx-2'){
                  cyclePartners.push(transaction)
@@ -202,6 +204,7 @@ if(definition.agentType === 'tool'){
       // Linear chain: no repeated elements AND more than one element
       const uniqueElements = new Set(flow);
       if (uniqueElements.size === flow.length && flow.length > 1) {
+        //Linear chain detected for EDN-01 in flow: EDN-01 -> PTI-01
         console.log(`📏 Linear chain detected for ${transaction.id} in flow: ${flow.join(' -> ')}`);
         return true;
       }
@@ -243,7 +246,7 @@ if(definition.agentType === 'tool'){
         break;
       }
     }
-    
+    //Linear partners for EDN-01 from flow: [ 'EDN-01(EnergyCSVNormalizer)', 'PTI-01(PythonToolInvoker)' ]
     console.log(`📏 Linear partners for ${transaction.id} from flow:`, linearPartners.map(t => `${t.id}(${t.agentName})`));
     return linearPartners;
   }
@@ -273,11 +276,14 @@ if(definition.agentType === 'tool'){
             const cleanCode = this.cleanPythonCode(res?.result || '')
             result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
             const agentName = agent?.getName() as string
-            
+            //OUT LINEAR  PythonToolInvoker
+            //OUT LINEAR  1  codeExecutorResult ie python tool call
             console.log('OUT LINEAR ', agentName)
              console.log('OUT LINEAR  1 ', result.result)
              try{
+              //codeWriterResult is example of clean code previous Result which is executed 
               this.contextManager.updateContext(agentName,{previousResult: cleanCode });
+              //codeExecutorResult is example of result.result for python tool call response
               this.contextManager.updateContext(agentName,{latestExecutionResult: result.result });
              }catch (error) {
                 console.log('ERROR ', error)
@@ -527,7 +533,7 @@ sleep(ms: number) {
         try {
           // Execute the transgrouping result - 
           //'<flow>EDCG-001 -> PTC-001</flow>\n{"toolUsers": ["PythonToolCaller"]}'
-        
+        this.activeTransactionSetId = transactionSet.id;
       let setResult: AgentResult = {agentName: '',
       result: '',
       success: true,
@@ -562,7 +568,37 @@ sleep(ms: number) {
               );*/
               
               priorSet = transactionSet;
+        } else  if(transactionSet.id === 'visualization-loading-set'){
+           const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'VisualizationCoordinatingAgent')
+           const agent = this.agents?.get('VisualizationCoordinatingAgent');
+           agent?.receiveContext({'YOUR TASK': conversationContext});
+           //test start
+           setResult.result = pythonLogCodeResult; //groupingAgentResult or visualizationGroupingAgentsResult
+           this.contextManager.updateContext('VisualizationCoordinatingAgent', {
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-4',
+                  timestamp: new Date()
+                }); 
+          
+            this.contextManager.updateContext('TransactionGroupingAgent', {
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-2',
+                  timestamp: new Date()
+            }); 
+            //end 
+         /*  setResult = await this.executeSagaWorkflow(
+                request,
+                `${workflowId}_${setId}`,
+                transactionSet,
+                contextSet,
+                lastExecutionResult
+              );*/
+              
+              priorSet = transactionSet;
         } else if (transactionSet.id === 'agent-generating-set') {
+          //Processing set: Agent Generating Pipeline (agent-generating-set)
+          //TRANS NAME  Agent Generating Pipeline
+
              console.log('TRANS NAME ',transactionSet.name)
               const groupedContext =  this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
               const response = groupedContext.lastTransactionResult;
@@ -578,9 +614,34 @@ sleep(ms: number) {
                                                                   success: true,
                                                                   timestamp: new Date()
                                                                 };
-          
+          /*
+groupingAgentResult=
+RESPONSE   {
+  agentName: TransactionGroupingAgent,
+  result: [AGENT: EnergyCSVNormalizer, EDN-01]
+    Your task: Write a complete Python script that reads a CSV exported from Excel, normalizes the data into long format, and outputs:
+ [/AGENT]
+    [AGENT: PythonToolInvoker, PTI-01]
+    You are a tool-calling agent. Your task is to call the MCP server to execute Python code produced by the coding agent.
+ [/AGENT]
+visualizationGroupingAgentsResult=
+   agentName: 'VisualizationCoordinatingAgent',
+  result: '[AGENT: PandasDailyAveragingCoder, CODE-DAILY-AVG-01]\n' +
+    'Your task: Write complete, runnable Python code that:\n' +
+     '- No surrounding quotes or code fences\n' +
+    '[/AGENT]\n' +
+    '\n' +
+    '[AGENT: MCPExecutePythonCaller, TOOL-CALL-EXEC-01]\n' +
+    'You are a tool calling agent. Take the Python code produced by the coding agent and execute it by making a single JSON-RPC request to the MCP server to call the exe
+cute_python tool.\n' +
+  '}\n' +
+    '[/AGENT]',
+  success: true,
+  timestamp: 2025-09-03T21:12:00.968Z
+}
+          */
                 dynamicTransactionSet = AgentParser.parseAndCreateAgents(
-                groupedContext.previousResult,
+                response,
                 setResult.result,
                 this // Pass the coordinator instance to register agents
               );
@@ -660,7 +721,8 @@ sleep(ms: number) {
             continue;
           }
           
-// Processing dynamic set: Data Loading Pipeline (code-validating-set)
+//  Processing dynamic set: Data Processing Set (processing-set)
+          //Processing set: Data Loading Pipeline (visualization-loading-set)
           console.log(`📋 Processing dynamic set: ${dynamicSet.name} (${setId})`);//['processing-set']
 
           // Handle specific set types with placeholder if-statements
@@ -697,6 +759,7 @@ sleep(ms: number) {
           // Execute the dynamic set using existing workflow logic
           const dynamicSetStartTime = new Date();
           try {
+            //Executing linear chain: EnergyCSVNormalizer -> PythonToolInvoker
             const dynamicSetResult = await this.executeSagaWorkflow(
               request,
               `${workflowId}_dynamic_${setId}`,
@@ -704,6 +767,15 @@ sleep(ms: number) {
               contextSet,
               lastExecutionResult
             );
+//DYNAMIC 1 = codeExecutorResult
+/*
+DYNAMIC 1 {
+  agentName: 'PythonToolInvoker',
+  result: {
+    agentName: 'PythonToolInvoker',
+    result: `{"content":[],"success":false
+    success: true,
+*/
 console.log('DYNAMIC 1', dynamicSetResult.result)
 console.log('DYNAMIC 2', dynamicSetResult.success)
             const dynamicSetEndTime = new Date();
@@ -878,6 +950,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
               const linearPartners = this.getLinearPartnersFromFlow(transaction, transactionsToExecute);
               
               // Execute linear chain in sequence
+              //Executing linear chain: EnergyCSVNormalizer -> PythonToolInvoker
               console.log(`📏 Executing linear chain: ${linearPartners.map(t => t.agentName).join(' -> ')}`);
               const result = this.executeSagaTransactionWithLinearContext(transaction, linearPartners)
               return result;
@@ -889,7 +962,12 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
             const cyclePartners = this.getCyclePartnersFromFlow(transaction);
            
             console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
-            result = await this.executeGeneralCycle(cyclePartners, request, processedInCycle);
+            if(this.activeTransactionSetId === 'data-loading-set' || this.activeTransactionSetId === 'visualization-loading-set'){
+               result = await this.executeDataValidatingCycle(cyclePartners, request, processedInCycle);
+            } else if(this.activeTransactionSetId === 'code-validating-set'){
+                result = await this.executeCodeValidatingCycle(cyclePartners, request, processedInCycle);
+            }
+           
             return result;
           }/* else if (transaction.status === 'pending' && this.hasCircularDependency(transaction, transactionsToExecute)) {
             // Handle traditional 2-agent circular dependency
@@ -3112,7 +3190,7 @@ Task Context: ${taskContext}
   /**
    * Executes a general cycle of transactions using executeSagaTransaction
    */
-  private async executeGeneralCycle(
+  private async executeCodeValidatingCycle(
     cyclePartners: SagaTransaction[], 
     request: BrowserGraphRequest, 
     processedInCycle: Set<string>
@@ -3130,6 +3208,62 @@ Task Context: ${taskContext}
     };
     
     // Execute each transaction in the cycle
+    // FLOW  [ 'tx-2', 'EDN-01', 'PTI-01', 'tx-2' ] 
+    let context = {}
+    let validated = true;
+    for (let i = 0; i < cyclePartners.length; i++) {
+      const transaction = cyclePartners[i];
+      console.log(`🔄 Executing cycle step ${i + 1}/${cyclePartners.length}: ${transaction.agentName}`);
+     
+      //First transactionGroupingAgent has prompt -task desc - and context
+      if(i > 0){
+        const transAgent = this.agents.get(transaction.agentName);
+        transAgent?.deleteContext();
+        if(i === cyclePartners.length -2 )
+        {
+            const cleanCode = this.cleanPythonCode(JSON.stringify(result.result));
+            transAgent?.receiveContext({'USE THE VALIDATION RESULTS TO ASSIST YOU IN YOUR TASK:':cleanCode});
+        } else {
+          transAgent?.receiveContext({'USE THE VALIDATION RESULTS TO ASSIST YOU IN YOUR TASK:':result.result});
+        }
+        
+      } 
+      // Execute the transaction
+      const agent = this.agents.get(transaction.agentName);
+      result = await agent?.execute(context) as AgentResult
+      console.log('GENERAL RESULT ', result.result)
+      
+    }
+    
+    this.contextManager.updateContext('TransactionGroupingAgent',  {
+        lastTransactionResult: result.result,
+        transactionId: 'tx-2',
+        timestamp: new Date(),
+        processedInCycle: true
+      });
+    
+    return result;
+  }
+
+    private async executeDataValidatingCycle(
+    cyclePartners: SagaTransaction[], 
+    request: BrowserGraphRequest, 
+    processedInCycle: Set<string>
+  ): Promise<AgentResult> {
+    if (cyclePartners.length === 0) {
+      throw new Error(`Extended cycle detected but no partners found`);
+    }
+
+    let result: AgentResult = { 
+      success: false, 
+      result: '', 
+      error: '', 
+      agentName: '', 
+      timestamp: new Date() 
+    };
+    
+    // Execute each transaction in the cycle
+    // 'tx-2','tx-3', 'tx-2 data-loading-set - validating transactionGroupingAgent formatting SAGA_CONVERSATION_TRANSACTIONS
     let context = {}
     let validated = true;
     for (let i = 0; i < cyclePartners.length; i++) {
@@ -3138,7 +3272,7 @@ Task Context: ${taskContext}
       if(i === 0 && transaction.id === 'tx-2'){
         const agent = this.agents.get(transaction.agentName);
         const ctx = agent?.getContext();
-        context = 'FIRST INPUT: ' + ctx + ' SECOND INPUT: ' + groupingAgentFailedResult;
+        context = 'FIRST INPUT: ' + ctx + ' SECOND INPUT: ' + groupingAgentResult;
         continue;
       } 
       

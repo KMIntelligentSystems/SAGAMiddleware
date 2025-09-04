@@ -401,14 +401,321 @@ export const groupingAgentFailedResult = `{
     - Do not modify "jsonrpc", "id", "method", or "name".
     - Do not add any extra commentary or fields to the request.
 }`
-/*
 
- The import error in sagaCoordinator.ts:23 occurred because the file was trying to import csvContent as a named export, but testData.js exports it as part of a default export object. I changed the import to use the default export pattern and
-  destructure csvContent from it.
+export const visualizationGroupingAgentsResult = ` {
+  agentName: 'VisualizationCoordinatingAgent',
+  result: '[AGENT: PandasDailyAveragingCoder, CODE-DAILY-AVG-01]\n' +
+    'Your task: Write complete, runnable Python code that:\n' +
+    '- Reads the input CSV at C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv\n' +
+    '- Computes daily average MW per installation per energy_source for the 4 days from 11/02/2023 to 11/05/2023, using only the 4:00–4:55 time window at 5-minute interv
+als\n' +
+    '- Writes a CSV with columns in this exact order and naming: date/time,installation,MW,energy_source\n' +
+    '  - date/time should be the date only (e.g., 11/02/2023)\n' +
+    '  - MW should be the average MW for that installation and energy_source on that date (include negative values if present)\n' +
+    '- Saves the output to: C:/repos/SAGAMiddleware/data/Output_one_hour_daily_avg.csv\n' +
+    '\n' +
+    'Data details and constraints:\n' +
+    '- Input CSV columns: date/time,installation,MW,energy_source\n' +
+    '  - date/time format like: 11/02/2023 4:00\n' +
+    '  - One-hour window per day: 4:00 through 4:55 inclusive, at 5-minute intervals\n' +
+    '  - Data spans four dates: 11/02/2023, 11/03/2023, 11/04/2023, 11/05/2023\n' +
+    '- Compute averages per (date, installation, energy_source)\n' +
+    '- Keep MW as numeric; coerce non-numeric to NaN and drop those rows from averaging\n' +
+    '- Preserve negative MW readings in averaging (do not clip)\n' +
+    '- Grouping must include energy_source to avoid mixing categories\n' +
+    '- Output CSV must have only the aggregated rows with the exact header and column order: date/time,installation,MW,energy_source\n' +
+    '\n' +
+    'Implementation guidance:\n' +
+    '- Use pandas\n' +
+    '- Steps:\n' +
+    '  1) Read CSV; parse date/time to datetime\n' +
+    '  2) Ensure MW is numeric (coerce errors), drop rows where MW is NaN\n' +
+    '  3) Filter rows to dates 11/02/2023–11/05/2023 and time-of-day between 4:00 and 4:55 inclusive at 5-minute intervals\n' +
+    '  4) Create a date-only string column for output formatting (MM/DD/YYYY), named date/time\n' +
+    '  5) Group by date/time, installation, energy_source; average MW\n' +
+    '  6) Reorder columns exactly and write to C:/repos/SAGAMiddleware/data/Output_one_hour_daily_avg.csv with index=False\n' +
+    '\n' +
+    'Absolute requirements:\n' +
+    '- Output ONLY Python code\n' +
+    '- The very first character of your reply must be Python code (import, def, or variable)\n' +
+    '- The very last character of your reply must be Python code\n' +
+    '- No explanatory text\n' +
+    '- No markdown\n' +
+    '- No comments\n' +
+    '- No surrounding quotes or code fences\n' +
+    '[/AGENT]\n' +
+    '\n' +
+    '[AGENT: MCPExecutePythonCaller, TOOL-CALL-EXEC-01]\n' +
+    'You are a tool calling agent. Take the Python code produced by the coding agent and execute it by making a single JSON-RPC request to the MCP server to call the exe
+cute_python tool.\n' +
+    '\n' +
+    'Instructions:\n' +
+    '- Replace {code} below with the exact Python code produced by the coding agent (no modifications, no added wrappers)\n' +
+    '- Ensure proper JSON string encoding so that the entire code is passed under the "code" field (preserve newlines)\n' +
+    '- Output only the JSON-RPC request object with no extra text or formatting\n' +
+    '\n' +
+    'Tool call to send:\n' +
+    '{\n' +
+    '  "jsonrpc": "2.0",\n' +
+    '  "id": 3,\n' +
+    '  "method": "tools/call",\n' +
+    '  "params": {\n' +
+    '    "name": "execute_python",\n' +
+    '    "arguments": {\n' +
+    '      "code": {code}\n' +
+    '    }\n' +
+    '  }\n' +
+    '}\n' +
+    '[/AGENT]',
+  success: true,
+  timestamp: 2025-09-03T21:12:00.968Z
+}
+`;
 
-  Changed the import to use CommonJS require() syntax since testData.js uses module.exports (CommonJS) rather than       
-  ES6 export default.
+export const codeWriterTaskDescription = `            Your task: Write a complete Python script that reads a CSV exported from Excel, normalizes the data into long format, and outputs:
+    - A single combined CSV with columns: date/time, installation, energy_source, MW
+    - Individual CSVs per installation (one file per installation)
 
-*/
+    Input details:
+    - CSV file path: C:/repos/SAGAMiddleware/data/Output_one_hour.csv
+    - Header structure: The first row contains merged category labels (e.g., Solar, Wind, etc.) with many commas; the second row contains the actual column headers (e.g
+., date/time, BARCSF1, GRIFSF1, ...). Use the second row as headers when reading the CSV.
+    - Mapping between energy sources and installation column names:
+      categoryMapping = {
+    "    Solar: [BARCSF1, GRIFSF1, HUGSF1, LRSF1, MLSP1, ROTALLA1],
+"
+    "    Wind: [CAPTL_WF, CHALLHWF, CULLRGWF, DIAPURWF1, MLWF1, WAUBRAWF, WOOLNTH1, YAMBUKWF, YSWF1],
+"
+    "    Natural Gas: [SHOAL1],
+"
+    "    Hydro: [BUTLERSG, CLOVER, CLUNY, PALOONA, REPULSE],
+"
+    "    Diesel: [ERGT01, GBO1],
+"
+    "    Battery: [KEPBG1],
+"
+    "    Coal: [ERGTO1, RPCG]
+"
+      }
+
+    Requirements for the script behavior:
+    "- Read the CSV using the second row as the header (pandas read_csv with header=1). Strip whitespace from column names to ensure date/time is matched correctly.
+"
+
+    - Use the categoryMapping to determine which columns correspond to each energy source.
+    - Reshape the data to a long format with columns: date/time, installation, energy_source, MW
+      - date/time should retain the original string format from the CSV (do not reformat dates).
+      - Convert MW to numeric (coerce errors to NaN) and keep rows even if MW is NaN (optional to drop NaN rows if that’s preferable).
+    - Output files:
+      - Combined file: C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv
+      - Per-installation files under: C:/repos/SAGAMiddleware/data/installations/{INSTALLATION}.csv
+        - Create the directory if it does not exist.
+    - Be robust to missing columns: if a mapped installation is not present in the CSV, skip it gracefully.
+    - Sort the combined result by date/time and installation.
+    "- Include necessary imports and ensure the script can be executed directly (if __name__ == __main__).
+"
+
+    ABSOLUTE REQUIREMENTS:
+    - Output ONLY Python code
+    - First character must be Python code (import, def, or variable)
+    - Last character must be Python code
+    - Zero explanatory text
+    - Zero markdown`;
+
+export const visCodeWriterTaskDescription = ` 'You are the coding task agent. Your job is to produce a single, self-contained Python script that reads the specified CSV, computes daily average MW values, and wri
+tes the results back to a CSV.\n' +
+    '\n' +
+    'Goal:\n' +
+    '- Read input CSV from: C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv\n' +
+    '- Columns present: date/time, installation, MW, energy_source\n' +
+    '- Compute, for each calendar day present in the file (the data spans 11/02/2023 through 11/05/2023), the average MW per installation per energy_source across the ti
+me slices for that day.\n' +
+    '- Output a CSV with columns exactly in this order and with these names:\n' +
+    '  - date/time\n' +
+    '  - installation\n' +
+    '  - MW\n' +
+    '  - energy_source\n' +
+    '- The date/time column in the output should be the day only (e.g., 11/02/2023), formatted as mm/dd/YYYY.\n' +
+    '- Write the output file to: C:/repos/SAGAMiddleware/data/Output_one_hour_normalized_daily_avg.csv\n' +
+    '\n' +
+    'Implementation guidance:\n' +
+    '- Use pandas for data handling.\n' +
+    '- Parse the input column date/time into a datetime; extract the date as mm/dd/YYYY strings for grouping/output.\n' +
+    '- Ensure MW is numeric; coerce non-numeric values to NaN and exclude them from the average automatically via pandas mean.\n' +
+    '- Group by: day (derived from date/time), installation, energy_source; compute the mean of MW.\n' +
+    '- Rename the derived day back to date/time for the output, and order columns exactly as required.\n' +
+    '- Sort by date/time, installation, energy_source for readability.\n' +
+    '- Save CSV with index=False.\n' +
+    '\n' +
+    'Constraints:\n' +
+    '- No assumptions about fixed counts of intervals; simply average whatever rows exist for that day.\n' +
+    '- Do not hardcode specific installation names; handle all present in the CSV.\n' +
+    '- Avoid printing or extra output; just perform the computation and write the file.\n' +
+    '\n' +
+    'ABSOLUTE REQUIREMENTS:\n' +
+    '- Output ONLY Python code\n' +
+    '- First character must be Python code (import, def, or variable)\n' +
+    '- Last character must be Python code\n' +
+    '- Zero explanatory text\n' +
+    '- Zero markdown\n' +
+`;
+
+export const codeExecutorTaskDescription = `  You are a tool-calling agent. Your task is to call the MCP server to execute Python code produced by the coding agent.
+
+    Perform exactly this JSON-RPC 2.0 request to the MCP server, calling the execute_python tool:
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "execute_python",
+        "arguments": {
+          "code": {code}
+        }
+      }
+    }
+
+    Instructions:
+    - Replace {code} with the exact Python code generated by the coding agent.
+    - Ensure the code is passed as the value of the "code" field.
+    - Do not modify "jsonrpc", "id", "method", or "name".
+    - Do not add any extra commentary or fields to the request.
+`;
+
+export const visCodeExecutorTaskDescription = ` 'You are the tool calling agent. Your sole task is to take the exact Python code produced by the coding agent and invoke the MCP server tool execute_python with a va
+lid JSON-RPC 2.0 request.\n' +
+    '\n' +
+    'What you must do:\n' +
+    '- Produce a single JSON object (no extra text) that calls the execute_python tool as follows:\n' +
+    '  {\n' +
+    '    "jsonrpc": "2.0",\n' +
+    '    "id": 3,\n' +
+    '    "method": "tools/call",\n' +
+    '    "params": {\n' +
+    '      "name": "execute_python",\n' +
+    '      "arguments": {\n' +
+    '        "code": "<PLACE THE EXACT PYTHON CODE HERE AS A SINGLE JSON STRING>"\n' +
+    '      }\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    'Instructions and requirements:\n' +
+    '- Replace the placeholder with the exact code from the coding agent.\n' +
+    '- The value of "code" must be a valid JSON string:\n' +
+    '  - Preserve all characters of the code.\n' +
+    '  - Escape characters per JSON rules (e.g., newline as \\n, quotes as \\", backslashes as \\\\).\n' +
+    '  - Do NOT wrap the code in markdown or backticks.\n' +
+    '- Output ONLY the JSON object above; no additional commentary before or after.\n' +
+    '- Keep "id" as 3 and "name" as "execute_python" exactly as specified.\n' +
+    '\n' +
+    'Example structure (illustrative only; you must insert the real code):\n' +
+    '{\n' +
+    '  "jsonrpc": "2.0",\n' +
+    '  "id": 3,\n' +
+    '  "method": "tools/call",\n' +
+    '  "params": {\n' +
+    '    "name": "execute_python",\n' +
+    '    "arguments": {\n' +
+    '      "code": "import sys\\nprint('ok')"\n +
+    '    }\n' +
+    '  }\n' +
+    '}\n' +
+`;
+
+export const codeWriterResult = `python
+import pandas as pd
+import numpy as np
+import os
+
+def normalize_csv():
+    # define mapping
+    categoryMapping = {
+        "Solar": ["BARCSF1", "GRIFSF1", "HUGSF1", "LRSF1", "MLSP1", "ROTALLA1"],
+        "Wind": ["CAPTL_WF", "CHALLHWF", "CULLRGWF", "DIAPURWF1", "MLWF1", "WAUBRAWF", "WOOLNTH1", "YAMBUKWF", "YSWF1"],
+        "Natural Gas": ["SHOAL1"],
+        "Hydro": ["BUTLERSG", "CLOVER", "CLUNY", "PALOONA", "REPULSE"],
+        "Diesel": ["ERGT01", "GBO1"],
+        "Battery": ["KEPBG1"],
+        "Coal": ["ERGTO1", "RPCG"]
+    }
+
+    # read csv with second row as header
+    df = pd.read_csv('C:/repos/SAGAMiddleware/data/Output_one_hour.csv', header=1)
+    df.columns = df.columns.str.strip()
+
+    normalized_df = pd.DataFrame()
+
+    for energy_source, installations in categoryMapping.items():
+        for installation in installations:
+            if installation in df.columns:
+                temp_df = df[['date/time', installation]].copy()
+                temp_df["installation"] = installation
+                temp_df["energy_source"] = energy_source
+                temp_df = temp_df.rename(columns={installation: "MW"})
+                temp_df['MW'] = pd.to_numeric(temp_df['MW'], errors='coerce')
+                normalized_df = pd.concat([normalized_df, temp_df])
+
+    # sort dataframe
+    normalized_df.sort_values(['date/time', 'installation'], inplace=True)
+    # output combined CSV
+    normalized_df.to_csv("C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv", index=False)
+
+    # create directory if doesn't exist
+    if not os.path.exists("C:/repos/SAGAMiddleware/data/installations/"):
+        os.makedirs("C:/repos/SAGAMiddleware/data/installations/")
+
+    # loop over installations and output each CSV
+    for installation in normalized_df['installation'].unique():
+        temp_df = normalized_df[normalized_df['installation'] == installation]
+        temp_df.to_csv("C:/repos/SAGAMiddleware/data/installations/"+installation+".csv", index=False)
+
+if __name__ == "__main__":
+    normalize_csv()`;
+
+export const visCodeWriterResult = `python
+import pandas as pd
+
+# Load the data
+df = pd.read_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv')
+
+# Ensure MW is numeric
+df['MW'] = pd.to_numeric(df['MW'], errors='coerce')
+
+# Convert date/time to datetime format and extract the date
+df['date/time'] = pd.to_datetime(df['date/time']).dt.date
+
+# Group by day, installation, and energy_source to compute the mean of MW
+df = df.groupby(['date/time', 'installation', 'energy_source'], as_index=False)['MW'].mean()
+
+# Convert 'date/time' back to string format
+df['date/time'] = df['date/time'].apply(lambda x: x.strftime('%m/%d/%Y'))
+
+# Sort the dataframe
+df = df.sort_values(by=['date/time', 'installation', 'energy_source'])
+
+# Save the dataframe to csv
+df.to_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized_daily_avg.csv', index=False)
+`;
+
+//Called MCP regex check had issue - not a good error result
+export const codeExecutorResult = ` {
+  "content": [],
+  "success": false,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\r\n  File \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1756625857917.py\", line 23, in <module>\r\n    ensure_dir_exists(match)\r\n  File \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1756625857917.py\", line 8, in ensure_dir_exists\r\n    os.makedirs(dir_path, exist_ok=True)\r\n  File \"<frozen os>\", line 215, in makedirs\r\n  File \"<frozen os>\", line 215, in makedirs\r\n  File \"<frozen os>\", line 215, in makedirs\r\n  File \"<frozen os>\", line 225, in makedirs\r\nOSError: [WinError 123] The filename, directory name, or volume label syntax is incorrect: '], inplace=True)\\n    # output combined CSV\\n    normalized_df.to_csv(\"C:'",
+  "error": "Command failed: py \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1756625857917.py\"\nTraceback (most recent call last):\r\n  File \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1756625857917.py\", line 23, in <module>\r\n    ensure_dir_exists(match)\r\n  File \"C:\\repos\\codeGen-mcp-server\\workspace\\script_1756625857917.py\", line 8, in ensure_dir_exists\r\n    os.makedirs(dir_path, exist_ok=True)\r\n  File \"<frozen os>\", line 215, in makedirs\r\n  File \"<frozen os>\", line 215, in makedirs\r\n  File \"<frozen os>\", line 215, in makedirs\r\n  File \"<frozen os>\", line 225, in makedirs\r\nOSError: [WinError 123] The filename, directory name, or volume label syntax is incorrect: '], inplace=True)\\n    # output combined CSV\\n    normalized_df.to_csv(\"C:'\r\n",
+  "filename": "script_1756625857917.py"
+}
+`;
+
+export const pythonLogCodeResult = ` {
+  "content": [],
+  "success": true,
+  "stdout": "",
+  "stderr": "",
+  "filename": "script_1756934015527.py"
+}
+
+`;
 
 export { csvContent, agentData };
