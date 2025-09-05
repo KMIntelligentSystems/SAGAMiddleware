@@ -42,7 +42,7 @@ export class PythonLogAnalyzer {
   }
 
   private findPythonToolResult(sagaResult: SetExecutionResult): PythonToolResult | null {
-   // //console.log('DEBUG: Searching for Python tool result in:', JSON.stringify(sagaResult, null, 2));
+    //console.log('DEBUG: Searching for Python tool result in:', JSON.stringify(sagaResult, null, 2));
     
     // Search through the saga result structure to find Python tool results
     // Check in the main result

@@ -3,7 +3,7 @@ import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
   SAGA_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
-  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION } from '../types/visualizationSaga.js';
+  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -13,6 +13,7 @@ import { ConversationManager, ThreadMessage } from '../services/conversationMana
 import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResult, codeExecutorResult, visCodeWriterTaskDescription, visCodeExecutorTaskDescription, pythonLogCodeResult } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
+import { CSVReader } from '../processing/csvReader.js'
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -214,6 +215,15 @@ export class SagaWorkflow {
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: `Your role is coordinator. You will receive instructions which will indicate your specific task 
         and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks'`,
+        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
+      },
+       {
+        agentName: 'D3JSCoordinatingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-5',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
+      //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
       }
       
@@ -636,9 +646,8 @@ SEQUENCE:
         activeContextSet
       );
       const pythonResult = this.pythonLogAnalyzer.analyzeExecution(result);
-      if(!pythonResult.isErrorFree){
-        console.log('ERROR RESULT ', pythonResult.errorDetails)
-            let sagaTransactionName = '';
+
+       let sagaTransactionName = '';
             let sagaTransactionId = '';
             const names: string[] =[];
             const ids: string[] =[];
@@ -658,6 +667,7 @@ SEQUENCE:
                     sagaTransactionId = transaction.id;
             }) 
           });
+      if(!pythonResult.isErrorFree){
             console.log('LATEST LINEAR ',sagaTransactionName) //'PythonToolInvoker'
             try{
                   const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
@@ -673,7 +683,7 @@ SEQUENCE:
                         codeAgent?.setTaskDescription(codingAgentErrorPrompt);
                     }  
                   }
-                  console.log('TOOL CTX ', toolCtx.lastActionResult)
+                //  console.log('TOOL CTX ', toolCtx.lastActionResult)
                   console.log('TOOL CTX PREV', toolCtx.previousResult)
                   agent?.receiveContext({'Tool_Call_Result: ': transResults.result})
                   agent?.receiveContext({'Previous_Code: ': toolCtx.previousResult});
@@ -692,7 +702,16 @@ SEQUENCE:
                 console.log('ERROR 1', error)
             }
           } else{
-            console.log('HEERERERWQRWER')
+           const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
+           const csvReader = new CSVReader(toolCtx.previousResult,0)
+           const count = csvReader.getRowCount();
+           const result = await this.coordinator.executeTransactionSetCollection(
+                    browserRequest,
+                    SAGA_D3JS_COLLECTION,
+                    `thread_saga_${threadId}_${Date.now()}`,
+                    activeContextSet
+                  );
+      
           }
       
  

@@ -33,7 +33,7 @@ import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
-import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData } from '../test/testData.js';
+import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, visCodeWriterResult } from '../test/testData.js';
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -647,12 +647,17 @@ cute_python tool.\n' +
                 dynamicTransactionSet = AgentParser.parseAndCreateAgents(
                 response,
                 setResult.result,
-                this // Pass the coordinator instance to register agents
+                this // Pass the coordinator instance to register agents 
               );
         }else if(transactionSet.id === 'code-validating-set'){
           console.log('TRANS NAME ',transactionSet.name)
             dynamicTransactionSet =collection;
-        }
+        }else if(transactionSet.id === 'd3js-analysis-set'){
+          console.log('TRANS D3 NAME ',transactionSet.name)
+          const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'd3js-analysis-set');
+          console.log('D3 JS ', conversationContext)
+          //  dynamicTransactionSet =collection;
+        } 
 
           const setEndTime = new Date();
           const executionResult: SetExecutionResult = {
@@ -772,6 +777,8 @@ cute_python tool.\n' +
               lastExecutionResult
             );*/
         //test 
+        const cleanCode = this.cleanPythonCode(visCodeWriterResult)
+        this.contextManager.updateContext( 'MCPExecutePythonCaller',{previousResult: cleanCode });
         const dynamicSetResult = setResult //.result = pythonLogCodeResult;
         dynamicSetResult.result = pythonLogCodeResult;
         //end test

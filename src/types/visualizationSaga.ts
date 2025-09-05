@@ -572,6 +572,18 @@ export const SAGA_VISUALIZATION_TRANSACTIONS: SagaTransaction[] = [
   }
 ];
 
+export const SAGA_D3_ANALYSIS_TRANSACTIONS: SagaTransaction[] = [
+  // Transaction Set 1: Requirements Gathering SAGA
+  {
+    id: 'tx-5',
+    name: 'Define agents',
+    agentName: 'D3JSCoordinatingAgent',
+    dependencies: ['tx-5'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }
+];
+
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
@@ -810,6 +822,33 @@ export const SAGA_VISUALIZATION_COLLECTION: TransactionSetCollection = {
     }
   ],
   executionOrder: ['visualization-loading-set', 'agent-generating-set'],
+  metadata: {
+    version: '1.0.0',
+    created: new Date()
+  }
+};
+
+export const SAGA_D3JS_COLLECTION: TransactionSetCollection = {
+  id: 'd3js-collection',
+  name: 'D3 js SAGA Workflow',
+  description: 'Standard data processing and saving workflow',
+  sets: 
+  
+  [
+    { id: 'd3js-analysis-set',
+      name: 'D3 Analysis Pipeline',
+      description: 'Provide analysis of csv file',
+      prompt: '',//transactionGroupConversationPrompt,
+      transactions: SAGA_D3_ANALYSIS_TRANSACTIONS //Provides the flow and tool calls for agentParser
+    }/*,
+    { id: 'agent-generating-set',
+      name: 'Agent Generating Pipeline',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: agentDefinitionPrompt,
+      transactions: SAGA_AGENT_GEN_TRANSACTIONS
+    }*/
+  ],
+  executionOrder: ['d3js-analysis-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()

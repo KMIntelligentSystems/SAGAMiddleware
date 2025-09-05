@@ -674,29 +674,28 @@ def normalize_csv():
 if __name__ == "__main__":
     normalize_csv()`;
 
-export const visCodeWriterResult = `python
-import pandas as pd
-
-# Load the data
-df = pd.read_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv')
-
-# Ensure MW is numeric
-df['MW'] = pd.to_numeric(df['MW'], errors='coerce')
-
-# Convert date/time to datetime format and extract the date
-df['date/time'] = pd.to_datetime(df['date/time']).dt.date
-
-# Group by day, installation, and energy_source to compute the mean of MW
-df = df.groupby(['date/time', 'installation', 'energy_source'], as_index=False)['MW'].mean()
-
-# Convert 'date/time' back to string format
-df['date/time'] = df['date/time'].apply(lambda x: x.strftime('%m/%d/%Y'))
-
-# Sort the dataframe
-df = df.sort_values(by=['date/time', 'installation', 'energy_source'])
-
-# Save the dataframe to csv
-df.to_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized_daily_avg.csv', index=False)
+export const visCodeWriterResult = `'import pandas as pd\n' +
+    '\n' +
+    '# Load the data\n' +
+    "df = pd.read_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv')\n" +
+    '\n' +
+    '# Ensure MW is numeric\n' +
+    "df['MW'] = pd.to_numeric(df['MW'], errors='coerce')\n" +
+    '\n' +
+    '# Convert date/time to datetime format and extract the date\n' +
+    "df['date/time'] = pd.to_datetime(df['date/time']).dt.date\n" +
+    '\n' +
+    '# Group by day, installation, and energy_source to compute the mean of MW\n' +
+    "df = df.groupby(['date/time', 'installation', 'energy_source'], as_index=False)['MW'].mean()\n" +
+    '\n' +
+    "# Convert 'date/time' back to string format\n" +
+    "df['date/time'] = df['date/time'].apply(lambda x: x.strftime('%m/%d/%Y'))\n" +
+    '\n' +
+    '# Sort the dataframe\n' +
+    "df = df.sort_values(by=['date/time', 'installation', 'energy_source'])\n" +
+    '\n' +
+    '# Save the dataframe to csv\n' +
+    "df.to_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized_daily_avg.csv', index=False)"
 `;
 
 //Called MCP regex check had issue - not a good error result
@@ -709,7 +708,7 @@ export const codeExecutorResult = ` {
   "filename": "script_1756625857917.py"
 }
 `;
-
+//this is result.result of SetExecutionResult below
 export const pythonLogCodeResult = ` {
   agentName: 'MCPExecutePythonCaller',
   result: {
