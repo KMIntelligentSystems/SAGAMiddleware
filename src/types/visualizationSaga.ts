@@ -136,6 +136,10 @@ are no errors then simply provide the tool response to the coding agent. `;
 export const codingAgentErrorPrompt = `The code you created has errors. Look at the errors and a fix that has been provided. You can also see the code with errors. 
 Understand the problems and provide clean and complete python code that fixes the problems. You will find the problem in <context></context>. Your previous incorrect code is:
 `
+export const D3JSCoordinatingAgentAnalysis = `Your role is validator. Based on a user requirements, you constructed an agent whose task was to elaborate on those requirements 
+against csv data inputs. You will have two tasks: 1. You will examine that agent's results to determine if they are sufficient to meet the user requirements; 2. You will provide a
+comprehensive summary of the agent's results. The summary report must have suffient information for a coding agent to implement the user requirements. You will find the requirements in 
+<context> under 'USER REQUIREMENTS:' and you will find the results under: 'AGENT RESULTS:'</context>`;
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive
@@ -584,6 +588,18 @@ export const SAGA_D3_ANALYSIS_TRANSACTIONS: SagaTransaction[] = [
   }
 ];
 
+export const SAGA_D3_RESULTS_TRANSACTIONS: SagaTransaction[] = [
+  // Transaction Set 1: Requirements Gathering SAGA
+  {
+    id: 'tx-5',
+    name: 'Define agents',
+    agentName: 'D3JSCoordinatingAgent',
+    dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }
+];
+
 // Transaction definitions for visualization SAGA
 export const SAGA_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
@@ -840,15 +856,15 @@ export const SAGA_D3JS_COLLECTION: TransactionSetCollection = {
       description: 'Provide analysis of csv file',
       prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_D3_ANALYSIS_TRANSACTIONS //Provides the flow and tool calls for agentParser
-    }/*,
-    { id: 'agent-generating-set',
-      name: 'Agent Generating Pipeline',
+    },
+    { id: 'd3js-results-set',
+      name: 'D3 Results Pipeline',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
-      prompt: agentDefinitionPrompt,
-      transactions: SAGA_AGENT_GEN_TRANSACTIONS
-    }*/
+      prompt:  D3JSCoordinatingAgentAnalysis,
+      transactions: SAGA_D3_RESULTS_TRANSACTIONS
+    }
   ],
-  executionOrder: ['d3js-analysis-set'],
+  executionOrder: ['d3js-analysis-set', 'd3js-results-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()

@@ -2,16 +2,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export class CSVReader {
-    private filePath: string;
+    private filePath: string = '';
     private startPoint: number;
     private totalRows: number = 0;
     private currentPosition: number = 0;
-
-    constructor(pathFromCode: string, startPoint: number = 0) {
-        this.filePath = this.extractFilePathFromPython(pathFromCode);
+    
+    constructor( startPoint: number = 0) {
         this.startPoint = startPoint;
         this.currentPosition = startPoint;
-        this.validateFile();
+      
+    }
+
+    processFile(pathFromCode: string){
+         this.filePath = this.extractFilePathFromPython(pathFromCode);
+           this.validateFile();
     }
 
     private extractFilePathFromPython(pythonCode: string): string {

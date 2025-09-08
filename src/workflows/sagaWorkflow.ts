@@ -3,14 +3,15 @@ import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
   SAGA_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
-  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION } from '../types/visualizationSaga.js';
+  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
 import { TransactionRegistry, TransactionRegistryConfig } from '../services/transactionRegistry.js';
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
-import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResult, codeExecutorResult, visCodeWriterTaskDescription, visCodeExecutorTaskDescription, pythonLogCodeResult } from '../test/testData.js'
+import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResult, codeExecutorResult, visCodeWriterTaskDescription, 
+  visCodeExecutorTaskDescription, graphAnalyzerResult } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { CSVReader } from '../processing/csvReader.js'
@@ -702,9 +703,14 @@ SEQUENCE:
                 console.log('ERROR 1', error)
             }
           } else{
+
+           // this.createTestGraphAnalyzerAgents();
            const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
-           const csvReader = new CSVReader(toolCtx.previousResult,0)
+           const csvReader = new CSVReader(0)
+           csvReader.processFile(toolCtx.previousResult);
            const count = csvReader.getRowCount();
+            this.coordinator.registerCSVReader(csvReader);
+           console.log('COUNT  ', count)
            const result = await this.coordinator.executeTransactionSetCollection(
                     browserRequest,
                     SAGA_D3JS_COLLECTION,
@@ -767,6 +773,24 @@ SEQUENCE:
     };
 
      this.coordinator.registerAgent(agentDefinition2);
+  }
+
+    private createTestGraphAnalyzerAgents(){
+
+     const agentDefinition1: AgentDefinition = {
+        id: 'DA-001',
+        name: 'Installation Time-Series Aggregator',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: graphAnalyzerResult,//codeWriterTaskDescription, if errors then codingAgentErrorPrompt + visCodeWriterResult
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'processing'
+      };
+
+      this.coordinator.registerAgent(agentDefinition1);
+
+    this.coordinator.agentFlows[0] = ['DA-001', 'DA-001']
   }
 
   private createTestVisualizationAgentsInError(){
@@ -922,6 +946,7 @@ export async function runVisualizationSAGAExample(): Promise<void> {
       },
       humanInterface: {
         approvalBaseUrl: 'http://localhost:3004',
+
         emailNotifications: true,
         slackNotifications: false
       },

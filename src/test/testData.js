@@ -925,4 +925,421 @@ o markdown\n- No comments\n- No surrounding quotes or code fences"
   }
 }`
 
+export const graphAnalyzerResult = `  agentName: 'D3JSCoordinatingAgent',
+  result: '[AGENT: Installation Time-Series Aggregator, DA-001]\n' +
+    'Your mission\n' +
+    '- Analyze CSV data provided in chunks and produce a clean, aggregated time series suitable for a 2D multi-line chart.\n' +
+    '- X-axis: the four dates 11/02/2023, 11/03/2023, 11/04/2023, 11/05/2023.\n' +
+    '- Y-axis: MW/hr produced per installation (sum of MW values per installation per date).\n' +
+    '- Maintain running aggregates across chunks and output final graph-ready structures plus summary statistics and axis intervals.\n' +
+    '\n' +
+    'Input schema\n' +
+    '- CSV columns: date/time, installation, energy_source, MW\n' +
+    '- Rows arrive in chunks of up to 20. You will also receive total_row_count at the start.\n' +
+    '- Only the four target dates are in scope. Ignore rows outside these dates.\n' +
+    '\n' +
+    'Core assumptions and rules\n' +
+    '- Treat date/time values as month/day/year (MM/DD/YYYY). Normalize internally to ISO (YYYY-MM-DD) or keep the original strings consistently for output labels; choos
+e one and use it consistently.\n' +
+    '- Sum MW for duplicate (installation, date) pairs.\n' +
+    '- Keep negative and zero MW values as-is. They must influence y-axis domain.\n' +
+    '- If an installation has no record for a target date, fill that date with 0 (so each installation has exactly four points).\n' +
+    '- Energy source per installation: if multiple appear for an installation across rows, use the most frequent value; if tied, choose lexicographically smallest or mar
+k as "Mixed".\n' +
+    '- Skip rows with missing or non-numeric MW; count them under data_quality.skipped_rows.\n' +
+    '\n' +
+    'State to keep across chunks\n' +
+    '- processed_rows: integer\n' +
+    '- total_rows: integer (provided once)\n' +
+    '- target_dates: ordered array of the four dates\n' +
+    '- unique_installations: set\n' +
+    '- unique_energy_sources: set\n' +
+    '- by_install_date: map installation -> map date -> sumMW\n' +
+    '- per_date_totals: map date -> sumMW across all installations\n' +
+    '- per_installation_totals: map installation -> sumMW across all dates\n' +
+    '- energy_source_by_installation: map installation -> frequency map of energy_source\n' +
+    '- data_quality: { skipped_rows, out_of_scope_date_rows }\n' +
+    '- provisional_min_max (optional for progress reporting): running min and max of aggregated values; final min and max will be computed after all chunks\n' +
+    '\n' +
+    'Per-chunk processing\n' +
+    '1) Parse and validate\n' +
+    '- For each row: trim fields, parse MW as float. If MW is NaN or missing, increment data_quality.skipped_rows and continue.\n' +
+    '- Normalize/validate date. If date not in target_dates, increment data_quality.out_of_scope_date_rows and continue.\n' +
+    '\n' +
+    '2) Update aggregates\n' +
+    '- unique_installations.add(installation)\n' +
+    '- unique_energy_sources.add(energy_source)\n' +
+    '- energy_source_by_installation[installation][energy_source] += 1\n' +
+    '- by_install_date[installation][date] = (existing or 0) + MW\n' +
+    '- per_date_totals[date] = (existing or 0) + MW\n' +
+    '- per_installation_totals[installation] = (existing or 0) + MW\n' +
+    '- processed_rows += 1\n' +
+    '\n' +
+    '3) Optional provisional min/max update\n' +
+    '- After updating by_install_date[installation][date], you may update provisional_min_max.{min,max} by comparing against the updated sum. Final min/max will be recom
+puted after all chunks for exactness.\n' +
+    '\n' +
+    'Finalization (after processed_rows == total_rows)\n' +
+    '1) Complete the grid\n' +
+    '- For every installation in unique_installations and each date in target_dates, ensure by_install_date[installation][date] exists; if missing, set to 0.\n' +       
+    '\n' +
+    '2) Build series for the line chart\n' +
+    '- For each installation:\n' +
+    '  - Determine energy_source = mode of energy_source_by_installation[installation] (or "Mixed" on tie).\n' +
+    '  - Create values array ordered by target_dates: [{ date: d, mw: by_install_date[installation][d] }, ...]\n' +
+    '  - series item: { id: installation, energy_source, values }\n' +
+    '- Sort series by descending total across dates (per_installation_totals) to aid legend ordering.\n' +
+    '\n' +
+    '3) Compute y-domain and ticks\n' +
+    '- Gather all mw across all series.values.\n' +
+    '- global_min = min of all mw\n' +
+    '- global_max = max of all mw\n' +
+    '- If global_min == global_max, pad by epsilon (e.g., 1% of |value| or 1.0 if value ~ 0): y_min = global_min - epsilon; y_max = global_max + epsilon\n' +
+    '- Else set y_min = global_min, y_max = global_max\n' +
+    '- Choose target_tick_count = 6 (5–8 acceptable). Compute a "nice" step:\n' +
+    '  - raw_step = (y_max - y_min) / target_tick_count\n' +
+    '  - nice_step = nice_number(raw_step) using multipliers [1, 2, 2.5, 5, 10] * 10^k\n' +
+    '  - y_min_nice = floor(y_min / nice_step) * nice_step\n' +
+    '  - y_max_nice = ceil(y_max / nice_step) * nice_step\n' +
+    '  - y_ticks = sequence from y_min_nice to y_max_nice inclusive by nice_step\n' +
+    '- Provide a tick label format hint:\n' +
+    '  - If |y_max_nice| < 1 or nice_step < 1: 3–4 decimals\n' +
+    '  - Else if nice_step < 10: 2 decimals\n' +
+    '  - Else: 0 decimals\n' +
+    '\n' +
+    '4) Additional measures useful for a line chart\n' +
+    '- counts:\n' +
+    '  - total_rows\n' +
+    '  - processed_rows\n' +
+    '  - n_installations = size(unique_installations)\n' +
+    '  - n_energy_sources = size(unique_energy_sources)\n' +
+    '  - n_dates = 4\n' +
+    '- per_date_totals as computed\n' +
+    '- per_installation_totals as computed\n' +
+    '- extrema:\n' +
+    '  - max_point: { installation, date, mw } where mw is global_max\n' +
+    '  - min_point: { installation, date, mw } where mw is global_min\n' +
+    '- central tendencies (optional but useful):\n' +
+    '  - global_mean of all mw values across the 4×n_installations grid\n' +
+    '  - per_date_mean: average across installations for each date\n' +
+    '\n' +
+    '5) Output shape (JSON-like; use these keys)\n' +
+    '- xDomain: array of the four dates in order\n' +
+    '- series: array of { id, energy_source, values: [{ date, mw }] }\n' +
+    '- yDomain: [y_min_nice, y_max_nice]\n' +
+    '- yTicks: array of tick numbers in ascending order\n' +
+    '- tickFormatHint: e.g., "auto-2dp", "auto-3dp"\n' +
+    '- stats:\n' +
+    '  - counts: { total_rows, processed_rows, n_installations, n_energy_sources, n_dates }\n' +
+    '  - per_date_totals: map date -> sumMW\n' +
+    '  - per_installation_totals: map installation -> sumMW\n' +
+    '  - extrema: { global_min, global_max, min_point, max_point }\n' +
+    '  - data_quality: { skipped_rows, out_of_scope_date_rows }\n' +
+    '\n' +
+    'Nice number helper (description)\n' +
+    '- Determine k = floor(log10(raw_step))\n' +
+    '- base = 10^k\n' +
+    '- candidate = raw_step / base\n' +
+    '- Choose m from [1, 2, 2.5, 5, 10] that is >= candidate (or the closest above), then nice_step = m * base\n' +
+    '\n' +
+    'Example using the provided sample (single date shown for illustration)\n' +
+    '- Input rows (11/02/2023):\n' +
+    '  - BARCSF1 Solar 0.1\n' +
+    '  - BUTLERSG Hydro 9.399999\n' +
+    '  - CAPTL_WF Wind 7.776811333333334\n' +
+    '  - CHALLHWF Wind 23.766666666666666\n' +
+    '  - CLOVER Hydro -0.008333333333333333\n' +
+    '  - CLUNY Hydro 18.216982916666666\n' +
+    '  - CULLRGWF Wind 9.554166666666667\n' +
+    '- For 11/02/2023, global_min ≈ -0.0083333333, global_max ≈ 23.7666667\n' +
+    '- With target_tick_count = 6: raw_step ≈ 3.96 → nice_step = 5\n' +
+    '- y_min_nice = -5, y_max_nice = 25\n' +
+    '- y_ticks = [-5, 0, 5, 10, 15, 20, 25]\n' +
+    '- For the missing three dates per installation, fill mw = 0.\n' +
+    '\n' +
+    'Operational notes\n' +
+    '- Be deterministic and idempotent: reprocessing the same chunk should not double-count. If chunking infra can resend chunks, require a monotonically increasing offs
+et, or maintain a processed_row_ids set if IDs are available. If not available, assume exactly-once delivery.\n' +
+    '- Memory: maps will have at most n_installations × 4 entries for by_install_date; this scales well.\n' +
+    '- Time: all operations are O(rows + n_installations × 4).\n' +
+    '\n' +
+    'Deliverable\n' +
+    '- After the final chunk, return the output shape described above with complete series, domains, ticks, and stats ready for visualization.\n' +
+    '[/AGENT]'`
+
+export const csvData = `date/time,installation,energy_source,MW
+11/02/2023,BARCSF1,Solar,0.10000000000000002
+11/02/2023,BUTLERSG,Hydro,9.399999
+11/02/2023,CAPTL_WF,Wind,7.776811333333334
+11/02/2023,CHALLHWF,Wind,23.766666666666666
+11/02/2023,CLOVER,Hydro,-0.008333333333333333
+11/02/2023,CLUNY,Hydro,18.216982916666666
+11/02/2023,CULLRGWF,Wind,9.554166666666667
+11/02/2023,DIAPURWF1,Wind,
+11/02/2023,ERGT01,Diesel,0.0
+11/02/2023,ERGTO1,Coal,0.0
+11/02/2023,GBO1,Diesel,0.0
+11/02/2023,GRIFSF1,Solar,0.0015260000000000002
+11/02/2023,HUGSF1,Solar,-0.17600000000000002
+11/02/2023,KEPBG1,Battery,0.0
+11/02/2023,LRSF1,Solar,0.005
+11/02/2023,MLSP1,Solar,0.037
+11/02/2023,MLWF1,Wind,1.9324999999999999
+11/02/2023,PALOONA,Hydro,0.0
+11/02/2023,REPULSE,Hydro,28.973424166666664`
+
+export const aggregatorResult_1 = `{
+  agentName: 'Installation Time-Series Aggregator',
+  result: '{\n' +
+    '  "xDomain": ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"],\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "id": "BARCSF1",\n' +
+    '      "energy_source": "Solar",\n' +
+    '      "values": [\n' +
+    '        { "date": "11/02/2023", "mw": 0.1 },\n' +
+    '        { "date": "11/03/2023", "mw": 0 },\n' +
+    '        { "date": "11/04/2023", "mw": 0 },\n' +
+    '        { "date": "11/05/2023", "mw": 0 }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    ...\n' +
+    '  ],\n' +
+    '  "yDomain": [-5, 25],\n' +
+    '  "yTicks": [-5, 0, 5, 10, 15, 20, 25],\n' +
+    '  "tickFormatHint": "auto-2dp",\n' +
+    '  "stats": {\n' +
+    '    "counts": {\n' +
+    '      "total_rows": 20,\n' +
+    '      "processed_rows": 20,\n' +
+    '      "n_installations": 16,\n' +
+    '      "n_energy_sources": 5,\n' +
+    '      "n_dates": 4\n' +
+    '    },\n' +
+    '    "per_date_totals": {\n' +
+    '      "11/02/2023": 69.91014775000001,\n' +
+    '      "11/03/2023": 0,\n' +
+    '      "11/04/2023": 0,\n' +
+    '      "11/05/2023": 0\n' +
+    '    },\n' +
+    '    "per_installation_totals": {\n' +
+    '      "BARCSF1": 0.1,\n' +
+    '      ...\n' +
+    '    },\n' +
+    '    "extrema": {\n' +
+    '      "global_min": -0.176,\n' +
+    '      "global_max": 28.973424166666664,\n' +
+    '      "min_point": { "installation": "HUGSF1", "date": "11/02/2023", "mw": -0.176 },\n' +
+    '      "max_point": { "installation": "REPULSE", "date": "11/02/2023", "mw": 28.973424166666664 }\n' +
+    '    },\n' +
+    '    "data_quality": {\n' +
+    '      "skipped_rows": 1,\n' +
+    '      "out_of_scope_date_rows": 0\n' +
+    '    }\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-07T21:46:25.531Z
+}`;
+
+export const aggregatorResult_2 = `{
+  agentName: 'Installation Time-Series Aggregator',
+  result: '{\n' +
+    '  "xDomain": ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"],\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "id": "KEPBG1",\n' +
+    '      "energy_source": "Battery",\n' +
+    '      "values": [\n' +
+    '        {"date": "11/02/2023", "mw": 0},\n' +
+    '        {"date": "11/03/2023", "mw": 0.0},\n' +
+    '        {"date": "11/04/2023", "mw": 0},\n' +
+    '        {"date": "11/05/2023", "mw": 0}\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "id": "LRSF1",\n' +
+    '      "energy_source": "Solar",\n' +
+    '      "values": [\n' +
+    '        {"date": "11/02/2023", "mw": 0},\n' +
+    '        {"date": "11/03/2023", "mw": 0.004},\n' +
+    '        {"date": "11/04/2023", "mw": 0},\n' +
+    '        {"date": "11/05/2023", "mw": 0}\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "id": "MLSP1",\n' +
+    '      "energy_source": "Solar",\n' +
+    '      "values": [\n' +
+    '        {"date": "11/02/2023", "mw": 0},\n' +
+    '        {"date": "11/03/2023", "mw": 0.002},\n' +
+    '        {"date": "11/04/2023", "mw": 0},\n' +
+    '        {"date": "11/05/2023", "mw": 0}\n' +
+    '      ]\n' +
+    '    }\n' +
+    '    ...\n' +
+    '  ],\n' +
+    '  "yDomain": [-1, 70],\n' +
+    '  "yTicks": [-1, 0, 10, 20, 30, 40, 50, 60, 70],\n' +
+    '  "tickFormatHint": "auto-1dp",\n' +
+    '  "stats": {\n' +
+    '    "counts": {\n' +
+    '      "total_rows": 160,\n' +
+    '      "processed_rows": 160,\n' +
+    '      "n_installations": 22,\n' +
+    '      "n_energy_sources": 6,\n' +
+    '      "n_dates": 4\n' +
+    '    },\n' +
+    '    "per_date_totals": {\n' +
+    '      "11/02/2023": 0,\n' +
+    '      "11/03/2023": 154.96340849999997,\n' +
+    '      "11/04/2023": 79.58323216666667,\n' +
+    '      "11/05/2023": 0\n' +
+    '    },\n' +
+    '    "per_installation_totals": {\n' +
+    '      "KEPBG1": 0,\n' +
+    '      "LRSF1": 0.004,\n' +
+    '      "MLSP1": 0.002,\n' +
+    '      ...\n' +
+    '    },\n' +
+    '    "extrema": {\n' +
+    '      "global_min": -0.006666666666666667,\n' +
+    '      "global_max": 68.01666666666667,\n' +
+    '      "min_point": {"installation": "CLOVER", "date": "11/04/2023", "mw": -0.006666666666666667},\n' +
+    '      "max_point": {"installation": "WOOLNTH1", "date": "11/03/2023", "mw": 68.01666666666667}\n' +
+    '    },\n' +
+    '    "data_quality": {\n' +
+    '      "skipped_rows": 0,\n' +
+    '      "out_of_scope_date_rows": 0\n' +
+    '    }\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-07T21:46:50.798Z
+}`;
+export const aggregatorResult_3 = `{
+  agentName: 'Installation Time-Series Aggregator',
+  result: '{\n' +
+    '  "xDomain": ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"],\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "id": "DIAPURWF1",\n' +
+    '      "energy_source": "Wind",\n' +
+    '      "values": [\n' +
+    '        { "date": "2023-11-02", "mw": 0 },\n' +
+    '        { "date": "2023-11-03", "mw": 0 },\n' +
+    '        { "date": "2023-11-04", "mw": 0 },\n' +
+    '        { "date": "2023-11-05", "mw": 0 }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "id": "ERGT01",\n' +
+    '      "energy_source": "Diesel",\n' +
+    '      "values": [\n' +
+    '        { "date": "2023-11-02", "mw": 0 },\n' +
+    '        { "date": "2023-11-03", "mw": 0 },\n' +
+    '        { "date": "2023-11-04", "mw": 0 },\n' +
+    '        { "date": "2023-11-05", "mw": 0 }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "id": "ERGTO1",\n' +
+    '      "energy_source": "Coal",\n' +
+    '      "values": [\n' +
+    '        { "date": "2023-11-02", "mw": 0 },\n' +
+    '        { "date": "2023-11-03", "mw": 0 },\n' +
+    '        { "date": "2023-11-04", "mw": 0 },\n' +
+    '        { "date": "2023-11-05", "mw": 0 }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    {... and so on for all installations ...}\n' +
+    '  ],\n' +
+    '  "yDomain": [-0.1095, 145.70458333333332],\n' +
+    '  "yTicks": [-0.2, 0, 20, 40, 60, 80, 100, 120, 140, 160],\n' +
+    '  "tickFormatHint": "auto-2dp",\n' +
+    '  "stats": {\n' +
+    '    "counts": {\n' +
+    '      "total_rows": 500,\n' +
+    '      "processed_rows": 20,\n' +
+    '      "n_installations": 20,\n' +
+    '      "n_energy_sources": 6,\n' +
+    '      "n_dates": 4\n' +
+    '    },\n' +
+    '    "per_date_totals": {\n' +
+    '      "2023-11-02": 0.0,\n' +
+    '      "2023-11-03": 0.0,\n' +
+    '      "2023-11-04": 255.44942904166666,\n' +
+    '      "2023-11-05": 0\n' +
+    '    },\n' +
+    '    "per_installation_totals": {\n' +
+    '      "DIAPURWF1": 0,\n' +
+    '      "ERGT01": 0,\n' +
+    '      "ERGTO1": 0,\n' +
+    '      ... and so on for all installations ...\n' +
+    '    },\n' +
+    '    "extrema": {\n' +
+    '      "global_min": -0.1095,\n' +
+    '      "global_max": 145.70458333333332,\n' +
+    '      "min_point": { "installation": "HUGSF1", "date": "2023-11-04", "mw": -0.1095 },\n' +
+    '      "max_point": { "installation": "WAUBRAWF", "date": "2023-11-04", "mw": 145.70458333333332 }\n' +
+    '    },\n' +
+    '    "data_quality": { "skipped_rows": 2, "out_of_scope_date_rows": 1 }\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-07T21:47:06.722Z
+}`
+export const aggregatorResult_4 = `{
+  agentName: 'Installation Time-Series Aggregator',
+  result: '{\n' +
+    '  "xDomain": ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "id": "BUTLERSG",\n' +
+    '      "energy_source": "Hydro",\n' +
+    '      "values": [{"date":"11/02/2023", "mw":0}, {"date":"11/03/2023", "mw":0}, {"date":"11/04/2023", "mw":0}, {"date":"11/05/2023", "mw":9.391665583333333}]\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "id": "CAPTL_WF",\n' +
+    '      "energy_source": "Wind",\n' +
+    '      "values": [{"date":"11/02/2023", "mw":0}, {"date":"11/03/2023", "mw":0}, {"date":"11/04/2023", "mw":0}, {"date":"11/05/2023", "mw":25.20872}]\n' +
+    '    },\n' +
+    '    ...\n' +
+    '  ],\n' +
+    '  "yDomain": [-5, 25],\n' +
+    '  "yTicks": [-5, 0, 5, 10, 15, 20, 25],\n' +
+    '  "tickFormatHint": "auto-2dp",\n' +
+    '  "stats": {\n' +
+    '    "counts": {\n' +
+    '      "total_rows": 0,\n' +
+    '      "processed_rows": 20,\n' +
+    '      "n_installations": 19,\n' +
+    '      "n_energy_sources": 7,\n' +
+    '      "n_dates": 1\n' +
+    '    },\n' +
+    '    "per_date_totals": {\n' +
+    '      "11/05/2023": 93.56824208333334\n' +
+    '    },\n' +
+    '    "per_installation_totals": {\n' +
+    '      "BUTLERSG": 9.391665583333333,\n' +
+    '      "CAPTL_WF": 25.20872,\n' +
+    '      ...\n' +
+    '    },\n' +
+    '    "extrema": {\n' +
+    '      "global_min": -1.1,\n' +
+    '      "global_max": 25.20872,\n' +
+    '      "min_point": {"installation":"RPCG", "date":"11/05/2023", "mw":-1.1},\n' +
+    '      "max_point": {"installation":"CAPTL_WF", "date":"11/05/2023", "mw":25.20872}\n' +
+    '    },\n' +
+    '    "data_quality": {\n' +
+    '      "skipped_rows": 2,\n' +
+    '      "out_of_scope_date_rows": 0\n' +
+    '    }\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-07T21:47:21.738Z
+}
+`;
+
 export { csvContent, agentData };

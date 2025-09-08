@@ -33,7 +33,9 @@ import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
-import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, visCodeWriterResult } from '../test/testData.js';
+import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, 
+  visCodeWriterResult, graphAnalyzerResult, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4 } from '../test/testData.js';
+import { CSVReader } from '../processing/csvReader.js'
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -50,7 +52,7 @@ export class SagaCoordinator extends EventEmitter {
    private mcpServers: Record<string, MCPServerConfig>;
   agentFlows: string[][] = [];
   private activeTransactionSetId: string = '';
-  
+  private csvReader: CSVReader = new CSVReader();
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
@@ -102,6 +104,10 @@ if(definition.agentType === 'tool'){
   registerAgentFlows(agentFlow: string[]){
     this.agentFlows.push(agentFlow);
     console.log('AGENT FLOW ', this.agentFlows)
+  }
+
+  registerCSVReader(csvReader: CSVReader){
+    this.csvReader = csvReader;
   }
 
   /**
@@ -196,7 +202,7 @@ if(definition.agentType === 'tool'){
   private hasLinearDependencyFromFlow(transaction: SagaTransaction): boolean {
     // Check if this transaction is part of a linear chain in any agent flow
     for (const flow of this.agentFlows) {
-      console.log('FLOW ', flow)
+      console.log('FLOW  LINEAR', flow)
       console.log('ID ', transaction.id)
       const transactionIndex = flow.indexOf(transaction.id);
       if (transactionIndex === -1) continue;
@@ -654,10 +660,39 @@ cute_python tool.\n' +
             dynamicTransactionSet =collection;
         }else if(transactionSet.id === 'd3js-analysis-set'){
           console.log('TRANS D3 NAME ',transactionSet.name)
-          const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'd3js-analysis-set');
-          console.log('D3 JS ', conversationContext)
-          //  dynamicTransactionSet =collection;
-        } 
+        
+           dynamicTransactionSet = AgentParser.parseAndCreateAgents(
+                graphAnalyzerResult,
+              {},
+                this // Pass the coordinator instance to register agents 
+              );
+             dynamicTransactionSet.sets.forEach(set =>{
+              set.id = 'd3js-analysis-set'
+              set.transactions.forEach(t => {
+                t.dependencies.push('DA-001');
+                console.log('SET ', t.agentName)
+                 console.log('SET 1', t.id)
+              })
+             })
+            dynamicTransactionSet.executionOrder.push('d3js-analysis-set');
+        } else if(transactionSet.id === 'd3js-results-set'){
+            const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'D3JSCoordinatingAgent');
+            const agent = this.agents.get('D3JSCoordinatingAgent');
+            agent?.deleteContext();
+            agent?.receiveContext({'USER REQUIREMENTS:': conversationContext});
+            const allStoredResults = globalDataProcessor.getAllResults();
+            const resultEntries = Array.from(allStoredResults.entries());
+            let i = 0;
+            agent?.receiveContext({'AGENT RESULTS:': ''});
+            resultEntries.forEach(entry =>{
+              const res = `Iteration ${i}:\n`;
+              agent?.receiveContext({res: entry});
+            });
+            console.log(`📊 Found ${resultEntries.length} records in global storage to process`);
+            console.log('D3 JS ', conversationContext)
+
+            dynamicTransactionSet = collection;
+        }
 
           const setEndTime = new Date();
           const executionResult: SetExecutionResult = {
@@ -724,13 +759,13 @@ cute_python tool.\n' +
        
         // Process dynamic sets in their execution order
         for (const setId of dynamicTransactionSet.executionOrder) { 
-          const dynamicSet = dynamicTransactionSet.sets.find(s => s.id === setId);335
+          const dynamicSet = dynamicTransactionSet.sets.find(s => s.id === setId);
           if (!dynamicSet) {
             console.log(`⚠️ Dynamic set '${setId}' not found, skipping`);
             continue;
           }
           
-//  Processing dynamic set: Data Processing Set (processing-set)
+//  Processing dynamic set: Data Processing Set (processing-set)agent-generating-set
           //Processing set: Data Loading Pipeline (visualization-loading-set)
           console.log(`📋 Processing dynamic set: ${dynamicSet.name} (${setId})`);//['processing-set']
 
@@ -763,25 +798,62 @@ cute_python tool.\n' +
           } if (setId === 'code-validating-set' && dynamicSet.name === 'Code Validating Pipeline'){
                
                
+        } if(setId ==='d3js-analysis-set'){
+          
         }
 
           // Execute the dynamic set using existing workflow logic
           const dynamicSetStartTime = new Date();
+          const setEndTime = new Date();
+          let dynamicSetResult: SetExecutionResult = {
+            setId: 'd3js-analysis-set',
+            success: setResult.success,
+            result: setResult.result,
+            executionTime: 0,
+            transactionResults: {},
+            metadata: {
+              startTime: setEndTime,
+              endTime: setEndTime,
+              transactionsExecuted: 0,
+              transactionsFailed: setResult.success ? 0 : 1
+            }
+          };
           try {
+            if(setId === 'd3js-analysis-set'){
+              //Dynamic agent ID cannot be known for TransactionSet dependencies
+              dynamicSet.dependencies?.push('DA-001');
+              this.agentFlows = []
+              this.agentFlows[0] = ['DA-001', 'DA-001']
+              console.log(' HERE D3 ')
             //Executing linear chain: EnergyCSVNormalizer -> PythonToolInvoker
-          /*  const dynamicSetResult = await this.executeSagaWorkflow(
+             setResult = await this.executeSagaWorkflow(
               request,
               `${workflowId}_dynamic_${setId}`,
               dynamicSet,
               contextSet,
               lastExecutionResult
-            );*/
-        //test 
-        const cleanCode = this.cleanPythonCode(visCodeWriterResult)
+            );
+          } else if(setId === 'd3js-results-set'){
+             console.log(' HERE D3 RES')
+             this.agentFlows = []
+             this.agentFlows[0] = ['tx-5']
+             setResult = await this.executeSagaWorkflow(
+              request,
+              `${workflowId}_dynamic_${setId}`,
+              dynamicSet,
+              contextSet,
+              lastExecutionResult
+            );
+          }
+          else{
+              //test 
+       const cleanCode = this.cleanPythonCode(visCodeWriterResult)
         this.contextManager.updateContext( 'MCPExecutePythonCaller',{previousResult: cleanCode });
         const dynamicSetResult = setResult //.result = pythonLogCodeResult;
         dynamicSetResult.result = pythonLogCodeResult;
         //end test
+          }
+      
    /*
 NAME  EnergyCSVNormalizer
 FLOW 1 [ 'tx-2' ]
@@ -1013,7 +1085,10 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
               throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
             }
           } */
-          }
+        } else if(this.agentFlows && this.agentFlows.length > 1 && this.agentFlows[0].length ===1){
+          const agent = this.agents.get(transaction.id);
+          result = await agent?.execute({}) as AgentResult;
+        }
       
        if (!result.success && !hasLinearDependency)
          {
@@ -1222,7 +1297,7 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
         
       }
     }
-    else{
+    else if(transaction.agentName === 'TransactionGroupingAgent'){
      
       const currPrompt = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
       let prompt = JSON.stringify(currPrompt.previousResult);
@@ -1923,44 +1998,54 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       success: true,
       timestamp: new Date()
     };
-    
+ let result: AgentResult = {
+      agentName: 'chain_start',
+      result: null,
+      success: true,
+      timestamp: new Date()
+    };
     // Execute pre-iteration transactions in reverse order (dependencies first)
     const executionOrder = [...preIterationTransactions].reverse();
-    for (const transaction of executionOrder) {
-      console.log(`🎯 Executing pre-iteration: ${transaction.agentName}`);
-      
-      const result = await this.executeSagaTransaction(transaction, request);
-      if (!result.success) {
-        console.error(`❌ Pre-iteration transaction failed: ${transaction.agentName}`);
-        return result;
+    const agent = this.agents.get(iteratingTransaction.agentName);
+    const headerRow = this.csvReader.getHeaderRow();
+    const results: string[] = [];
+    let rows = this.csvReader.getNext20Rows();
+    while(this.csvReader.hasMoreRows()){
+    for (const transaction of chainTransactions/*executionOrder*/) {
+      //TEST
+      if(iteration === 0){
+          result.result = aggregatorResult_1;
+      }  if(iteration === 1){
+          result.result = aggregatorResult_2;
+      }  if(iteration === 2){
+          result.result = aggregatorResult_3;
+      }  if(iteration === 3){
+          result.result = aggregatorResult_4;
       }
-      
-      this.contextManager.updateContext(transaction.agentName, {
-        lastTransactionResult: result.result,
-        transactionId: transaction.id,
-        timestamp: new Date()
-      });
-      
-      finalResult = result;
+      //End test
+     // const result = await agent?.execute({'20 rows of data:': rows});
+      if(result){
+        console.log('RESULT AGG', result.result)
+       // results.push(result.result);
+        const cycleKey = `cycle_${iteration++}`;
+        globalDataProcessor.storeResult(cycleKey, {cleanedData: result.result});
+        rows = this.csvReader.getNext20Rows();
+        rows.unshift(headerRow);
+        finalResult = result;
+         agent?.deleteContext();
+      }
     }
-    
+  }
+   
     // Get all results from global storage for processing
-    const allStoredResults = globalDataProcessor.getAllResults();
-    const resultEntries = Array.from(allStoredResults.entries());
-    
-    console.log(`📊 Found ${resultEntries.length} records in global storage to process`);
-    
-    // For self-referencing chains, execute once with all data (no chunking needed)
-    // Tools like calculate_energy_totals can handle up to 1000 records at once
-    console.log(`🔄 Processing all ${resultEntries.length} records in single execution for ${iteratingTransaction.agentName}`);
     
     // Create MCP tool call context with all data
-    const mcpToolCallContext: ToolCallContext = {
+  /*  const mcpToolCallContext: ToolCallContext = {
       allStoredData: allStoredResults,
       iteration: 0,
       totalChunks: 1,
       outputPath: `./output/complete_dataset.csv`
-    };
+    };*/
     
     // Set context with all data for single execution
     if(finalResult.result){
@@ -1969,24 +2054,19 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
       transactionId: iteratingTransaction.id,
       timestamp: new Date(),
       iteration: 0,
-      isSelfReferencing: true,
-      totalRecords: resultEntries.length,
-      mcpToolCallContext: mcpToolCallContext
+      isSelfReferencing: true
+    //  totalRecords: resultEntries.length,
+     // mcpToolCallContext: mcpToolCallContext
     });
     
     request.userQuery = JSON.stringify(finalResult.result) + 'Data to provide to the tool save: All stored data for processing';
     }
   
-     let result: AgentResult = {
-      agentName: 'chain_start',
-      result: null,
-      success: true,
-      timestamp: new Date()
-    };
-    const agent = this.agents.get(iteratingTransaction.agentName);
+    
+ //   const agent = this.agents.get(iteratingTransaction.agentName);
     //Saving the first result as it contains all the dynamic agents
     
-    while(iteration < 2){
+   /* while(iteration < 2){
       if(iteration === 1){
          request.userQuery = '';
       } else{
@@ -2017,7 +2097,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
      //  console.log('ITERATION NOT ZERO ', groupCtx.previousResult)
       }
         iteration++;
-    }
+    }*/
     iteratingTransaction.status = 'completed';
 
     let allProcessedData: any[] = [];
@@ -2042,7 +2122,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           totalIterations: 1,
           iteratingAgent: iteratingTransaction.agentName,
           preIterationAgents: preIterationTransactions.map(t => t.agentName),
-          totalRecordsFromStorage: resultEntries.length,
+        //  totalRecordsFromStorage: resultEntries.length,
           totalRecordsProcessed: allProcessedData.length,
           executionMode: 'single_execution_all_data'
         }
