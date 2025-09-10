@@ -226,11 +226,20 @@ export class SagaWorkflow {
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
+      }, 
+      {
+        agentName: 'D3AnalysisChallengingAgent',
+        agentType: 'processinisg',
+        transactionId: 'tx-6',
+        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
+        to be amended in the JSON object that does not follow the rules.`,
+        taskDescription:  dataValidatingAgentPrompt,
+        taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
       },
        {
         agentName: 'D3JSCodingAgent',
         agentType: 'processing',
-        transactionId: 'tx-6',
+        transactionId: 'tx-7',
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'Your role is d3 js coder using csv data files. You will code graphs given a sample of the csv file and details about the data for a graph such as min-max ranges, date ranges and the number of items to be plotted',
       //  context: { dataSources: defaultDataSources },
@@ -425,7 +434,7 @@ Focus: Only array extraction
       // Get agent type from llmPrompts
       const agentType = basePrompt.agentType as 'tool' | 'processing';
       
-      // Create LLM config based on agent type
+      // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
         provider: 'openai',
         model: promptParams.model || (agentType === 'tool' ? 'gpt-5' : 'gpt-5'), //gpt-5 gpt-4o-mini
@@ -713,7 +722,7 @@ SEQUENCE:
             }
           } else{
 
-           // this.createTestGraphAnalyzerAgents();
+           // python code passed, get rows by 20 for self-reference - results accumulated passed to d3js coordinator to summarise for coder
            const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
            const csvReader = new CSVReader(0)
            csvReader.processFile(toolCtx.previousResult);

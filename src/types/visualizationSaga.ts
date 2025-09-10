@@ -121,12 +121,18 @@ Remember the ids are in [AGENT name, id] and you only examine as far as each age
 {"toolUsers": [agent names]}
 `;
 //cyclic task 
+//Checks that user query has correctly been parsed as [AGENT: etc]
 export const dataValidatingAgentPrompt = `You will validate two inputs, one against the other. The first input is a set of instructions for the building of two agents.
 The second input is the formatted construction of those agents. There are certain rules that you must understand from the first input to determine if the second input follows the rules.
 The rules are:
 1. Does the output create two distinct agents with their tasks clearly defined based on your analysis of the first input?
 2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
 If these rules are not met, rectify the output accordingly`;
+
+export const csvAnalysisRefectingAgentPrompt = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
+The data is provided as a csv file. But the coding agent whose task is to build the code to generate the graph cannot be provided the csv file at build time because of size constraints.
+Therefore, a report is provided by another agent to assist the coding agent. Your task is to challenge and question the report in terms of being clear, logical and concise. Examine the report and think how well 
+the coding agent would have a clear understanding of what it must do. Are all categories provided? Is there a min and max and tick values for the axes?`;
 
 export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in python code. 
 You will receive the output of a tool call which runs python code sent to it. This output will register either success or failure. In the case of failure, 
@@ -597,8 +603,8 @@ export const SAGA_D3_RESULTS_TRANSACTIONS: SagaTransaction[] = [
     status: 'pending'
   }, {
     id: 'tx-6',
-    name: 'Write code',
-    agentName: 'D3JSCodingAgent',
+    name: 'Challenge Analysis',
+    agentName: 'D3AnalysisChallengingAgent',
     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'

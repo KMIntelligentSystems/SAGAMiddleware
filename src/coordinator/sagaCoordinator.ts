@@ -22,7 +22,8 @@ import {
   TransactionSet,
   transactionSavingPrompt,
   agentDefinitionPrompt,
-  groupingAgentPrompt
+  groupingAgentPrompt,
+  csvAnalysisRefectingAgentPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -84,8 +85,8 @@ export class SagaCoordinator extends EventEmitter {
     this.agentDefinitions.set(definition.name, definition);
  
     const llmConfig: LLMConfig = {
-            provider: 'anthropic', //openai
-            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'claude-3-7-sonnet-20250219', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
+            provider: 'openai', //'anthropic'
+            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o-mini', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
             temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
             maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
             apiKey: process.env.OPENAI_API_KEY
@@ -282,10 +283,10 @@ if(definition.agentType === 'tool'){
           else{
             let cleanCode = this.cleanPythonCode(result.result || '')
           //  console.log('LINEAR CTX ', cleanCode)
-          //TEST
-            result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+          //TEST wrting code
+        //    result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
            
-           // result.result = D3JSCodeingAgentReuslt;
+            result.result = D3JSCodeingAgentReuslt;
             cleanCode = this.cleanPythonCode(result.result || '')
             const agentName = agent?.getName() as string
             //OUT LINEAR  PythonToolInvoker
@@ -823,6 +824,7 @@ cute_python tool.\n' +
           try {
             if(setId === 'd3js-analysis-set'){
               //Dynamic agent ID cannot be known for TransactionSet dependencies
+              //self-reflect on csv rows
               dynamicSet.dependencies?.push('DA-001');
               this.agentFlows = []
               this.agentFlows[0] = ['DA-001', 'DA-001']
@@ -836,6 +838,7 @@ cute_python tool.\n' +
               lastExecutionResult
             );
           } else if(setId === 'd3js-results-set'){
+            //tx-5 get each of self-ref from storaage and makes report
             const agent = this.agents.get('D3JSCoordinatingAgent');
             agent?.deleteContext();
             const prompt = dynamicSet.prompt || '';
@@ -850,14 +853,28 @@ cute_python tool.\n' +
 
               agent?.receiveContext({res: entry});
             });
-
-            const codingRequest = this.parseConversationResultForAgent(request.userQuery,'D3JSCodingAgent');
+            //D3 Validation csvAnalysisRefectingAgentPrompt
+            const challengeAgent = this.agents.get('D3AnalysChallengingAgent');
+            challengeAgent?.setTaskDescription( csvAnalysisRefectingAgentPrompt);
+      
+             this.agentFlows = []
+             this.agentFlows[0] = ['tx-5','tx-6', 'tx-5']
+          
+            setResult = await this.executeSagaWorkflow(
+              request,
+              `${workflowId}_dynamic_${setId}`,
+              dynamicSet,
+              contextSet,
+              lastExecutionResult
+            );
+          } else if(setId === 'd3-coding-agent-set'){
+              const codingRequest = this.parseConversationResultForAgent(request.userQuery,'D3JSCodingAgent');
             console.log('REQUEST ',codingRequest)
             const codingAgent = this.agents.get('D3JSCodingAgent');
             codingAgent?.setTaskDescription(codingRequest);
       
              this.agentFlows = []
-             this.agentFlows[0] = ['tx-5','tx-6']
+             this.agentFlows[0] = ['tx-5','tx-7']
           
             setResult = await this.executeSagaWorkflow(
               request,

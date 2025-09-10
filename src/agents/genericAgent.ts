@@ -593,11 +593,13 @@ const chat = await ai.chats.create({
  
 
   private async invokeAnthropic(prompt: string, config: LLMConfig): Promise<AgentResult> {
+    console.log('🚀 ENTRY: invokeAnthropic method started');
     const { Anthropic } = await import('@anthropic-ai/sdk');
     
     const client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY
     });
+    console.log('✅ Anthropic client created');
 
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
     if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
@@ -703,26 +705,34 @@ const chat = await ai.chats.create({
       // Set forceToolUse to false to allow more natural tool selection
       return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic', false);
     }
-    let message;
+    let message = "";
 try{
     // No tools available, use regular completion
-    const response = await client.messages.create({
+    console.log('🔄 Starting Anthropic API call...');
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('API call timeout after 120 seconds')), 120000)
+    );
+    
+    const apiPromise = client.messages.create({
       model: config.model,
-      max_tokens: config.maxTokens || 1000,
+      max_tokens: config.maxTokens || 4000,
    //   temperature: config.temperature || 0.7,
       messages: [{ role: "user", content: prompt }]
     });
+    
+    const response = await Promise.race([apiPromise, timeoutPromise]);
 
-    const message = response.content
+    message = response.content
       .filter(content => content.type === 'text')
       .map(content => content.type === 'text' ? content.text : '')
       .join('');
 
   
      } catch (error){
-      console.log('ANTHROPIC ERROR')
+      console.log('ANTHROPIC ERROR', error)
+      throw error;
      }
-
+console.log('MESSAGE ', message)
       return  {
      agentName: this.getName(),
      result: message,
