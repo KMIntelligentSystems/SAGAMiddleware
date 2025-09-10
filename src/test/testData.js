@@ -1066,6 +1066,12 @@ et, or maintain a processed_row_ids set if IDs are available. If not available, 
     'Deliverable\n' +
     '- After the final chunk, return the output shape described above with complete series, domains, ticks, and stats ready for visualization.\n' +
     '[/AGENT]'`
+// Installation Time-Series Aggregator, DA-001
+export const aggregatorContext = `Include explicit instructions for the agent with:
+- confirmed_installations_count: N
+- confirmed_date_range: [start, end] 
+- confirmed_y_range: [min, max]
+`
 
 export const csvData = `date/time,installation,energy_source,MW
 11/02/2023,BARCSF1,Solar,0.10000000000000002
@@ -1341,5 +1347,372 @@ export const aggregatorResult_4 = `{
   timestamp: 2025-09-07T21:47:21.738Z
 }
 `;
+
+export const D3JSCoordinatingAgentFinalResult = `{
+  agentName: 'D3JSCoordinatingAgent',
+  result: 'Consolidated summary across cycles (20-row analyses) for D3JS Coordinating Agent\n' +
+    '\n' +
+    'Cycle-by-cycle summaries (as provided)\n' +
+    '- cycle_0\n' +
+    '  - xDomain: ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"]\n' +
+    '  - Example series entry: BARCSF1 (Solar) values: 11/02 0.1 MW; 11/03 0; 11/04 0; 11/05 0; (... truncated)\n' +
+    '  - yDomain: [-5, 25]; yTicks: [-5, 0, 5, 10, 15, 20, 25]; tickFormatHint: auto-2dp\n' +
+    '  - Stats.counts: total_rows 20; processed_rows 20; n_installations 16; n_energy_sources 5; n_dates 4\n' +
+    '  - Stats.per_date_totals: 11/02 69.91014775; 11/03 0; 11/04 0; 11/05 0\n' +
+    '  - Stats.extrema: global_min -0.176 at HUGSF1 on 11/02; global_max 28.973424166666664 at REPULSE on 11/02\n' +
+    '  - Data quality: skipped_rows 1; out_of_scope_date_rows 0\n' +
+    '  - Timestamp: 2025-09-07T21:46:25.531Z\n' +
+    '\n' +
+    '- cycle_1\n' +
+    '  - xDomain: ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"]\n' +
+    '  - Example series entries: KEPBG1 (Battery) all zeros; LRSF1 (Solar) 11/03 0.004; MLSP1 (Solar) 11/03 0.002; (... truncated)\n' +
+    '  - yDomain: [-1, 70]; yTicks: [-1, 0, 10, 20, 30, 40, 50, 60, 70]; tickFormatHint: auto-1dp\n' +
+    '  - Stats.counts: total_rows 160; processed_rows 160; n_installations 22; n_energy_sources 6; n_dates 4\n' +
+    '  - Stats.per_date_totals: 11/02 0; 11/03 154.96340849999997; 11/04 79.58323216666667; 11/05 0\n' +
+    '  - Stats.extrema: global_min -0.006666666666666667 at CLOVER on 11/04; global_max 68.01666666666667 at WOOLNTH1 on 11/03\n' +
+    '  - Data quality: skipped_rows 0; out_of_scope_date_rows 0\n' +
+    '  - Timestamp: 2025-09-07T21:46:50.798Z\n' +
+    '\n' +
+    '- cycle_2\n' +
+    '  - xDomain: ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"] (ISO format)\n' +
+    '  - Example series entries: DIAPURWF1 (Wind) all zeros; ERGT01 (Diesel) all zeros; ERGTO1 (Coal) all zeros; (... truncated)\n' +
+    '  - yDomain: [-0.1095, 145.70458333333332]; yTicks: [-0.2, 0, 20, 40, 60, 80, 100, 120, 140, 160]; tickFormatHint: auto-2dp\n' +
+    '  - Stats.counts: total_rows 500; processed_rows 20; n_installations 20; n_energy_sources 6; n_dates 4\n' +
+    '  - Stats.per_date_totals: 2023-11-02 0; 2023-11-03 0; 2023-11-04 255.44942904166666; 2023-11-05 0\n' +
+    '  - Stats.extrema: global_min -0.1095 at HUGSF1 on 2023-11-04; global_max 145.70458333333332 at WAUBRAWF on 2023-11-04\n' +
+    '  - Data quality: skipped_rows 2; out_of_scope_date_rows 1\n' +
+    '  - Timestamp: 2025-09-07T21:47:06.722Z\n' +
+    '\n' +
+    '- cycle_3\n' +
+    '  - xDomain: ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"]\n' +
+    '  - Example series entries: BUTLERSG (Hydro) 11/05 9.391665583333333; CAPTL_WF (Wind) 11/05 25.20872; (... truncated)\n' +
+    '  - yDomain: [-5, 25]; yTicks: [-5, 0, 5, 10, 15, 20, 25]; tickFormatHint: auto-2dp\n' +
+    '  - Stats.counts: total_rows 0; processed_rows 20; n_installations 19; n_energy_sources 7; n_dates 1\n' +
+    '  - Stats.per_date_totals: 11/05 93.56824208333334\n' +
+    '  - Stats.extrema: global_min -1.1 at RPCG on 11/05; global_max 25.20872 at CAPTL_WF on 11/05\n' +
+    '  - Data quality: skipped_rows 2; out_of_scope_date_rows 0\n' +
+    '  - Timestamp: 2025-09-07T21:47:21.738Z\n' +
+    '\n' +
+    '\n' +
+    'Consolidated synthesis for graph construction\n' +
+    '- Normalized xDomain (union of all cycles):\n' +
+    '  - Canonical (ISO): ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"]\n' +
+    '  - Note: cycles 0, 1, 3 used "MM/DD/YYYY"; cycle 2 used ISO. Downstream should normalize to a single format (recommend ISO).\n' +
+    '- Global yDomain and ticks:\n' +
+    '  - Global yDomain: [-1.1, 145.70458333333332] (min from cycle_3 RPCG; max from cycle_2 WAUBRAWF)\n' +
+    '  - Suggested yTicks: use D3 automatic ticks with nice() across this domain; if fixed ticks are required, one workable set is [-2, 0, 20, 40, 60, 80, 100, 120, 140, 160]\n' +
+    '  - tickFormatHint: standardize to auto-2dp to safely display small decimals (e.g., 0.004) and high-precision maxima (e.g., 28.973424…)\n' +
+    '- Consolidated per-date totals (summing reported per-cycle values; dates normalized to ISO):\n' +
+    '  - 2023-11-02: 69.91014775\n' +
+    '  - 2023-11-03: 154.96340849999997\n' +
+    '  - 2023-11-04: 335.03266120833333 (79.58323216666667 + 255.44942904166666)\n' +
+    '  - 2023-11-05: 93.56824208333334\n' +
+    '  - Caution: This assumes no duplicate installation-date rows across cycles; if cycles overlapped, these totals would overcount. Deduplicate by (installation, date, interval) before final aggregation.\n' +
+    '- Global extrema across all cycles:\n' +
+    '  - global_min: -1.1 at RPCG on 2023-11-05\n' +
+    '  - global_max: 145.70458333333332 at WAUBRAWF on 2023-11-04\n' +
+    '- Data quality aggregate:\n' +
+    '  - Total processed_rows (as reported): 20 + 160 + 20 + 20 = 220\n' +
+    '  - Skipped_rows sum: 1 + 0 + 2 + 2 = 5\n' +
+    '  - Out_of_scope_date_rows sum: 0 + 0 + 1 + 0 = 1\n' +
+    '  - Notable inconsistencies:\n' +
+    '    - Date format mismatch (MM/DD/YYYY vs ISO)\n' +
+    '    - cycle_3 reports xDomain with four dates but n_dates = 1; ensure missing dates are explicitly represented (0 or null) or excluded consistently\n' +
+    '    - cycle_1 counts indicate 160 processed rows within a single cycle that’s expected to contain 20 rows\n' +
+    '- Coverage observations:\n' +
+    '  - n_installations reported per cycle: 16, 22, 20, 19; true union size cannot be determined from truncated series (“...”). Energy sources observed across cycles: at least 7.\n' +
+    '\n' +
+    'Validator’s assessment of sufficiency for constructing the 2D graph\n' +
+    '- What is sufficient now:\n' +
+    '  - A consistent xDomain can be established (the same four dates).\n' +
+    '  - A safe global yDomain and reasonable tick strategy can be set from the extrema.\n' +
+    '  - Aggregated per-date totals can support a totals-by-day series or bars if desired.\n' +
+    '- What is insufficient or risky for a full multi-series time-series plot:\n' +
+    '  - Series data are truncated (“...”) in every cycle; you cannot render all installation-level lines without the complete series arrays.\n' +
+    '  - Potential duplication across cycles cannot be ruled out; totals may overcount unless deduplicated.\n' +
+    '  - Mixed date formats will break time parsing unless normalized; cycle_3’s n_dates inconsistency could mislead scale or imputation if not handled.\n' +
+    '  - Mixed tickFormatHints (auto-1dp vs auto-2dp) should be standardized to avoid inconsistent label precision.\n' +
+    '- Recommended actions for D3JS Coordinating Agent:\n' +
+    '  - Normalize all dates to ISO (YYYY-MM-DD) before merging.\n' +
+    '  - Deduplicate by unique key (installation_id, date) when consolidating series across cycles.\n' +
+    '  - Merge series arrays across cycles into a single series[] keyed by installation, preserving energy_source.\n' +
+    '  - Use the consolidated global yDomain [-1.1, 145.70458333333332]; apply d3.scaleLinear().nice() for tick calculation; clamp to domain.\n' +
+    '  - Standardize formatting to 2 decimal places for y-axis labels; optionally drop trailing zeros for compactness.\n' +
+    '  - Treat missing installation-date values explicitly (null for gaps if you want line breaks, or 0 if domain logic requires zero).\n' +
+    '  - Keep negative MW values; they are present and affect domain and interpretation.\n' +
+    '  - Validate per-cycle counts vs the “20 rows per cycle” expectation; if cycle_1 indeed aggregated more than 20 rows, confirm ingestion boundaries to avoid double counting.\n' +
+    '\n' +
+    'If you want a single consolidated specification scaffold for the renderer (with only safe, non-invented fields):\n' +
+    '- xDomain: ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"]\n' +
+    '- yDomain: [-1.1, 145.70458333333332]\n' +
+    '- yTicks: let D3 compute with nice(); or use [-2, 0, 20, 40, 60, 80, 100, 120, 140, 160]\n' +
+    '- tickFormatHint: auto-2dp\n' +
+    '- per_date_totals: as listed above\n' +
+    '- extrema:\n' +
+    '  - min_point: { installation: "RPCG", date: "2023-11-05", mw: -1.1 }\n' +
+    '  - max_point: { installation: "WAUBRAWF", date: "2023-11-04", mw: 145.70458333333332 }\n' +
+    '- notes:\n' +
+    '  - series arrays provided in cycles are incomplete and must be reassembled from full data to render all installations\n' +
+    '  - mixed date formats and possible cycle overlap should be resolved during consolidation',
+  success: true,
+  timestamp: 2025-09-09T00:29:56.139Z
+}`;
+
+export const D3JSCodeingAgentReuslt = `{
+  agentName: 'D3JSCodingAgent',
+  result: '<!DOCTYPE html>\n' +
+    '<html lang="en">\n' +
+    '<head>\n' +
+    '<meta charset="utf-8" />\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />\n' +
+    '<title>D3 Line Chart (Installations over Time)</title>\n' +
+    '<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>\n' +
+    '<style>\n' +
+    '  :root {\n' +
+    '    --chart-width: min(1000px, 95vw);\n' +
+    '    --chart-height: 520px;\n' +
+    '  }\n' +
+    '  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; color: #222; }\n' +
+    '  #controls {\n' +
+    '    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px;\n' +
+    '  }\n' +
+    '  #csvText {\n' +
+    '    width: var(--chart-width); max-width: 100%; height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;\n' +
+    '  }\n' +
+    '  #chart-wrap { width: var(--chart-width); max-width: 100%; }\n' +
+    '  #legend {\n' +
+    '    width: var(--chart-width); max-width: 100%;\n' +
+    '    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;\n' +
+    '    margin-top: 8px; padding-top: 6px; border-top: 1px solid #ddd;\n' +
+    '  }\n' +
+    '  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.2; cursor: default; }\n' +
+    '  .legend-swatch { width: 14px; height: 4px; border-radius: 2px; }\n' +
+    '  .legend-scroll {\n' +
+    '    max-height: 110px; overflow-y: auto; padding-right: 6px;\n' +
+    '  }\n' +
+    '  .axis path, .axis line { stroke: #888; }\n' +
+    '  .grid line { stroke: #eee; }\n' +
+    '  .series-path { fill: none; stroke-width: 2px; opacity: 0.9; }\n' +
+    '  .series-path:hover { stroke-width: 3px; opacity: 1; }\n' +
+    '  .tooltip {\n' +
+    '    position: absolute; pointer-events: none; background: rgba(255,255,255,0.95); border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);\n' +
+    '    transform: translate(-50%, -110%);\n' +
+    '  }\n' +
+    '  .hint { color: #666; font-size: 12px; }\n' +
+    '</style>\n' +
+    '</head>\n' +
+    '<body>\n' +
+    '\n' +
+    '<div id="controls">\n' +
+    '  <input type="file" id="fileInput" accept=".csv,text/csv" />\n' +
+    '  <input type="url" id="urlInput" placeholder="CSV URL (optional)" style="flex:1 1 340px; min-width: 240px; padding: 6px;" />\n' +
+    '  <button id="loadUrlBtn">Load URL</button>\n' +
+    '  <button id="renderTextBtn">Render from textarea</button>\n' +
+    '  <span class="hint">CSV header must be: date/time,installation,energy_source,MW</span>\n' +
+    '</div>\n' +
+    '\n' +
+    '<textarea id="csvText" placeholder="Paste CSV here (optional). Example header:\n' +
+    'date/time,installation,energy_source,MW"></textarea>\n' +
+    '\n' +
+    '<div id="chart-wrap">\n' +
+    '  <svg id="chart" width="100%" height="520" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Installation output over time line chart"></svg>\n' +
+    '  <div id="legend" class="legend-scroll" aria-label="Installations legend"></div>\n' +
+    '</div>\n' +
+    '\n' +
+    '<!-- Optional runtime configuration from coordinating agent -->\n' +
+    '<script type="application/json" id="agent-config">\n' +
+    '{\n' +
+    '  "confirmed_installations_count": null,\n' +
+    '  "confirmed_date_range": ["2023-11-02", "2023-11-05"],\n' +
+    '  "confirmed_y_range": [-1.1, 145.70458333333332],\n' +
+    '  "tick_decimals": 2\n' +
+    '}\n' +
+    '</script>\n' +
+    '\n' +
+    '<script>\n' +
+    '(function() {\n' +
+    '  const svg = d3.select("#chart");\n' +
+    '  const legendEl = d3.select("#legend");\n' +
+    '  const width = 1000, height = 520;\n' +
+    '  const margin = { top: 30, right: 20, bottom: 50, left: 64 };\n' +
+    '  const innerW = width - margin.left - margin.right;\n' +
+    '  const innerH = height - margin.top - margin.bottom;\n' +
+    '\n' +
+    '  const gRoot = svg.append("g").attr("transform", 'translate(${margin.left},${margin.top})');\n' +
+    '  const gGrid = gRoot.append("g").attr("class", "grid");\n' +
+    '  const gXAxis = gRoot.append("g").attr("class", "axis x");\n' +
+    '  const gYAxis = gRoot.append("g").attr("class", "axis y");\n' +
+    '  const gSeries = gRoot.append("g").attr("class", "series");\n' +
+    '\n' +
+    '  const tooltip = d3.select("body").append("div").attr("class", "tooltip").style("display","none");\n' +
+    '\n' +
+    '  // Read configuration supplied by coordinating agent (overridable by window.CoordinatorConfig)\n' +
+    '  const defaultConfig = { confirmed_installations_count: null, confirmed_date_range: ["2023-11-02","2023-11-05"], confirmed_y_range: [-1.1, 145.70458333333332], tick_decimals: 2 };\n' +
+    '  let agentConfig = { ...defaultConfig };\n' +
+    '  try {\n' +
+    '    const scriptCfg = document.getElementById("agent-config");\n' +
+    '    if (scriptCfg && scriptCfg.textContent.trim()) {\n' +
+    '      agentConfig = { ...agentConfig, ...JSON.parse(scriptCfg.textContent) };\n' +
+    '    }\n' +
+    '    if (window.CoordinatorConfig && typeof window.CoordinatorConfig === "object") {\n' +
+    '      agentConfig = { ...agentConfig, ...window.CoordinatorConfig };\n' +
+    '    }\n' +
+    '  } catch (e) {\n' +
+    '    console.warn("Config parse warning:", e);\n' +
+    '  }\n' +
+    '\n' +
+    '  const parseISO = d3.timeParse("%Y-%m-%d");\n' +
+    '  const parseMDY = d3.timeParse("%m/%d/%Y");\n' +
+    '  const parseMDY2 = d3.timeParse("%m/%d/%y");\n' +
+    '  const fmtISO = d3.timeFormat("%Y-%m-%d");\n' +
+    '  const yTickFormat = d3.format(.${Math.max(0, agentConfig.tick_decimals|0)}f);\n' +
+    '\n' +
+    '  function parseDateAny(s) {\n' +
+    '    if (!s) return null;\n' +
+    '    s = String(s).trim();\n' +
+    '    let d = parseISO(s) || parseMDY(s) || parseMDY2(s);\n' +
+    '    if (!d) {\n' +
+    '      const nd = new Date(s);\n' +
+    '      if (!isNaN(+nd)) d = nd;\n' +
+    '    }\n' +
+    '    return d;\n' +
+    '  }\n' +
+    '\n' +
+    '  function toISODateString(d) {\n' +
+    '    if (!(d instanceof Date)) return null;\n' +
+    '    return fmtISO(d);\n' +
+    '  }\n' +
+    '\n' +
+    '  function extentWithin(range) {\n' +
+    '    if (!Array.isArray(range) || range.length < 2) return null;\n' +
+    '    const s = parseDateAny(range[0]);\n' +
+    '    const e = parseDateAny(range[1]);\n' +
+    '    if (!s || !e) return null;\n' +
+    '    return s <= e ? [s, e] : [e, s];\n' +
+    '  }\n' +
+    '\n' +
+    '  function colorScaleFor(keys) {\n' +
+    '    const base = d3.schemeTableau10;\n' +
+    '    if (keys.length <= base.length) return d3.scaleOrdinal().domain(keys).range(base);\n' +
+    '    // Extended palette using interpolator for many series\n' +
+    '    return d3.scaleOrdinal()\n' +
+    '      .domain(keys)\n' +
+    '      .range(keys.map((_, i) => d3.interpolateRainbow(i / keys.length)));\n' +
+    '  }\n' +
+    '\n' +
+    '  function groupAndAlign(rows, useRange) {\n' +
+    '    // Build unique date set within range\n' +
+    '    const allDates = Array.from(d3.rollup(\n' +
+    '      rows.filter(r => r.date),\n' +
+    '      v => 1,\n' +
+    '      r => toISODateString(r.date)\n' +
+    '    ).keys()).map(s => parseISO(s)).filter(Boolean).sort(d3.ascending);\n' +
+    '\n' +
+    '    let dateRange = useRange || extentWithin(agentConfig.confirmed_date_range);\n' +
+    '    let domainDates;\n' +
+    '    if (dateRange) {\n' +
+    '      domainDates = allDates.filter(d => d >= dateRange[0] && d <= dateRange[1]);\n' +
+    '      // Ensure endpoints present\n' +
+    '      if (domainDates.length === 0) {\n' +
+    '        domainDates = d3.timeDay.range(dateRange[0], d3.timeDay.offset(dateRange[1], 1));\n' +
+    '      }\n' +
+    '    } else {\n' +
+    '      domainDates = allDates;\n' +
+    '    }\n' +
+    '\n' +
+    '    const dateKeys = domainDates.map(d => fmtISO(d));\n' +
+    '    const perInstPerDate = d3.rollup(\n' +
+    '      rows.filter(r => r.date && dateKeys.includes(toISODateString(r.date))),\n' +
+    '      v => d3.sum(v, d => isFinite(d.mw) ? d.mw : 0),\n' +
+    '      r => r.installation,\n' +
+    '      r => toISODateString(r.date)\n' +
+    '    );\n' +
+    '\n' +
+    '    const energyByInst = new Map();\n' +
+    '    rows.forEach(r => {\n' +
+    '      if (!energyByInst.has(r.installation) && r.energy_source) {\n' +
+    '        energyByInst.set(r.installation, r.energy_source);\n' +
+    '      }\n' +
+    '    });\n' +
+    '\n' +
+    '    const series = Array.from(perInstPerDate.keys()).map(inst => {\n' +
+    '      const dateMap = perInstPerDate.get(inst);\n' +
+    '      return {\n' +
+    '        key: inst,\n' +
+    '        energy_source: energyByInst.get(inst) || "",\n' +
+    '        values: dateKeys.map(k => {\n' +
+    '          const d = parseISO(k);\n' +
+    '          const val = dateMap.get(k);\n' +
+    '          return { date: d, value: (val === undefined ? null : val) };\n' +
+    '        })\n' +
+    '      };\n' +
+    '    });\n' +
+    '\n' +
+    '    return { series, domainDates };\n' +
+    '  }\n' +
+    '\n' +
+    '  function computeYDomain(series, providedRange) {\n' +
+    '    if (Array.isArray(providedRange) && providedRange.length >= 2 && isFinite(providedRange[0]) && isFinite(providedRange[1])) {\n' +
+    '      let lo = +providedRange[0], hi = +providedRange[1];\n' +
+    '      if (lo > hi) [lo, hi] = [hi, lo];\n' +
+    '      return [lo, hi];\n' +
+    '    }\n' +
+    '    const allVals = series.flatMap(s => s.values.map(v => v.value).filter(v => v != null && isFinite(v)));\n' +
+    '    if (allVals.length === 0) return [0, 1];\n' +
+    '    const extent = d3.extent(allVals);\n' +
+    '    if (extent[0] === extent[1]) {\n' +
+    '      const pad = Math.abs(extent[0]) * 0.1 + 1;\n' +
+    '      return [extent[0] - pad, extent[1] + pad];\n' +
+    '    }\n' +
+    '    return extent;\n' +
+    '  }\n' +
+    '\n' +
+    '  function drawChart(rawRows) {\n' +
+    '    // Preprocess rows\n' +
+    '    const rows = rawRows.map(d => {\n' +
+    '      const date = parseDateAny(d["date/time"] ?? d.date ?? d.datetime ?? d["dateTime"]);\n' +
+    '      const installation = (d.installation ?? d.Installation ?? "").trim();\n' +
+    '      const energy_source = (d.energy_source ?? d["energy source"] ?? d.source ?? "").trim();\n' +
+    '      const mw = (d.MW != null ? +d.MW : (d.mw != null ? +d.mw : NaN));\n' +
+    '      return { date, installation, energy_source, mw: isFinite(mw) ? mw : NaN };\n' +
+    '    }).filter(r => r.installation && r.date && isFinite(r.mw));\n' +
+    '\n' +
+    '    const range = extentWithin(agentConfig.confirmed_date_range);\n' +
+    '    const { series, domainDates } = groupAndAlign(rows, range);\n' +
+    '\n' +
+    '    // Optional validation vs confirmed_installations_count\n' +
+    '    if (agentConfig.confirmed_installations_count > 0 && series.length !== agentConfig.confirmed_installations_count) {\n' +
+    '      console.warn('Installations count mismatch. Found ${series.length}, expected ${agentConfig.confirmed_installations_count}.');\n' +
+    '    }\n' +
+    '\n' +
+    '    const x = d3.scaleTime()\n' +
+    '      .domain(d3.extent(domainDates))\n' +
+    '      .range([0, innerW]);\n' +
+    '\n' +
+    '    const yDomain = computeYDomain(series, agentConfig.confirmed_y_range);\n' +
+    '    const y = d3.scaleLinear()\n' +
+    '      .domain(yDomain).nice()\n' +
+    '      .range([innerH, 0]).clamp(true);\n' +
+    '\n' +
+    '    // Axes\n' +
+    '    gXAxis.attr("transform", translate(0,${innerH})')\n' +
+    '      .call(d3.axisBottom(x).ticks(Math.min(8, domainDates.length)).tickFormat(d3.timeFormat("%Y-%m-%d")))\n' +
+    '      .call(g => g.selectAll("text").style("font-size", "11px").attr("dy", "0.85em").attr("dx", "-0.5em").attr("transform", "rotate(-20)"));\n' +
+    '\n' +
+    '    gYAxis.attr("transform", 'translate(0,0)')\n' +
+    '      .call(d3.axisLeft(y).ticks(8).tickFormat(yTickFormat))\n' +
+    '      .call(g => g.append("text")\n' +
+    '        .attr("x", 0).attr("y", -10)\n' +
+    '        .attr("fill", "#000").attr("font-weight", "600")\n' +
+    '        .attr("text-anchor", "start").text("MW"));\n' +
+    '\n' +
+    '    // Grid\n' +
+    '    gGrid.selectAll("*").remove();\n' +
+    '    gGrid.append("g")\n' +
+    '      .attr("transform", translate(0,${innerH})')\n' +
+    '      .call(d3.axisBottom(x).ticks(Math.min(8, domainDates.length)'... 5552 more characters,
+  success: true,
+  timestamp: 2025-09-09T22:32:43.429Z
+}`
 
 export { csvContent, agentData };

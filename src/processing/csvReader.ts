@@ -50,6 +50,10 @@ export class CSVReader {
         const content = fs.readFileSync(this.filePath, 'utf-8');
         const lines = content.split('\n').filter(line => line.trim() !== '');
         
+        if (this.currentPosition >= lines.length) {
+            return [];
+        }
+        
         const endPosition = Math.min(this.currentPosition + 20, lines.length);
         const rows = lines.slice(this.currentPosition, endPosition);
         this.currentPosition = endPosition;
@@ -76,6 +80,7 @@ export class CSVReader {
         if (this.totalRows === 0) {
             this.countRows();
         }
+        console.log('CURRENT ', this.currentPosition)
         return this.currentPosition < this.totalRows;
     }
 

@@ -226,6 +226,15 @@ export class SagaWorkflow {
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
+      },
+       {
+        agentName: 'D3JSCodingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-6',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'Your role is d3 js coder using csv data files. You will code graphs given a sample of the csv file and details about the data for a graph such as min-max ranges, date ranges and the number of items to be plotted',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Provide provide html code without explanation so the code can be run in the browser.'
       }
       
       /*,

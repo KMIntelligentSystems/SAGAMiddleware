@@ -34,7 +34,7 @@ import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
 import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, 
-  visCodeWriterResult, graphAnalyzerResult, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4 } from '../test/testData.js';
+  visCodeWriterResult, graphAnalyzerResult, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt } from '../test/testData.js';
 import { CSVReader } from '../processing/csvReader.js'
 
 export class SagaCoordinator extends EventEmitter {
@@ -84,8 +84,8 @@ export class SagaCoordinator extends EventEmitter {
     this.agentDefinitions.set(definition.name, definition);
  
     const llmConfig: LLMConfig = {
-            provider: 'openai',
-            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o-mini', //gpt-5 gpt-4o-mini
+            provider: 'anthropic', //openai
+            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'claude-3-7-sonnet-20250219', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
             temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
             maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
             apiKey: process.env.OPENAI_API_KEY
@@ -274,18 +274,24 @@ if(definition.agentType === 'tool'){
         if (!processedInCycle.has(linearTx.id)) {
            let agent = this.agents.get(linearTx.agentName);
           if(transaction.id === linearTx.id){
-            result = await agent?.execute({}) as AgentResult;
+            //TEST START
+        //    result = await agent?.execute({}) as AgentResult;
+        //END
+            result.result = D3JSCoordinatingAgentFinalResult
           }
           else{
-            const res = result?.result as AgentResult
-            console.log('HERE IN LINEAR',res?.result)
-            const cleanCode = this.cleanPythonCode(res?.result || '')
+            let cleanCode = this.cleanPythonCode(result.result || '')
+          //  console.log('LINEAR CTX ', cleanCode)
+          //TEST
             result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+           
+           // result.result = D3JSCodeingAgentReuslt;
+            cleanCode = this.cleanPythonCode(result.result || '')
             const agentName = agent?.getName() as string
             //OUT LINEAR  PythonToolInvoker
             //OUT LINEAR  1  codeExecutorResult ie python tool call
             console.log('OUT LINEAR ', agentName)
-             console.log('OUT LINEAR  1 ', result.result)
+            console.log('OUT LINEAR  1 ', cleanCode)
              try{
               //codeWriterResult is example of clean code previous Result which is executed 
               this.contextManager.updateContext(agentName,{previousResult: cleanCode });
@@ -675,23 +681,17 @@ cute_python tool.\n' +
               })
              })
             dynamicTransactionSet.executionOrder.push('d3js-analysis-set');
+             dynamicTransactionSet.executionOrder.push('d3js-results-set');
+             collection.sets.forEach(set => {
+              console.log('HERE IN COLLECTION',  set.id)
+              if(set.id === 'd3js-results-set'){
+                dynamicTransactionSet?.sets.push(set)
+                
+              }
+             })
+         
         } else if(transactionSet.id === 'd3js-results-set'){
-            const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'D3JSCoordinatingAgent');
-            const agent = this.agents.get('D3JSCoordinatingAgent');
-            agent?.deleteContext();
-            agent?.receiveContext({'USER REQUIREMENTS:': conversationContext});
-            const allStoredResults = globalDataProcessor.getAllResults();
-            const resultEntries = Array.from(allStoredResults.entries());
-            let i = 0;
-            agent?.receiveContext({'AGENT RESULTS:': ''});
-            resultEntries.forEach(entry =>{
-              const res = `Iteration ${i}:\n`;
-              agent?.receiveContext({res: entry});
-            });
-            console.log(`📊 Found ${resultEntries.length} records in global storage to process`);
-            console.log('D3 JS ', conversationContext)
-
-            dynamicTransactionSet = collection;
+          console.log('HERE RESULTS')
         }
 
           const setEndTime = new Date();
@@ -756,7 +756,9 @@ cute_python tool.\n' +
       // Execute dynamic transaction set collection if it was created
       if (dynamicTransactionSet && dynamicTransactionSet.sets && dynamicTransactionSet.sets.length > 0) {
         console.log(`🔄 Processing dynamic transaction set collection: ${dynamicTransactionSet.name}`);
-       
+        dynamicTransactionSet.sets.forEach(set => {
+          console.log('SET ID', set.id);
+        })
         // Process dynamic sets in their execution order
         for (const setId of dynamicTransactionSet.executionOrder) { 
           const dynamicSet = dynamicTransactionSet.sets.find(s => s.id === setId);
@@ -834,10 +836,30 @@ cute_python tool.\n' +
               lastExecutionResult
             );
           } else if(setId === 'd3js-results-set'){
-             console.log(' HERE D3 RES')
+            const agent = this.agents.get('D3JSCoordinatingAgent');
+            agent?.deleteContext();
+            const prompt = dynamicSet.prompt || '';
+            agent?.setTaskDescription(prompt);
+            const allStoredResults = globalDataProcessor.getAllResults();
+            const resultEntries = Array.from(allStoredResults.entries());
+            let i = 0;
+            agent?.receiveContext({'AGENT RESULTS:': ''});
+            console.log('NUM ', resultEntries.length)
+            resultEntries.forEach(entry =>{
+              const res = `Iteration ${i++}:\n`;
+
+              agent?.receiveContext({res: entry});
+            });
+
+            const codingRequest = this.parseConversationResultForAgent(request.userQuery,'D3JSCodingAgent');
+            console.log('REQUEST ',codingRequest)
+            const codingAgent = this.agents.get('D3JSCodingAgent');
+            codingAgent?.setTaskDescription(codingRequest);
+      
              this.agentFlows = []
-             this.agentFlows[0] = ['tx-5']
-             setResult = await this.executeSagaWorkflow(
+             this.agentFlows[0] = ['tx-5','tx-6']
+          
+            setResult = await this.executeSagaWorkflow(
               request,
               `${workflowId}_dynamic_${setId}`,
               dynamicSet,
@@ -1085,9 +1107,16 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
               throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
             }
           } */
-        } else if(this.agentFlows && this.agentFlows.length > 1 && this.agentFlows[0].length ===1){
-          const agent = this.agents.get(transaction.id);
-          result = await agent?.execute({}) as AgentResult;
+        } else if(this.agentFlows  && this.agentFlows[0].length ===1){
+          //FOR TX-5 AS SINGLETON NOW TX-5 -> TX-6 LINEAR
+          const agent = this.agents.get(transaction.agentName);
+         // result = await agent?.execute({}) as AgentResult;
+         //test
+         result.result = D3JSCoordinatingAgentFinalResult
+    
+        //end test
+          return result;
+
         }
       
        if (!result.success && !hasLinearDependency)
@@ -2008,33 +2037,38 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     const executionOrder = [...preIterationTransactions].reverse();
     const agent = this.agents.get(iteratingTransaction.agentName);
     const headerRow = this.csvReader.getHeaderRow();
+    console.log('HEADER', headerRow)
     const results: string[] = [];
-    let rows = this.csvReader.getNext20Rows();
+ let rows = this.csvReader.getNext20Rows();
     while(this.csvReader.hasMoreRows()){
-    for (const transaction of chainTransactions/*executionOrder*/) {
-      //TEST
+  //  for (const transaction of chainTransactions/*executionOrder*/) {
+      //TEST  
       if(iteration === 0){
-          result.result = aggregatorResult_1;
+          result.result = aggregatorResult_1.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 1){
-          result.result = aggregatorResult_2;
+          result.result = aggregatorResult_2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 2){
-          result.result = aggregatorResult_3;
+          result.result = aggregatorResult_3.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 3){
-          result.result = aggregatorResult_4;
+          result.result = aggregatorResult_4.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }
       //End test
      // const result = await agent?.execute({'20 rows of data:': rows});
       if(result){
-        console.log('RESULT AGG', result.result)
+        console.log('RESULT AGG', rows)
        // results.push(result.result);
+       //For test did not take into account last 5 rows only 20 rows rturned last 5 not but iterates anyway because currentPosition < 105
         const cycleKey = `cycle_${iteration++}`;
-        globalDataProcessor.storeResult(cycleKey, {cleanedData: result.result});
+        if(iteration < 5){
+          globalDataProcessor.storeResult(cycleKey, {cleanedData: result.result});
+        } 
         rows = this.csvReader.getNext20Rows();
         rows.unshift(headerRow);
         finalResult = result;
          agent?.deleteContext();
       }
-    }
+
+   // }
   }
    
     // Get all results from global storage for processing
@@ -2059,7 +2093,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
      // mcpToolCallContext: mcpToolCallContext
     });
     
-    request.userQuery = JSON.stringify(finalResult.result) + 'Data to provide to the tool save: All stored data for processing';
+   // request.userQuery = JSON.stringify(finalResult.result) + 'Data to provide to the tool save: All stored data for processing';
     }
   
     

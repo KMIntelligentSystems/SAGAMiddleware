@@ -136,16 +136,14 @@ are no errors then simply provide the tool response to the coding agent. `;
 export const codingAgentErrorPrompt = `The code you created has errors. Look at the errors and a fix that has been provided. You can also see the code with errors. 
 Understand the problems and provide clean and complete python code that fixes the problems. You will find the problem in <context></context>. Your previous incorrect code is:
 `
-export const D3JSCoordinatingAgentAnalysis = `Your role is validator. Based on a user requirements, you constructed an agent whose task was to elaborate on those requirements 
-against csv data inputs. You will have two tasks: 1. You will examine that agent's results to determine if they are sufficient to meet the user requirements; 2. You will provide a
-comprehensive summary of the agent's results. The summary report must have suffient information for a coding agent to implement the user requirements. You will find the requirements in 
-<context> under 'USER REQUIREMENTS:' and you will find the results under: 'AGENT RESULTS:'</context>`;
+export const D3JSCoordinatingAgentAnalysis = `Your role is validator. An agent was provided with 20 rows of a csv file at a time to analyze. The analysis provided information about how the data can be represented in a 2-d graph. You have two tasks: 
+1. Provide a consolidated summary of all the 'cycles' of 20 dadta rows; 2. Think carefully about how well this consolidated summary provides sufficient information about the construction of the required 2-d graph`;
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive
 ❌ Do NOT comment on the input you receive
 ❌ Do NOT interpret what you receive
-❌ Do NOT provide any other output than that specifically requested:
+❌ Do NOT provide any other output than that specifically requested: 
 
 Your output will consist of one line of information delimited by <flow> and </flow>. If there is more information than this then  you have failed in your task! Do exactly as requested: no more and no less.
 */
@@ -592,8 +590,15 @@ export const SAGA_D3_RESULTS_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
   {
     id: 'tx-5',
-    name: 'Define agents',
+    name: 'Coordinate Coding',
     agentName: 'D3JSCoordinatingAgent',
+    dependencies: ['tx-6'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }, {
+    id: 'tx-6',
+    name: 'Write code',
+    agentName: 'D3JSCodingAgent',
     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'

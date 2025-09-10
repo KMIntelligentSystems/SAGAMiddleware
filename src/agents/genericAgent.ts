@@ -95,7 +95,7 @@ export class GenericAgent {
         timestamp: startTime
       };
     } catch (error) {
-      console.log('EXE ERROR')
+      console.log('EXE ERROR', error)
       return {
         agentName: this.definition.name,
         result: null,
@@ -264,7 +264,7 @@ export class GenericAgent {
       case 'openai':
         return await this.invokeOpenAI(prompt, config);
       case 'anthropic':
-       // return await this.invokeAnthropic(prompt, config);
+       return await this.invokeAnthropic(prompt, config);
       default:
         throw new Error(`Unsupported LLM provider: ${config.provider}`);
     }
@@ -596,7 +596,7 @@ const chat = await ai.chats.create({
     const { Anthropic } = await import('@anthropic-ai/sdk');
     
     const client = new Anthropic({
-      apiKey: config.apiKey
+      apiKey: process.env.ANTHROPIC_API_KEY
     });
 
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
@@ -703,7 +703,8 @@ const chat = await ai.chats.create({
       // Set forceToolUse to false to allow more natural tool selection
       return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'anthropic', false);
     }
-
+    let message;
+try{
     // No tools available, use regular completion
     const response = await client.messages.create({
       model: config.model,
@@ -717,12 +718,16 @@ const chat = await ai.chats.create({
       .map(content => content.type === 'text' ? content.text : '')
       .join('');
 
-     return  {
+  
+     } catch (error){
+      console.log('ANTHROPIC ERROR')
+     }
+
+      return  {
      agentName: this.getName(),
      result: message,
      success: true,
      timestamp: new Date()}
-    
 
   /*  return response.content
       .filter(content => content.type === 'text')
