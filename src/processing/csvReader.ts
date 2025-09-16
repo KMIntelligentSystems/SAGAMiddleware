@@ -14,6 +14,7 @@ export class CSVReader {
     }
 
     processFile(pathFromCode: string){
+        console.log('PATH ', pathFromCode)
          this.filePath = this.extractFilePathFromPython(pathFromCode);
            this.validateFile();
     }

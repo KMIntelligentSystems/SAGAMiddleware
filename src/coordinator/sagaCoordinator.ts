@@ -23,7 +23,8 @@ import {
   transactionSavingPrompt,
   agentDefinitionPrompt,
   groupingAgentPrompt,
-  csvAnalysisRefectingAgentPrompt
+  csvAnalysisRefectingAgentPrompt,
+   D3JSCoordinatingAgentChallengePrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -35,7 +36,7 @@ import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
 import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, 
-  visCodeWriterResult, graphAnalyzerResult, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt } from '../test/testData.js';
+  visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, d3CoordinatorChallengeResponse,  } from '../test/testData.js';
 import { CSVReader } from '../processing/csvReader.js'
 
 export class SagaCoordinator extends EventEmitter {
@@ -64,7 +65,7 @@ export class SagaCoordinator extends EventEmitter {
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
     this.mcpServers = mcpServers;
-    this.agentFlows.push(['tx-4','tx-3', 'tx-4']) //'tx-2' for DEFAULT_SAGA_COLLECTIONS
+    this.agentFlows.push([ 'tx-4','tx-3', 'tx-4']) //'tx-2' or tx-5 for DEFAULT_SAGA_COLLECTIONS 'tx-4','tx-3', 'tx-4' for visualizationCoordinatingAgent
   }
 
   registerAgent(definition: AgentDefinition): void {
@@ -269,7 +270,7 @@ if(definition.agentType === 'tool'){
       success: false,
       timestamp: new Date()
     };
-    const groupingTransaction = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+  //  const groupingTransaction = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
 
     for (const linearTx of linearTransactions) {
         if (!processedInCycle.has(linearTx.id)) {
@@ -278,6 +279,7 @@ if(definition.agentType === 'tool'){
             //TEST START
         //    result = await agent?.execute({}) as AgentResult;
         //END
+        
             result.result = D3JSCoordinatingAgentFinalResult
           }
           else{
@@ -617,7 +619,7 @@ sleep(ms: number) {
               const response = groupedContext.lastTransactionResult;
               console.log('RESPONSE  ', response)
               const agent = this.agents?.get('TransactionGroupingAgent');
-              const prompt = transactionSet.prompt || '';
+              const prompt = transactionSet.prompt || '';              agentDefinitionPrompt, //used for second use of transactionGroupingAgent
               agent?.setTaskDescription(prompt);
               agent?.deleteContext();
               agent?.receiveContext({'THE AGENTS': response})
@@ -656,27 +658,76 @@ cute_python tool.\n' +
   success: true,
   timestamp: 2025-09-03T21:12:00.968Z
 }
+
+'D3JSCoordinatingAgent'
+ result: '[AGENT: Installation Time-Series Aggregator, DA-001]\n' +
+    'Your mission\n' +
+    '- Analyze CSV data provided in chunks and produce a clean, aggregated time series suitable for a 2D multi-line chart.\n' +
+    '- X-axis: the four dates 11/02/2023, 11/03/2023, 11/04/2023, 11/05/2023.\n' +
+    '- Y-axis: MW/hr produced per installation (sum of MW values per installation per date).\n' +
+    '- Maintain running aggregates across chunks and output final graph-ready structures plus summary statistics and axis intervals.\n' +
+    '\n' +
+
+graphAnalyzerResult 
           */
                 dynamicTransactionSet = AgentParser.parseAndCreateAgents(
                 response,
-                setResult.result,
+                setResult.result, //graphAnalyzerResult 
                 this // Pass the coordinator instance to register agents 
               );
+              //TEST
+        //      setResult.result = graphAnalyzerResult 
+              //END
+              this.contextManager.updateContext('D3JSCoordinatingAgent',{
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-4', //tx-4
+                  timestamp: new Date()
+                });  
         }else if(transactionSet.id === 'code-validating-set'){
           console.log('TRANS NAME ',transactionSet.name)
             dynamicTransactionSet =collection;
-        }else if(transactionSet.id === 'd3js-analysis-set'){
+            
+        }
+        else if (transactionSet.id === 'd3js-agent-gen-set'){
+             const conversationContext = this.parseConversationResultForAgent(request.userQuery, 'D3JSCoordinatingAgent')
+             const agent = this.agents.get('D3JSCoordinatingAgent');
+             agent?.deleteContext();
+             agent?.receiveContext({'YOUR TASK': conversationContext});
+             this.agentFlows[0] = ['tx-5']
+            /* setResult = await agent?.execute({}) || {agentName: '',
+                                                                  result: '',
+                                                                  success: true,
+                                                                  timestamp: new Date()
+                                                                };
+            console.log('D3 ANALYZESRER AGENT ', setResult.result)*/
+            //TEST
+              setResult.result = graphAnalyzerResult_1;
+            //END
+              this.contextManager.updateContext('D3JSCoordinatingAgent',{
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-5', //tx-4
+                  timestamp: new Date()
+                }); 
+            /*
+             result: '[AGENT: Grid-Line Data Analyzer, DA-001]\n' +
+    'Your task: Analyze CSV data to prepare a structured specification for a 2‑D multi-series line chart of MW/Hr produced by installations across four dates.\n' +
+    '\n' +
+    'Input CSV structure:\n' +
+    '- Columns: date/time,installation,energy_source,MW\n' +
+            */
+        }
+        else if(transactionSet.id === 'd3js-analysis-set'){
           console.log('TRANS D3 NAME ',transactionSet.name)
-        
+           const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
            dynamicTransactionSet = AgentParser.parseAndCreateAgents(
-                graphAnalyzerResult,
+                ctx.lastTransactionResult,
               {},
                 this // Pass the coordinator instance to register agents 
               );
              dynamicTransactionSet.sets.forEach(set =>{
               set.id = 'd3js-analysis-set'
               set.transactions.forEach(t => {
-                t.dependencies.push('DA-001');
+                t.dependencies.push('DA-001');  //For both graphAnalyzerResult_1 this is the id
                 console.log('SET ', t.agentName)
                  console.log('SET 1', t.id)
               })
@@ -693,6 +744,8 @@ cute_python tool.\n' +
          
         } else if(transactionSet.id === 'd3js-results-set'){
           console.log('HERE RESULTS')
+        }else if(transactionSet.id === 'd3js-coding-set'){
+         dynamicTransactionSet = collection;
         }
 
           const setEndTime = new Date();
@@ -840,6 +893,14 @@ cute_python tool.\n' +
           } else if(setId === 'd3js-results-set'){
             //tx-5 get each of self-ref from storaage and makes report
             const agent = this.agents.get('D3JSCoordinatingAgent');
+            //See line 672 for proper setting of graphAnalyzerResult 
+             this.contextManager.updateContext('D3JSCoordinatingAgent',{
+                  lastTransactionResult: graphAnalyzerResult,
+                  transactionId: 'tx-5', 
+                  timestamp: new Date()
+                });  
+
+      
             agent?.deleteContext();
             const prompt = dynamicSet.prompt || '';
             agent?.setTaskDescription(prompt);
@@ -872,6 +933,8 @@ cute_python tool.\n' +
             console.log('REQUEST ',codingRequest)
             const codingAgent = this.agents.get('D3JSCodingAgent');
             codingAgent?.setTaskDescription(codingRequest);
+        //   codingAgent?.receiveContext({'INFORMATION TOT ASSIST YOU: ': ctx.latestExecutionResult})
+           
       
              this.agentFlows = []
              this.agentFlows[0] = ['tx-5','tx-7']
@@ -1106,11 +1169,14 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
             hasCycles = true;
             const cyclePartners = this.getCyclePartnersFromFlow(transaction);
            
-            console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName));
+            console.log('🔗 Extended cycle partners:', cyclePartners.map(t => t.agentName)); 
+            console.log('ACTRIVE TRANS SET ',this.activeTransactionSetId)
             if(this.activeTransactionSetId === 'data-loading-set' || this.activeTransactionSetId === 'visualization-loading-set'){
                result = await this.executeDataValidatingCycle(cyclePartners, request, processedInCycle);
             } else if(this.activeTransactionSetId === 'code-validating-set'){
                 result = await this.executeCodeValidatingCycle(cyclePartners, request, processedInCycle);
+            } else if(this.activeTransactionSetId === 'd3js-results-set'){
+                result = await this.executeD3AnalysisValidatingCycle(cyclePartners, request, processedInCycle);
             }
            
             return result;
@@ -1127,6 +1193,8 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
         } else if(this.agentFlows  && this.agentFlows[0].length ===1){
           //FOR TX-5 AS SINGLETON NOW TX-5 -> TX-6 LINEAR
           const agent = this.agents.get(transaction.agentName);
+          console.log('SINGLETON TASK ', agent?.getAgentDefinition().taskDescription)
+           console.log('SINGLETON CTX ', agent?.getContext())
          // result = await agent?.execute({}) as AgentResult;
          //test
          result.result = D3JSCoordinatingAgentFinalResult
@@ -2060,7 +2128,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     while(this.csvReader.hasMoreRows()){
   //  for (const transaction of chainTransactions/*executionOrder*/) {
       //TEST  
-      if(iteration === 0){
+    /*  if(iteration === 0){
           result.result = aggregatorResult_1.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 1){
           result.result = aggregatorResult_2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -2068,11 +2136,11 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
           result.result = aggregatorResult_3.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 3){
           result.result = aggregatorResult_4.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      }
+      }*/
       //End test
-     // const result = await agent?.execute({'20 rows of data:': rows});
+       const result = await agent?.execute({'20 rows of data:': rows});
       if(result){
-        console.log('RESULT AGG', rows)
+        console.log('RESULT AGG', result.result)
        // results.push(result.result);
        //For test did not take into account last 5 rows only 20 rows rturned last 5 not but iterates anyway because currentPosition < 105
         const cycleKey = `cycle_${iteration++}`;
@@ -3403,6 +3471,78 @@ Task Context: ${taskContext}
     this.contextManager.updateContext('TransactionGroupingAgent',  {
         lastTransactionResult: result.result,
         transactionId: 'tx-2',
+        timestamp: new Date(),
+        processedInCycle: true
+      });
+    
+    return result;
+  }
+
+   private async executeD3AnalysisValidatingCycle(
+    cyclePartners: SagaTransaction[], 
+    request: BrowserGraphRequest, 
+    processedInCycle: Set<string>
+  ): Promise<AgentResult> {
+    if (cyclePartners.length === 0) {
+      throw new Error(`Extended cycle detected but no partners found`);
+    }
+
+    let result: AgentResult = { 
+      success: false, 
+      result: '', 
+      error: '', 
+      agentName: '', 
+      timestamp: new Date() 
+    };
+    
+    // Execute each transaction in the cycle
+    // FLOW  [ 'tx-5', 'tx-6', 'tx-5' ] 
+  //  const timeSeriesAgent = this.agents.get('Installation Time-Series Aggregator');
+    
+ //   const aggregatorUserPrompt = this.parseConversationResultForAgent()
+   // console.log('AGGREGATOR TASK ', timeSeriesAgent?.getAgentDefinition().taskDescription)
+   
+    const startAgent = this.agents.get(cyclePartners[0].agentName);
+    startAgent?.setTaskDescription( D3JSCoordinatingAgentChallengePrompt);
+    let partnerCtx;
+    for (let i = 0; i < cyclePartners.length; i++) {
+      const transaction = cyclePartners[i];
+      console.log(`🔄 Executing cycle step ${i + 1}/${cyclePartners.length}: ${transaction.agentName}`);
+      // Execute the transaction
+      const agent = this.agents.get(transaction.agentName);
+      console.log('AGRNT CONTEXT ', agent?.getContext()) 
+      console.log('AGRNT TASK DEF ', agent?.getAgentDefinition()) 
+      //TEST
+     // result = await agent?.execute(context) as AgentResult
+       if(i === 0){
+           result.result = d3CoordinatorChallengeResponse//d3CoordinatorChallengeResponse //D3JSCoordinatingAgentFinalResult; //1. 4 cycles 2. d3CoordinatorChallengeResponse "agentName": "D3JSCoordinatingAgent",\n' +  "result":  "decision": "Render a single 2D bar chart of daily totals.
+           startAgent?.deleteContext(); //tx-5
+           startAgent?.receiveContext({'YOUR ANALYSIS: ': result.result});// 1. agentName: 'D3JSCoordinatingAgent',n  result: 'Consolidated summary across cycles (20-row analyses) 2. 
+           const partner = cyclePartners[1].agentName;
+           const agent = this.agents.get(partner);
+           const agentTask = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
+    
+           agent?.receiveContext({'USER REQUIREMENTS FOR AGENT: ': agentTask?.lastTransactionResult})
+          agent?.receiveContext({'CHALLENGE AGENT RESPONSE : ': result.result + '...DOES THE RESPONSE MEET USER REQUIREMENTS?'})
+      } else if(i === 1){
+      //  result = await agent?.execute({}) as AgentResult
+         result.result = d3ChallengeResult1;
+          startAgent?.receiveContext({'CRITQUE OF YOUR ANALYSIS: ': result.result});//agentName: 'D3AnalysisChallengingAgent',n  result: '{nn "success": false,nn "critique": [nn   {nn     "issue": "Ambiguous chart specification",
+     //   agent?.deleteContext(); = this.agents.get(transaction.agentName);
+         console.log('GENERAL RESULT ', result.result)
+      }else if(i === 2){
+     //  result = await agent?.execute({}) as AgentResult
+          console.log('FINAL RESPONSE ', result.result)//agentName: 'D3AnalysisChallengingAgent',n  result: '{nn "success": false,nn "critique": [nn   {nn     "issue": "Ambiguous chart specification",
+      }
+     
+      //END TEST
+      console.log('GENERAL RESULT ', result.result)
+      
+    }
+    
+    this.contextManager.updateContext( cyclePartners[0].agentName,  {
+        lastTransactionResult: result.result,
+        transactionId: cyclePartners[0].id,
         timestamp: new Date(),
         processedInCycle: true
       });

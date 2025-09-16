@@ -132,7 +132,7 @@ If these rules are not met, rectify the output accordingly`;
 export const csvAnalysisRefectingAgentPrompt = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
 The data is provided as a csv file. But the coding agent whose task is to build the code to generate the graph cannot be provided the csv file at build time because of size constraints.
 Therefore, a report is provided by another agent to assist the coding agent. Your task is to challenge and question the report in terms of being clear, logical and concise. Examine the report and think how well 
-the coding agent would have a clear understanding of what it must do. Are all categories provided? Is there a min and max and tick values for the axes?`;
+the coding agent would have a clear understanding of what it must do. Are all categories provided? Is there a min and max and tick values for the axes? Challenge the report. You must provide a critique`;
 
 export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in python code. 
 You will receive the output of a tool call which runs python code sent to it. This output will register either success or failure. In the case of failure, 
@@ -143,7 +143,11 @@ export const codingAgentErrorPrompt = `The code you created has errors. Look at 
 Understand the problems and provide clean and complete python code that fixes the problems. You will find the problem in <context></context>. Your previous incorrect code is:
 `
 export const D3JSCoordinatingAgentAnalysis = `Your role is validator. An agent was provided with 20 rows of a csv file at a time to analyze. The analysis provided information about how the data can be represented in a 2-d graph. You have two tasks: 
-1. Provide a consolidated summary of all the 'cycles' of 20 dadta rows; 2. Think carefully about how well this consolidated summary provides sufficient information about the construction of the required 2-d graph`;
+1. Provide a consolidated summary of all the 'cycles' of 20 dadta rows; 2. Think carefully about how well this consolidated summary provides sufficient information about the construction of the required 2-d graph. You will provide a concise specification for the 2-graph`;
+
+export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
+Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
+You must provide new instructiosn as succinctly as possible`
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive
@@ -543,6 +547,17 @@ export const SAGA_AGENT_GEN_TRANSACTIONS: SagaTransaction[] = [
   }
 ];
 
+export const SAGA_D3_AGENT_GEN_TRANSACTIONS: SagaTransaction[] = [
+  { id: 'tx-5',
+    name: 'Coordinator',
+    agentName: 'D3JSCoordinatingAgent',
+     dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }
+];
+
+
 export const SAGA_CODE_VALIDATION_TRANSACTIONS: SagaTransaction[] = [
   // Transaction Set 1: Requirements Gathering SAGA
   { id: 'tx-2',
@@ -605,6 +620,18 @@ export const SAGA_D3_RESULTS_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-6',
     name: 'Challenge Analysis',
     agentName: 'D3AnalysisChallengingAgent',
+    dependencies: [],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }
+];
+
+export const SAGA_D3_CODING_TRANSACTIONS: SagaTransaction[] = [
+  // Transaction Set 1: Requirements Gathering SAGA
+   {
+    id: 'tx-7',
+    name: 'd3 js Code',
+    agentName: 'D3JSCodingAgent',
     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
@@ -787,25 +814,6 @@ export const DEFAULT_SAGA_COLLECTION: TransactionSetCollection = {
   }
 };
 
-export const SAGA_AGENT_GEN_COLLECTION: TransactionSetCollection = {
-  id: 'saga-agent-gen-collection',
-  name: 'SAGA Validation Flow',
-  description: 'Standard validating',
-  sets: 
-  [
-     { id: 'tx-2',
-      name: 'Coordinator',
-      description: 'Final transaction grouping and data saving with self-referencing iterations',
-      prompt: agentDefinitionPrompt,
-      transactions: SAGA_AGENT_GEN_TRANSACTIONS
-    }
-  ],
-  executionOrder: ['saga-agent-gen-collection'],
-  metadata: {
-    version: '1.0.0',
-    created: new Date()
-  }
-};
 //If errors then call this: 1. transactionGroupingAgent but flow is set in sagaCoordinator constructor  this.agentFlows.push(['tx-4','tx-3', 'tx-4']) which 
 //cycles to fix the error
 export const SAGA_CODE_VALIDATION_COLLECTION: TransactionSetCollection = {
@@ -844,11 +852,32 @@ export const SAGA_VISUALIZATION_COLLECTION: TransactionSetCollection = {
     { id: 'agent-generating-set',
       name: 'Agent Generating Pipeline',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
-      prompt: agentDefinitionPrompt,
+      prompt: agentDefinitionPrompt, //used for second use of transactionGroupingAgent - npt needed for d3 analysis agent creator,
       transactions: SAGA_AGENT_GEN_TRANSACTIONS
     }
   ],
   executionOrder: ['visualization-loading-set', 'agent-generating-set'],
+  metadata: {
+    version: '1.0.0',
+    created: new Date()
+  }
+};
+
+
+export const SAGA_D3_AGENT_GEN_COLLECTION: TransactionSetCollection = {
+  id: 'saga-d3-agent-gen-collection',
+  name: 'SAGA Validation Flow',
+  description: 'Standard validating',
+  sets: 
+  [
+     { id: 'd3js-agent-gen-set',
+      name: 'Coordinator',
+      description: 'Final transaction grouping and data saving with self-referencing iterations',
+      prompt: '',
+      transactions: SAGA_D3_AGENT_GEN_TRANSACTIONS
+    }
+  ],
+  executionOrder: ['d3js-agent-gen-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()
@@ -881,6 +910,28 @@ export const SAGA_D3JS_COLLECTION: TransactionSetCollection = {
     created: new Date()
   }
 };
+
+export const SAGA_D3JS_CODING_COLLECTION: TransactionSetCollection = {
+  id: 'd3js-code-collection',
+  name: 'D3 js SAGA Workflow',
+  description: 'Standard data processing and saving workflow',
+  sets: 
+  
+  [
+    { id: 'd3js-coding-set',
+      name: 'D3 Coding Pipeline',
+      description: 'Provide analysis of csv file',
+      prompt: '',//transactionGroupConversationPrompt,
+      transactions: SAGA_D3_CODING_TRANSACTIONS //Provides the flow and tool calls for agentParser
+    }
+  ],
+  executionOrder: ['d3js-coding-set'],
+  metadata: {
+    version: '1.0.0',
+    created: new Date()
+  }
+};
+
 
 export interface SagaWorkflowRequest {
   userQuery?: string;

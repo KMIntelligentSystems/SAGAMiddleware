@@ -1066,6 +1066,121 @@ et, or maintain a processed_row_ids set if IDs are available. If not available, 
     'Deliverable\n' +
     '- After the final chunk, return the output shape described above with complete series, domains, ticks, and stats ready for visualization.\n' +
     '[/AGENT]'`
+
+export const graphAnalyzerResult_1 = `{
+  agentName: 'D3JSCoordinatingAgent',
+  result: '[AGENT: Grid-Line Data Analyzer, DA-001]\n' +
+    'Your task: Analyze CSV data to prepare a structured specification for a 2‑D multi-series line chart of MW/Hr produced by installations across four dates.\n' +
+    '\n' +
+    'Input CSV structure:\n' +
+    '- Columns: date/time,installation,energy_source,MW\n' +
+    '- Example rows:\n' +
+    '  date/time,installation,energy_source,MW\n' +
+    '  11/02/2023,BARCSF1,Solar,0.10000000000000002\n' +
+    '  11/02/2023,BUTLERSG,Hydro,9.399999\n' +
+    '  11/02/2023,CAPTL_WF,Wind,7.776811333333334\n' +
+    '  11/02/2023,CHALLHWF,Wind,23.766666666666666\n' +
+    '  11/02/2023,CLOVER,Hydro,-0.008333333333333333\n' +
+    '  11/02/2023,CLUNY,Hydro,18.216982916666666\n' +
+    '  11/02/2023,CULLRGWF,Wind,9.554166666666667\n' +
+    '\n' +
+    'Chart requirements:\n' +
+    '- chart_type: line\n' +
+    '- X-axis: the 4 dates exactly: ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"]\n' +
+    '- Y-axis: MW/Hr produced by each installation\n' +
+    '- Multi-series: one line per unique installation\n' +
+    '- Handle potential negative MW values and missing dates per installation\n' +
+    '\n' +
+    'Data preparation steps:\n' +
+    '1) Parse and normalize\n' +
+    '   - Parse CSV rows; coerce MW to Number (floating point).\n' +
+    '   - Normalize date/time to string format MM/DD/YYYY. If timestamps are present, truncate to date.\n' +
+    '   - Trim installation and energy_source strings.\n' +
+    '\n' +
+    '2) Filter and organize by target dates\n' +
+    '   - Keep only rows whose date is one of the four target dates.\n' +
+    '   - Group by installation, then by date.\n' +
+    '\n' +
+    '3) Aggregate per installation per date\n' +
+    '   - For each installation and date, aggregate MW by summing all rows for that (installation, date).\n' +
+    '   - If no data for an installation on a target date, set the MW value to null for that date (leave gaps in the line).\n' +
+    '\n' +
+    '4) Compute required sets and ranges\n' +
+    '   - Unique installations: the set of all installation values present in the filtered data (across the 4 dates).\n' +
+    '   - Date range: {start: "11/02/2023", end: "11/05/2023"}, and x_values as the ordered list of those four dates.\n' +
+    '   - MW min/max (raw): compute across all aggregated points for the 4 dates, ignoring nulls:\n' +
+    '       raw_min_mw = min(MW)\n' +
+    '       raw_max_mw = max(MW)\n' +
+    '   - Y-axis domain and ticks (nice intervals):\n' +
+    '       a) range = raw_max_mw - raw_min_mw\n' +
+    '       b) target_tick_count = 6\n' +
+    '       c) step0 = range / (target_tick_count - 1)\n' +
+    '       d) nice step function: round step0 to 1, 2, or 5 × 10^k (choose the nearest larger “nice” number)\n' +
+    '       e) y_min = floor(raw_min_mw / step) * step\n' +
+    '          y_max = ceil(raw_max_mw / step) * step\n' +
+    '          Also ensure 0 is included in [y_min, y_max] if it lies between raw_min_mw and raw_max_mw.\n' +
+    '       f) ticks = sequence from y_min to y_max inclusive in increments of step\n' +
+    '   - Number of installations: count of unique installations.\n' +
+    '   - Also report the set of unique energy_source values for reference.\n' +
+    '\n' +
+    '5) Series construction\n' +
+    '   - For each installation, produce an ordered array of points aligned to x_values, e.g.:\n' +
+    '     points: [{date: "11/02/2023", MW: number|null}, {date: "11/03/2023", MW: number|null}, {date: "11/04/2023", MW: number|null}, {date: "11/05/2023", MW: number|null}]\n' +
+    '   - Do not forward-fill or interpolate missing values; leave them as null.\n' +
+    '\n' +
+    '6) Output format (ABSOLUTE REQUIREMENTS)\n' +
+    '   - Output a single structured JSON object with:\n' +
+    '     {\n' +
+    "       chart_type: 'line',\n" +
+    '       x_values: ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '       date_range: { start: "11/02/2023", end: "11/05/2023" },\n' +
+    '       installations: [list of unique installations],\n' +
+    '       installation_count: <integer>,\n' +
+    '       energy_sources: [list of unique energy_source values],\n' +
+    '       mw_range_raw: { min: <number>, max: <number> },\n' +
+    '       y_axis: {\n' +
+    '         unit: "MW/Hr",\n' +
+    '         domain: { min: <number>, max: <number> },\n' +
+    '         tick_step: <number>,\n' +
+    '         ticks: [<number>...]\n' +
+    '       },\n' +
+    '       series: [\n' +
+    '         {\n' +
+    '           installation: "<installation_id>",\n' +
+    '           points: [\n' +
+    '             { date: "11/02/2023", MW: <number|null> },\n' +
+    '             { date: "11/03/2023", MW: <number|null> },\n' +
+    '             { date: "11/04/2023", MW: <number|null> },\n' +
+    '             { date: "11/05/2023", MW: <number|null> }\n' +
+    '           ]\n' +
+    '         },\n' +
+    '         ...\n' +
+    '       ],\n' +
+    '       notes: {\n' +
+    '         aggregation: "sum per installation per date",\n' +
+    '         negative_values_possible: true,\n' +
+    '         missing_values: "null to create line gaps",\n' +
+    '         decimals: "preserve source precision; round for display only"\n' +
+    '       }\n' +
+    '     }\n' +
+    '\n' +
+    'Worked example using the provided sample rows only (for illustration; final output must be computed from the full filtered dataset):\n' +
+    '- Unique installations (sample): ["BARCSF1","BUTLERSG","CAPTL_WF","CHALLHWF","CLOVER","CLUNY","CULLRGWF"]\n' +
+    '- Unique energy_sources (sample): ["Solar","Hydro","Wind"]\n' +
+    '- raw_min_mw (sample) = -0.008333333333333333\n' +
+    '- raw_max_mw (sample) = 23.766666666666666\n' +
+    '- range ≈ 23.775\n' +
+    '- With target_tick_count = 6, step0 ≈ 4.755 → nice step = 5\n' +
+    '- y_min = floor(-0.008333... / 5) * 5 = -5\n' +
+    '- y_max = ceil(23.766666... / 5) * 5 = 25\n' +
+    '- ticks = [-5, 0, 5, 10, 15, 20, 25]\n' +
+    '\n' +
+    'Return the final structured JSON as the only output.\n' +
+    '[/AGENT]',
+  success: true,
+  timestamp: 2025-09-16T00:25:30.326Z
+}`;
+
 // Installation Time-Series Aggregator, DA-001
 export const aggregatorContext = `Include explicit instructions for the agent with:
 - confirmed_installations_count: N
@@ -1348,6 +1463,231 @@ export const aggregatorResult_4 = `{
 }
 `;
 
+export const aggregatorResult_1_1 = `{
+  agentName: 'Grid-Line Data Analyzer',
+  result: '{\n' +
+    '  "chart_type": "line",\n' +
+    '  "x_values": ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '  "date_range": { "start": "11/02/2023", "end": "11/05/2023" },\n' +
+    '  "installations": ["BARCSF1","BUTLERSG","CAPTL_WF","CHALLHWF","CLOVER","CLUNY","CULLRGWF","DIAPURWF1","ERGT01","ERGTO1","GBO1","GRIFSF1","HUGSF1","KEPBG1","LRSF1","MLSP1","MLWF1","PALOONA","REPULSE"],\n' +
+    '  "installation_count": 19,\n' +
+    '  "energy_sources": ["Solar","Hydro","Wind", "Diesel", "Battery","Coal"],\n' +
+    '  "mw_range_raw": { "min": -0.17600000000000002, "max": 28.973424166666664 },\n' +
+    '  "y_axis": {\n' +
+    '    "unit": "MW/Hr",\n' +
+    '    "domain": { "min": -5, "max": 30 },\n' +
+    '    "tick_step": 5,\n' +
+    '    "ticks": [-5, 0, 5, 10, 15, 20, 25, 30]\n' +
+    '  },\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "installation": "BARCSF1",\n' +
+    '      "points": [\n' +
+    '        { "date": "11/02/2023", "MW": 0.10000000000000002 },\n' +
+    '        { "date": "11/03/2023", "MW": null },\n' +
+    '        { "date": "11/04/2023", "MW": null },\n' +
+    '        { "date": "11/05/2023", "MW": null }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    ... (similary for each installation) ...\n' +
+    '  ],\n' +
+    '  "notes": {\n' +
+    '    "aggregation": "sum per installation per date",\n' +
+    '    "negative_values_possible": true,\n' +
+    '    "missing_values": "null to create line gaps",\n' +
+    '    "decimals": "preserve source precision; round for display only"\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-16T02:17:24.448Z
+}
+
+`;
+
+export const aggregatorResult_1_2 = `{
+  agentName: 'Grid-Line Data Analyzer',
+  result: '{\n' +
+    '  "chart_type": "line",\n' +
+    '  "x_values": ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '  "date_range": { "start": "11/02/2023", "end": "11/05/2023" },\n' +
+    '  "installations": ["ROTALLA1","RPCG","SHOAL1","WAUBRAWF","WOOLNTH1","YAMBUKWF","YSWF1","BARCSF1","BUTLERSG","CAPTL_WF","CHALLHWF","CLOVER","CLUNY","CULLRGWF","DIAPURWF1","ERGT01","ERGTO1","GBO1","GRIFSF1","HUGSF1"],\n' +
+    '  "installation_count": 20,\n' +
+    '  "energy_sources": ["Solar","Coal","Natural Gas","Wind","Hydro","Diesel"],\n' +
+    '  "mw_range_raw": { "min": -0.19299999999999998, "max": 46.83083333333334 },\n' +
+    '  "y_axis": {\n' +
+    '    "unit": "MW/Hr",\n' +
+    '    "domain": { "min": -5, "max": 50 },\n' +
+    '    "tick_step": 10,\n' +
+    '    "ticks": [-5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]\n' +
+    '  },\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "installation": "<installation_id>",\n' +
+    '      "points": [\n' +
+    '        { "date": "11/02/2023", "MW": <number|null> },\n' +
+    '        { "date": "11/03/2023", "MW": <number|null> },\n' +
+    '        { "date": "11/04/2023", "MW": <number|null> },\n' +
+    '        { "date": "11/05/2023", "MW": <number|null> }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    .\n' +
+    '    .\n' +
+    '    .\n' +
+    '  ],\n' +
+    '  "notes": {\n' +
+    '    "aggregation": "sum per installation per date",\n' +
+    '    "negative_values_possible": true,\n' +
+    '    "missing_values": "null to create line gaps",\n' +
+    '    "decimals": "preserve source precision; round for display only"\n' +
+    '  }\n' +
+    '}\n' +
+    '\n' +
+    'Please note that this is a template and the actual values for "points" in each "series" and for every "installation" need to be populated by following the steps described in tasks from the original task description. Even though the exact calculations per installation per date were not possible due to the task limitation (lack of raw data for all the installations), by applying the plan laid out, one could easily compute the data points for the series.',
+  success: true,
+  timestamp: 2025-09-16T02:17:58.155Z
+}
+`;
+
+export const aggregatorResult_1_3 = `{
+  agentName: 'Grid-Line Data Analyzer',
+  result: '{\n' +
+    '  "chart_type": "line",\n' +
+    '  "x_values": ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '  "date_range": { "start": "11/02/2023", "end": "11/05/2023" },\n' +
+    '  "installations": ["KEPBG1","LRSF1","MLSP1","MLWF1","PALOONA","REPULSE","ROTALLA1","RPCG","SHOAL1","WAUBRAWF","WOOLNTH1","YAMBUKWF","YSWF1","BARCSF1","BUTLERSG","CAPTL_WF","CHALLHWF","CLOVER","CLUNY","CULLRGWF"],\n' +
+    '  "installation_count": 20,\n' +
+    '  "energy_sources": ["Battery","Solar","Wind","Hydro","Coal","Natural Gas"],\n' +
+    '  "mw_range_raw": { "min": -0.006666666666666667, "max": 68.01666666666667 },\n' +
+    '  "y_axis": {\n' +
+    '    "unit": "MW/Hr",\n' +
+    '    "domain": { "min": -5, "max": 70 },\n' +
+    '    "tick_step": 15,\n' +
+    '    "ticks": [-5, 10, 25, 40, 55, 70]\n' +
+    '  },\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "installation": "KEPBG1",\n' +
+    '      "points": [\n' +
+    '        { "date": "11/02/2023", "MW": null },\n' +
+    '        { "date": "11/03/2023", "MW": 0.0 },\n' +
+    '        { "date": "11/04/2023", "MW": null },\n' +
+    '        { "date": "11/05/2023", "MW": null }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    ...\n' +
+    '  ],\n' +
+    '  "notes": {\n' +
+    '    "aggregation": "sum per installation per date",\n' +
+    '    "negative_values_possible": true,\n' +
+    '    "missing_values": "null to create line gaps",\n' +
+    '    "decimals": "preserve source precision; round for display only"\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-16T02:18:16.104Z
+}
+`;
+
+export const aggregatorResult_1_4 = `{
+  agentName: 'Grid-Line Data Analyzer',
+  result: '{\n' +
+    '  "chart_type": "line",\n' +
+    '  "x_values": ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '  "date_range": { \n' +
+    '      "start": "11/02/2023", \n' +
+    '      "end": "11/05/2023" \n' +
+    '  },\n' +
+    '  "installations": ["DIAPURWF1", "ERGT01", "ERGTO1", "GBO1", "GRIFSF1", "HUGSF1", "KEPBG1", "LRSF1", "MLSP1", "MLWF1", "PALOONA", "REPULSE", "ROTALLA1", "RPCG", "SHOAL1", "WAUBRAWF", "WOOLNTH1", "YAMBUKWF", "YSWF1", "BARCSF1"],\n' +
+    '  "installation_count": 20,\n' +
+    '  "energy_sources": ["Wind", "Diesel", "Coal", "Solar", "Hydro", "Natural Gas"],\n' +
+    '  "mw_range_raw": { \n' +
+    '      "min": -0.1095, \n' +
+    '      "max": 145.70458333333332 \n' +
+    '  },\n' +
+    '  "y_axis": {\n' +
+    '    "unit": "MW/Hr",\n' +
+    '    "domain": { \n' +
+    '        "min": -1, \n' +
+    '        "max": 150 \n' +
+    '    },\n' +
+    '    "tick_step": 30,\n' +
+    '    "ticks": [-1, 0, 30, 60, 90, 120, 150]\n' +
+    '  },\n' +
+    '  "series": [\n' +
+    '    // for each installation\n' +
+    '    {\n' +
+    '        "installation": "<installation_id>",\n' +
+    '        "points": [\n' +
+    '            {"date": "11/02/2023", "MW": null},\n' +
+    '            {"date": "11/03/2023", "MW": null},\n' +
+    '            {"date": "11/04/2023", "MW": <number|null>},\n' +
+    '            {"date": "11/05/2023", "MW": <number|null>}\n' +
+    '        ]\n' +
+    '    },\n' +
+    '    ....\n' +
+    '  ],\n' +
+    '  "notes": {\n' +
+    '    "aggregation": "sum per installation per date",\n' +
+    '    "negative_values_possible": true,\n' +
+    '    "missing_values": "null to create line gaps",\n' +
+    '    "decimals": "preserve source precision; round for display only"\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-16T02:18:36.308Z
+}
+`;
+
+export const aggregatorResult_1_5 =  `{
+  agentName: 'Grid-Line Data Analyzer',
+  result: '{\n' +
+    '  "chart_type": "line",\n' +
+    '  "x_values": ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"],\n' +
+    '  "date_range": { "start": "11/02/2023", "end": "11/05/2023" },\n' +
+    '  "installations": ["BUTLERSG","CAPTL_WF","CHALLHWF","CLOVER","CLUNY","CULLRGWF","DIAPURWF1","ERGT01","ERGTO1","GBO1","GRIFSF1","HUGSF1","KEPBG1","LRSF1","MLSP1","MLWF1","PALOONA","REPULSE","ROTALLA1","RPCG"],\n' +
+    '  "installation_count": 20,\n' +
+    '  "energy_sources": ["Hydro","Wind","Diesel","Solar","Coal"],\n' +
+    '  "mw_range_raw": { "min": -1.1, "max": 25.20872 },\n' +
+    '  "y_axis": {\n' +
+    '    "unit": "MW/Hr",\n' +
+    '    "domain": { "min": -5, "max": 30 },\n' +
+    '    "tick_step": 5,\n' +
+    '    "ticks": [-5, 0, 5, 10, 15, 20, 25, 30]\n' +
+    '  },\n' +
+    '  "series": [\n' +
+    '    {\n' +
+    '      "installation": "BUTLERSG",\n' +
+    '      "points": [\n' +
+    '        { "date": "11/02/2023", "MW": null },\n' +
+    '        { "date": "11/03/2023", "MW": null },\n' +
+    '        { "date": "11/04/2023", "MW": null },\n' +
+    '        { "date": "11/05/2023", "MW": 9.391665583333333 }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "installation": "CAPTL_WF",\n' +
+    '      "points": [\n' +
+    '        { "date": "11/02/2023", "MW": null },\n' +
+    '        { "date": "11/03/2023", "MW": null },\n' +
+    '        { "date": "11/04/2023", "MW": null },\n' +
+    '        { "date": "11/05/2023", "MW": 25.20872 }\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    // . . .\n' +
+    '    // [Repeat the above per-installation template for all other installations from the list, substituting actual MW values or null as per the data]\n' +
+    '    // . . .\n' +
+    '  ],\n' +
+    '  "notes": {\n' +
+    '    "aggregation": "sum per installation per date",\n' +
+    '    "negative_values_possible": true,\n' +
+    '    "missing_values": "null to create line gaps",\n' +
+    '    "decimals": "preserve source precision; round for display only"\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-16T02:19:01.024Z
+}`;
+
 export const D3JSCoordinatingAgentFinalResult = `{
   agentName: 'D3JSCoordinatingAgent',
   result: 'Consolidated summary across cycles (20-row analyses) for D3JS Coordinating Agent\n' +
@@ -1458,261 +1798,275 @@ export const D3JSCoordinatingAgentFinalResult = `{
   timestamp: 2025-09-09T00:29:56.139Z
 }`;
 
-export const D3JSCodeingAgentReuslt = `{
-  agentName: 'D3JSCodingAgent',
-  result: '<!DOCTYPE html>\n' +
-    '<html lang="en">\n' +
-    '<head>\n' +
-    '<meta charset="utf-8" />\n' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1" />\n' +
-    '<title>D3 Line Chart (Installations over Time)</title>\n' +
-    '<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>\n' +
-    '<style>\n' +
-    '  :root {\n' +
-    '    --chart-width: min(1000px, 95vw);\n' +
-    '    --chart-height: 520px;\n' +
-    '  }\n' +
-    '  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; color: #222; }\n' +
-    '  #controls {\n' +
-    '    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px;\n' +
-    '  }\n' +
-    '  #csvText {\n' +
-    '    width: var(--chart-width); max-width: 100%; height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;\n' +
-    '  }\n' +
-    '  #chart-wrap { width: var(--chart-width); max-width: 100%; }\n' +
-    '  #legend {\n' +
-    '    width: var(--chart-width); max-width: 100%;\n' +
-    '    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;\n' +
-    '    margin-top: 8px; padding-top: 6px; border-top: 1px solid #ddd;\n' +
-    '  }\n' +
-    '  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.2; cursor: default; }\n' +
-    '  .legend-swatch { width: 14px; height: 4px; border-radius: 2px; }\n' +
-    '  .legend-scroll {\n' +
-    '    max-height: 110px; overflow-y: auto; padding-right: 6px;\n' +
-    '  }\n' +
-    '  .axis path, .axis line { stroke: #888; }\n' +
-    '  .grid line { stroke: #eee; }\n' +
-    '  .series-path { fill: none; stroke-width: 2px; opacity: 0.9; }\n' +
-    '  .series-path:hover { stroke-width: 3px; opacity: 1; }\n' +
-    '  .tooltip {\n' +
-    '    position: absolute; pointer-events: none; background: rgba(255,255,255,0.95); border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);\n' +
-    '    transform: translate(-50%, -110%);\n' +
-    '  }\n' +
-    '  .hint { color: #666; font-size: 12px; }\n' +
-    '</style>\n' +
-    '</head>\n' +
-    '<body>\n' +
-    '\n' +
-    '<div id="controls">\n' +
-    '  <input type="file" id="fileInput" accept=".csv,text/csv" />\n' +
-    '  <input type="url" id="urlInput" placeholder="CSV URL (optional)" style="flex:1 1 340px; min-width: 240px; padding: 6px;" />\n' +
-    '  <button id="loadUrlBtn">Load URL</button>\n' +
-    '  <button id="renderTextBtn">Render from textarea</button>\n' +
-    '  <span class="hint">CSV header must be: date/time,installation,energy_source,MW</span>\n' +
-    '</div>\n' +
-    '\n' +
-    '<textarea id="csvText" placeholder="Paste CSV here (optional). Example header:\n' +
-    'date/time,installation,energy_source,MW"></textarea>\n' +
-    '\n' +
-    '<div id="chart-wrap">\n' +
-    '  <svg id="chart" width="100%" height="520" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Installation output over time line chart"></svg>\n' +
-    '  <div id="legend" class="legend-scroll" aria-label="Installations legend"></div>\n' +
-    '</div>\n' +
-    '\n' +
-    '<!-- Optional runtime configuration from coordinating agent -->\n' +
-    '<script type="application/json" id="agent-config">\n' +
-    '{\n' +
-    '  "confirmed_installations_count": null,\n' +
-    '  "confirmed_date_range": ["2023-11-02", "2023-11-05"],\n' +
-    '  "confirmed_y_range": [-1.1, 145.70458333333332],\n' +
-    '  "tick_decimals": 2\n' +
-    '}\n' +
-    '</script>\n' +
-    '\n' +
-    '<script>\n' +
-    '(function() {\n' +
-    '  const svg = d3.select("#chart");\n' +
-    '  const legendEl = d3.select("#legend");\n' +
-    '  const width = 1000, height = 520;\n' +
-    '  const margin = { top: 30, right: 20, bottom: 50, left: 64 };\n' +
-    '  const innerW = width - margin.left - margin.right;\n' +
-    '  const innerH = height - margin.top - margin.bottom;\n' +
-    '\n' +
-    '  const gRoot = svg.append("g").attr("transform", 'translate(${margin.left},${margin.top})');\n' +
-    '  const gGrid = gRoot.append("g").attr("class", "grid");\n' +
-    '  const gXAxis = gRoot.append("g").attr("class", "axis x");\n' +
-    '  const gYAxis = gRoot.append("g").attr("class", "axis y");\n' +
-    '  const gSeries = gRoot.append("g").attr("class", "series");\n' +
-    '\n' +
-    '  const tooltip = d3.select("body").append("div").attr("class", "tooltip").style("display","none");\n' +
-    '\n' +
-    '  // Read configuration supplied by coordinating agent (overridable by window.CoordinatorConfig)\n' +
-    '  const defaultConfig = { confirmed_installations_count: null, confirmed_date_range: ["2023-11-02","2023-11-05"], confirmed_y_range: [-1.1, 145.70458333333332], tick_decimals: 2 };\n' +
-    '  let agentConfig = { ...defaultConfig };\n' +
-    '  try {\n' +
-    '    const scriptCfg = document.getElementById("agent-config");\n' +
-    '    if (scriptCfg && scriptCfg.textContent.trim()) {\n' +
-    '      agentConfig = { ...agentConfig, ...JSON.parse(scriptCfg.textContent) };\n' +
+export const D3JSCodeingAgentReuslt = ``
+
+export const d3ChallengeResult1 = `{
+  agentName: 'D3AnalysisChallengingAgent',
+  result: '{\n' +
+    '  "success": false,\n' +
+    '  "critique": [\n' +
+    '    {\n' +
+    '      "issue": "Ambiguous chart specification",\n' +
+    '      "detail": "The report proposes possible approaches (multi-series lines vs totals-by-day bars) without committing to a single chart. A coding agent needs one definitive chart type and data schema."\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "issue": "Incomplete series for multi-series plot",\n' +
+    '      "detail": "Series arrays are truncated and cannot support installation-level lines or stacked/grouped bars. Without full per-installation data, a multi-series chart is not implementable."\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "issue": "Inconsistent date formats and counts",\n' +
+    '      "detail": "Cycles mix MM/DD/YYYY and ISO formats. Cycle_3 lists four xDomain dates but n_dates = 1. Cycle_3 also has total_rows 0 with processed_rows 20. These inconsistencies must be resolved or avoided by using a chart that depends only on normalized per-date totals."\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "issue": "Axis ticks and formatting ambiguous",\n' +
+    '      "detail": "y-axis guidance mixes automatic and fixed ticks; 'tickFormatHint: auto-2dp is not a concrete D3 format string. A coding agent needs explicit tick values or a tick count and an exact format."\n" +
+    '    },\n' +
+    '    {\n' +
+    '      "issue": "Missing axis labels, units, and legend guidance",\n' +
+    '      "detail": "Units (MW) are mentioned but not specified as axis labels. No color scale or legend spec is provided if multiple series were intended."\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "issue": "Deduplication guidance is non-operational",\n' +
+    '      "detail": "The report advises deduplication by (installation, date) but does not provide the actual keys or data needed to perform it. This is moot if we only chart per-date totals."\n' +
+    '    },\n' +
+    '    {\n' +
+    '      "issue": "Negative values policy unclear",\n' +
+    '      "detail": "Negative MW values exist at installation level, but the chosen chart type determines whether to include negatives. For totals-by-day bars, totals provided are non-negative; for lines, negatives must be displayed. The report does not fix this choice."\n' +
     '    }\n' +
-    '    if (window.CoordinatorConfig && typeof window.CoordinatorConfig === "object") {\n' +
-    '      agentConfig = { ...agentConfig, ...window.CoordinatorConfig };\n' +
+    '  ],\n' +
+    '  "recommended_spec": {\n' +
+    '    "chart_type": "bar_daily_totals",\n' +
+    '    "rationale": "Only per-date totals are reliably available without risk of duplication and without needing full installation series. This yields a clear, implementable 2D chart.",\n' +
+    '    "data": [\n' +
+    '      { "date": "2023-11-02", "total_mw": 69.91014775 },\n' +
+    '      { "date": "2023-11-03", "total_mw": 154.96340849999997 },\n' +
+    '      { "date": "2023-11-04", "total_mw": 335.03266120833333 },\n' +
+    '      { "date": "2023-11-05", "total_mw": 93.56824208333334 }\n' +
+    '    ],\n' +
+    '    "x_axis": {\n' +
+    '      "scale": "band",\n' +
+    '      "domain": ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"],\n' +
+    '      "tick_values": ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"],\n' +
+    '      "tick_format": "%Y-%m-%d",\n' +
+    '      "label": "Date"\n' +
+    '    },\n' +
+    '    "y_axis": {\n' +
+    '      "scale": "linear",\n' +
+    '      "domain": [0, 350],\n' +
+    '      "tick_values": [0, 50, 100, 150, 200, 250, 300, 350],\n' +
+    '      "tick_format": ".2f",\n' +
+    '      "label": "Power (MW)"\n' +
+    '    },\n' +
+    '    "encoding": {\n' +
+    '      "bar_color": "#4e79a7",\n' +
+    '      "bar_padding_inner": 0.2,\n' +
+    '      "bar_padding_outer": 0.1\n' +
+    '    },\n' +
+    '    "accessibility": {\n' +
+    '      "title": "Total Power by Day (MW)",\n' +
+    '      "subtitle": "Dates normalized to ISO (YYYY-MM-DD); totals derived from consolidated cycles",\n' +
+    '      "aria_description": "A bar chart showing total MW for each date from 2023-11-02 to 2023-11-05."\n' +
+    '    },\n' +
+    '    "tooltips": {\n' +
+    '      "format": {\n' +
+    '        "date": "%Y-%m-%d",\n' +
+    '        "value": ".2f"\n' +
+    '      },\n' +
+    '      "content": ["date", "total_mw"]\n' +
+    '    },\n' +
+    '    "notes": [\n' +
+    '      "Per-date totals are assumed deduplicated; if cycles overlapped, upstream must deduplicate. Given current information, this is the safest renderable view.",\n' +
+    '      "All dates are treated as categories; no timezone assumptions are required."\n' +
+    '    ]\n' +
+    '  },\n' +
+    '  "alternative_spec_if_full_series_provided": {\n' +
+    '    "chart_type": "multi_series_line",\n' +
+    '    "requirements": [\n' +
+    '      "Complete per-installation series data for each date",\n' +
+    '      "Unique key (installation_id, date) for deduplication"\n' +
+    '    ],\n' +
+    '    "x_axis": {\n' +
+    '      "scale": "time",\n' +
+    '      "domain": ["2023-11-02", "2023-11-05"],\n' +
+    '      "tick_format": "%Y-%m-%d",\n' +
+    '      "label": "Date"\n' +
+    '    },\n' +
+    '    "y_axis": {\n' +
+    '      "scale": "linear",\n' +
+    '      "domain": [-1.1, 145.70458333333332],\n' +
+    '      "ticks": "auto_nice",\n' +
+    '      "tick_format": ".2f",\n' +
+    '      "label": "Power (MW)"\n' +
+    '    },\n' +
+    '    "series": {\n' +
+    '      "color_by": "energy_source_or_installation",\n' +
+    '      "missing_values": "null_breaks_line"\n' +
     '    }\n' +
-    '  } catch (e) {\n' +
-    '    console.warn("Config parse warning:", e);\n' +
-    '  }\n' +
-    '\n' +
-    '  const parseISO = d3.timeParse("%Y-%m-%d");\n' +
-    '  const parseMDY = d3.timeParse("%m/%d/%Y");\n' +
-    '  const parseMDY2 = d3.timeParse("%m/%d/%y");\n' +
-    '  const fmtISO = d3.timeFormat("%Y-%m-%d");\n' +
-    '  const yTickFormat = d3.format(.${Math.max(0, agentConfig.tick_decimals|0)}f);\n' +
-    '\n' +
-    '  function parseDateAny(s) {\n' +
-    '    if (!s) return null;\n' +
-    '    s = String(s).trim();\n' +
-    '    let d = parseISO(s) || parseMDY(s) || parseMDY2(s);\n' +
-    '    if (!d) {\n' +
-    '      const nd = new Date(s);\n' +
-    '      if (!isNaN(+nd)) d = nd;\n' +
-    '    }\n' +
-    '    return d;\n' +
-    '  }\n' +
-    '\n' +
-    '  function toISODateString(d) {\n' +
-    '    if (!(d instanceof Date)) return null;\n' +
-    '    return fmtISO(d);\n' +
-    '  }\n' +
-    '\n' +
-    '  function extentWithin(range) {\n' +
-    '    if (!Array.isArray(range) || range.length < 2) return null;\n' +
-    '    const s = parseDateAny(range[0]);\n' +
-    '    const e = parseDateAny(range[1]);\n' +
-    '    if (!s || !e) return null;\n' +
-    '    return s <= e ? [s, e] : [e, s];\n' +
-    '  }\n' +
-    '\n' +
-    '  function colorScaleFor(keys) {\n' +
-    '    const base = d3.schemeTableau10;\n' +
-    '    if (keys.length <= base.length) return d3.scaleOrdinal().domain(keys).range(base);\n' +
-    '    // Extended palette using interpolator for many series\n' +
-    '    return d3.scaleOrdinal()\n' +
-    '      .domain(keys)\n' +
-    '      .range(keys.map((_, i) => d3.interpolateRainbow(i / keys.length)));\n' +
-    '  }\n' +
-    '\n' +
-    '  function groupAndAlign(rows, useRange) {\n' +
-    '    // Build unique date set within range\n' +
-    '    const allDates = Array.from(d3.rollup(\n' +
-    '      rows.filter(r => r.date),\n' +
-    '      v => 1,\n' +
-    '      r => toISODateString(r.date)\n' +
-    '    ).keys()).map(s => parseISO(s)).filter(Boolean).sort(d3.ascending);\n' +
-    '\n' +
-    '    let dateRange = useRange || extentWithin(agentConfig.confirmed_date_range);\n' +
-    '    let domainDates;\n' +
-    '    if (dateRange) {\n' +
-    '      domainDates = allDates.filter(d => d >= dateRange[0] && d <= dateRange[1]);\n' +
-    '      // Ensure endpoints present\n' +
-    '      if (domainDates.length === 0) {\n' +
-    '        domainDates = d3.timeDay.range(dateRange[0], d3.timeDay.offset(dateRange[1], 1));\n' +
-    '      }\n' +
-    '    } else {\n' +
-    '      domainDates = allDates;\n' +
-    '    }\n' +
-    '\n' +
-    '    const dateKeys = domainDates.map(d => fmtISO(d));\n' +
-    '    const perInstPerDate = d3.rollup(\n' +
-    '      rows.filter(r => r.date && dateKeys.includes(toISODateString(r.date))),\n' +
-    '      v => d3.sum(v, d => isFinite(d.mw) ? d.mw : 0),\n' +
-    '      r => r.installation,\n' +
-    '      r => toISODateString(r.date)\n' +
-    '    );\n' +
-    '\n' +
-    '    const energyByInst = new Map();\n' +
-    '    rows.forEach(r => {\n' +
-    '      if (!energyByInst.has(r.installation) && r.energy_source) {\n' +
-    '        energyByInst.set(r.installation, r.energy_source);\n' +
-    '      }\n' +
-    '    });\n' +
-    '\n' +
-    '    const series = Array.from(perInstPerDate.keys()).map(inst => {\n' +
-    '      const dateMap = perInstPerDate.get(inst);\n' +
-    '      return {\n' +
-    '        key: inst,\n' +
-    '        energy_source: energyByInst.get(inst) || "",\n' +
-    '        values: dateKeys.map(k => {\n' +
-    '          const d = parseISO(k);\n' +
-    '          const val = dateMap.get(k);\n' +
-    '          return { date: d, value: (val === undefined ? null : val) };\n' +
-    '        })\n' +
-    '      };\n' +
-    '    });\n' +
-    '\n' +
-    '    return { series, domainDates };\n' +
-    '  }\n' +
-    '\n' +
-    '  function computeYDomain(series, providedRange) {\n' +
-    '    if (Array.isArray(providedRange) && providedRange.length >= 2 && isFinite(providedRange[0]) && isFinite(providedRange[1])) {\n' +
-    '      let lo = +providedRange[0], hi = +providedRange[1];\n' +
-    '      if (lo > hi) [lo, hi] = [hi, lo];\n' +
-    '      return [lo, hi];\n' +
-    '    }\n' +
-    '    const allVals = series.flatMap(s => s.values.map(v => v.value).filter(v => v != null && isFinite(v)));\n' +
-    '    if (allVals.length === 0) return [0, 1];\n' +
-    '    const extent = d3.extent(allVals);\n' +
-    '    if (extent[0] === extent[1]) {\n' +
-    '      const pad = Math.abs(extent[0]) * 0.1 + 1;\n' +
-    '      return [extent[0] - pad, extent[1] + pad];\n' +
-    '    }\n' +
-    '    return extent;\n' +
-    '  }\n' +
-    '\n' +
-    '  function drawChart(rawRows) {\n' +
-    '    // Preprocess rows\n' +
-    '    const rows = rawRows.map(d => {\n' +
-    '      const date = parseDateAny(d["date/time"] ?? d.date ?? d.datetime ?? d["dateTime"]);\n' +
-    '      const installation = (d.installation ?? d.Installation ?? "").trim();\n' +
-    '      const energy_source = (d.energy_source ?? d["energy source"] ?? d.source ?? "").trim();\n' +
-    '      const mw = (d.MW != null ? +d.MW : (d.mw != null ? +d.mw : NaN));\n' +
-    '      return { date, installation, energy_source, mw: isFinite(mw) ? mw : NaN };\n' +
-    '    }).filter(r => r.installation && r.date && isFinite(r.mw));\n' +
-    '\n' +
-    '    const range = extentWithin(agentConfig.confirmed_date_range);\n' +
-    '    const { series, domainDates } = groupAndAlign(rows, range);\n' +
-    '\n' +
-    '    // Optional validation vs confirmed_installations_count\n' +
-    '    if (agentConfig.confirmed_installations_count > 0 && series.length !== agentConfig.confirmed_installations_count) {\n' +
-    '      console.warn('Installations count mismatch. Found ${series.length}, expected ${agentConfig.confirmed_installations_count}.');\n' +
-    '    }\n' +
-    '\n' +
-    '    const x = d3.scaleTime()\n' +
-    '      .domain(d3.extent(domainDates))\n' +
-    '      .range([0, innerW]);\n' +
-    '\n' +
-    '    const yDomain = computeYDomain(series, agentConfig.confirmed_y_range);\n' +
-    '    const y = d3.scaleLinear()\n' +
-    '      .domain(yDomain).nice()\n' +
-    '      .range([innerH, 0]).clamp(true);\n' +
-    '\n' +
-    '    // Axes\n' +
-    '    gXAxis.attr("transform", translate(0,${innerH})')\n' +
-    '      .call(d3.axisBottom(x).ticks(Math.min(8, domainDates.length)).tickFormat(d3.timeFormat("%Y-%m-%d")))\n' +
-    '      .call(g => g.selectAll("text").style("font-size", "11px").attr("dy", "0.85em").attr("dx", "-0.5em").attr("transform", "rotate(-20)"));\n' +
-    '\n' +
-    '    gYAxis.attr("transform", 'translate(0,0)')\n' +
-    '      .call(d3.axisLeft(y).ticks(8).tickFormat(yTickFormat))\n' +
-    '      .call(g => g.append("text")\n' +
-    '        .attr("x", 0).attr("y", -10)\n' +
-    '        .attr("fill", "#000").attr("font-weight", "600")\n' +
-    '        .attr("text-anchor", "start").text("MW"));\n' +
-    '\n' +
-    '    // Grid\n' +
-    '    gGrid.selectAll("*").remove();\n' +
-    '    gGrid.append("g")\n' +
-    '      .attr("transform", translate(0,${innerH})')\n' +
-    '      .call(d3.axisBottom(x).ticks(Math.min(8, domainDates.length)'... 5552 more characters,
+    '  },\n' +
+    '  "open_questions": [\n' +
+    '    "Confirm the intended chart: is a totals-by-day bar chart acceptable given missing series data?",\n' +
+    '    "Should y-axis ticks be fixed as provided or use a specific count (e.g., 7) with nice()?",\n' +
+    '    "Any preference on color palette or branding guidelines?",\n' +
+    '    "Do you require data labels on bars, and if so, at what precision?"\n' +
+    '  ]\n' +
+    '}',
   success: true,
-  timestamp: 2025-09-09T22:32:43.429Z
+  timestamp: 2025-09-11T08:45:38.567Z
 }`
+
+export const d3CoordinatorChallengeResponse = `{
+  agentName: 'D3JSCoordinatingAgent',
+  result: '{\n' +
+    '  "agentName": "D3JSCoordinatingAgent",\n' +
+    '  "result": {\n' +
+    '    "decision": "Render a single 2D bar chart of daily totals. Multi-series views are deferred until complete per-installation series are available.",\n' +
+    '    "chart_spec": {\n' +
+    '      "chart_type": "bar_daily_totals",\n' +
+    '      "accessibility": {\n' +
+    '        "title": "Total Power by Day (MW)",\n' +
+    '        "subtitle": "Dates normalized to ISO (YYYY-MM-DD); totals consolidated across cycles",\n' +
+    '        "aria_description": "A bar chart showing total MW for each date from 2023-11-02 to 2023-11-05."\n' +
+    '      },\n' +
+    '      "data": [\n' +
+    '        { "date": "2023-11-02", "total_mw": 69.91014775 },\n' +
+    '        { "date": "2023-11-03", "total_mw": 154.96340849999997 },\n' +
+    '        { "date": "2023-11-04", "total_mw": 335.03266120833333 },\n' +
+    '        { "date": "2023-11-05", "total_mw": 93.56824208333334 }\n' +
+    '      ],\n' +
+    '      "x_axis": {\n' +
+    '        "scale": "band",\n' +
+    '        "domain": ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"],\n' +
+    '        "tick_values": ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"],\n' +
+    '        "tick_format": "%Y-%m-%d",\n' +
+    '        "label": "Date"\n' +
+    '      },\n' +
+    '      "y_axis": {\n' +
+    '        "scale": "linear",\n' +
+    '        "domain": [0, 350],\n' +
+    '        "tick_values": [0, 50, 100, 150, 200, 250, 300, 350],\n' +
+    '        "tick_format": ".2f",\n' +
+    '        "label": "Power (MW)"\n' +
+    '      },\n' +
+    '      "encoding": {\n' +
+    '        "bar_color": "#4e79a7",\n' +
+    '        "bar_padding_inner": 0.2,\n' +
+    '        "bar_padding_outer": 0.1\n' +
+    '      },\n' +
+    '      "tooltips": {\n' +
+    '        "format": { "date": "%Y-%m-%d", "value": ".2f" },\n' +
+    '        "fields": ["date", "total_mw"]\n' +
+    '      },\n' +
+    '      "notes": [\n' +
+    '        "Per-date totals are used to avoid inconsistencies and missing series; treat dates as categorical labels.",\n' +
+    '        "Negative installation-level values are not displayed here; totals provided are non-negative.",\n' +
+    '        "Upstream should ensure totals are deduplicated if cycles overlap."\n' +
+    '      ]\n' +
+    '    }\n' +
+    '  },\n' +
+    '  "success": true,\n' +
+    '  "timestamp": "2025-09-11T00:00:00.000Z"\n' +
+    '}',
+  success: true,
+  timestamp: 2025-09-11T21:57:30.746Z
+}`
+
+export const d3CoordinatorChallengeResponse1 = `{
+  agentName: 'D3JSCoordinatingAgent',
+  result: Agent: D3 Coding Agent\n +
+    'Objective: Implement a 2D multi-line chart (one series per installation) from CSV with correct data processing, zero-filling, energy source mode, and y-axis computed via nice-step. Output must match the specified shape.\n' +
+    '\n' +
+    'Chart type\n' +
+    '- multi_line_per_installation\n' +
+    '\n' +
+    'xDomain\n' +
+    '- ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"] (fixed order)\n' +
+    '\n' +
+    'Input columns\n' +
+    '- date/time (format: MM/DD/YYYY)\n' +
+    '- installation (string)\n' +
+    '- energy_source (string)\n' +
+    '- MW (number; may be negative, zero, or positive)\n' +
+    '\n' +
+    'Data processing\n' +
+    '- Parse date/time with input format and normalize to output format YYYY-MM-DD.\n' +
+    '- Keep only rows whose normalized date is in xDomain.\n' +
+    '- Keep negative and zero MW values.\n' +
+    '- Skip rows where MW is non-numeric; count them.\n' +
+    '- For each (installation, date), sum MW over duplicate rows.\n' +
+    '- Determine energy_source per installation as the statistical mode across its processed rows; on tie, use "Mixed".\n' +
+    '- For each installation, ensure exactly four values ordered by xDomain; fill missing dates with mw = 0.\n' +
+    '- Compute per_installation_totals = sum of its four mw values.\n' +
+    '- Compute per_date_totals = sum across installations per date.\n' +
+    '\n' +
+    'Series construction\n' +
+    '- Each series item: { id: installation, energy_source: derived or "Mixed", values: [{ date: "YYYY-MM-DD", mw: number }] } with exactly four values in xDomain order.\n' +
+    '- Sort series descending by per_installation_totals.\n' +
+    '\n' +
+    'Y-axis rules\n' +
+    '- Collect all mw across all series values (after zero-fill).\n' +
+    '- global_min = min(all mw), global_max = max(all mw).\n' +
+    '- If global_min == global_max:\n' +
+    '  - epsilon = max(0.01 * abs(global_max), 1.0).\n' +
+    '  - y_min = global_min - epsilon; y_max = global_max + epsilon.\n' +
+    '  - Else: y_min = global_min; y_max = global_max.\n' +
+    '- target_tick_count = 6.\n' +
+    '- Nice-step algorithm:\n' +
+    '  - raw_step = (y_max - y_min) / target_tick_count.\n' +
+    '  - k = floor(log10(abs(raw_step))) (handle raw_step == 0 by using k = 0).\n' +
+    '  - base = 10^k.\n' +
+    '  - multipliers = [1, 2, 2.5, 5, 10].\n' +
+    '  - m = smallest multiplier >= raw_step / base; if none, use 10.\n' +
+    '  - nice_step = m * base.\n' +
+    '  - y_min_nice = floor(y_min / nice_step) * nice_step.\n' +
+    '  - y_max_nice = ceil(y_max / nice_step) * nice_step.\n' +
+    '  - y_ticks = sequence from y_min_nice to y_max_nice inclusive with step nice_step.\n' +
+    '- tickFormatHint:\n' +
+    '  - If abs(y_max_nice) < 1 or nice_step < 1 -> "auto-3dp"\n' +
+    '  - Else if nice_step < 10 -> "auto-2dp"\n' +
+    '  - Else -> "auto-0dp"\n' +
+    '\n' +
+    'Output shape\n' +
+    '- {\n' +
+    '    xDomain: ["2023-11-02","2023-11-03","2023-11-04","2023-11-05"],\n' +
+    '    series: Array<{ id: string, energy_source: string, values: Array<{ date: string, mw: number }> }>,\n' +
+    '    yDomain: [y_min_nice, y_max_nice],\n' +
+    '    yTicks: Array<number>,\n' +
+    '    tickFormatHint: string,\n' +
+    '    stats: {\n' +
+    '      counts: {\n' +
+    '        total_rows: number,\n' +
+    '        processed_rows: number,\n' +
+    '        n_installations: number,\n' +
+    '        n_energy_sources: number,\n' +
+    '        n_dates: 4\n' +
+    '      },\n' +
+    '      per_date_totals: { [date: string]: number },\n' +
+    '      per_installation_totals: { [installation: string]: number },\n' +
+    '      extrema: {\n' +
+    '        global_min: number,\n' +
+    '        global_max: number,\n' +
+    '        min_point: { installation: string, date: string, mw: number },\n' +
+    '        max_point: { installation: string, date: string, mw: number }\n' +
+    '      },\n' +
+    '      data_quality: {\n' +
+    '        skipped_rows: number,               // non-numeric MW\n' +
+    '        out_of_scope_date_rows: number      // dates not in xDomain\n' +
+    '      }\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    'D3 implementation notes\n' +
+    '- X-axis: either\n' +
+    '  - time scale: parse YYYY-MM-DD to Date objects for x positions; ticks formatted as YYYY-MM-DD; or\n' +
+    '  - point/band scale with string xDomain; keep labels as provided.\n' +
+    - Ensure each series has four points (post zero-fill) to draw continuous lines across the four x positions.\n' +
+    '- Legend order = series sorted by per_installation_totals descending.\n' +
+    '\n' +
+    Acceptance checklist\n' +
+    '- Exactly four x-axis categories in order.\n' +
+    '- Each installation has four values (zeros filled where missing).\n' +
+    '- Y-domain includes negatives if present; computed via nice-step (~6 ticks).\n' +
+    '- Series include energy_source derived by mode or "Mixed".\n' +
+     Output includes xDomain, series, yDomain, yTicks, tickFormatHint, and stats.`
 
 export { csvContent, agentData };

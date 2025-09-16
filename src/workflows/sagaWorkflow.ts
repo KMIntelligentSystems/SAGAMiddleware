@@ -2,8 +2,8 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
-  SAGA_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
-  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis } from '../types/visualizationSaga.js';
+  SAGA_D3_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
+  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis, csvAnalysisRefectingAgentPrompt, SAGA_D3JS_CODING_COLLECTION, SAGA_D3_AGENT_GEN_TRANSACTIONS } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -233,7 +233,7 @@ export class SagaWorkflow {
         transactionId: 'tx-6',
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
         to be amended in the JSON object that does not follow the rules.`,
-        taskDescription:  dataValidatingAgentPrompt,
+        taskDescription:  csvAnalysisRefectingAgentPrompt,
         taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
       },
        {
@@ -440,7 +440,7 @@ Focus: Only array extraction
         model: promptParams.model || (agentType === 'tool' ? 'gpt-5' : 'gpt-5'), //gpt-5 gpt-4o-mini
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens: promptParams.maxTokens || (agentType === 'tool' ? 2000 : 1500),
-        apiKey: process.env.OPENAI_API_KEY
+       // apiKey: process.env.OPENAI_API_KEY
       };
 
       // Create base context from llmPrompts
@@ -660,7 +660,7 @@ SEQUENCE:
       //2. 'agent-generating-set': TransactionGroupingAgent  defines dynamic coder/tool caller 
       const result: SetExecutionResult = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
-        SAGA_VISUALIZATION_COLLECTION, //DEFAULT_SAGA_COLLECTION,
+        SAGA_VISUALIZATION_COLLECTION,//DEFAULT_SAGA_COLLECTION, 
         `thread_saga_${threadId}_${Date.now()}`,
         activeContextSet
       );
@@ -674,7 +674,7 @@ SEQUENCE:
             
             Object.values(transResults.transactionResults).forEach((transactionSet: TransactionSet) => {
             transactionSet.transactions.forEach((transaction: SagaTransaction) => {
-            console.log('NAME ', transaction.agentName)
+            console.log('NAME ', transaction.agentName)//PandasDailyAveragingCoder
             for (const flow of this.coordinator.agentFlows) {
                 console.log('FLOW 1', flow)
                 const transactionIndex = flow.indexOf(transaction.id);
@@ -682,10 +682,20 @@ SEQUENCE:
                     this.coordinator.currentExecutingTransactionSet?.push(transaction);
                     names.push(transaction.agentName);
                     ids.push(transaction.id);
-                    sagaTransactionName = transaction.agentName;
+                    sagaTransactionName = transaction.agentName;//last name MCPExecutePythonCaller
                     sagaTransactionId = transaction.id;
             }) 
           });
+          /*
+NAME  PandasDailyAveragingCoder
+FLOW 1 [ 'tx-4', 'tx-3', 'tx-4' ]
+FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
+NAME  MCPExecutePythonCaller
+FLOW 1 [ 'tx-4', 'tx-3', 'tx-4' ]
+FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
+PATH  import pandas as pd
+
+          */
       if(!pythonResult.isErrorFree){
             console.log('LATEST LINEAR ',sagaTransactionName) //'PythonToolInvoker'
             try{
@@ -721,21 +731,40 @@ SEQUENCE:
                 console.log('ERROR 1', error)
             }
           } else{
+            // MCPExecutePythonCaller output:
+            //"df.to_csv('C:/repos/SAGAMiddleware/data/Output_one_hour_normalized_daily_avg.csv', index=False)"
 
            // python code passed, get rows by 20 for self-reference - results accumulated passed to d3js coordinator to summarise for coder
-           const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory;
+           const toolCtx = this.coordinator.contextManager.getContext(sagaTransactionName) as WorkingMemory; //sagaTranName - MCPExecutePythonCaller
            const csvReader = new CSVReader(0)
-           csvReader.processFile(toolCtx.previousResult);
+           csvReader.processFile(toolCtx.previousResult); //pythonresult visCodeWriterResult : Output_one_hour_normalized_daily_avg.csv
            const count = csvReader.getRowCount();
             this.coordinator.registerCSVReader(csvReader);
            console.log('COUNT  ', count)
+
+           //1. Create agent to self-ref over 20 rows
+           const genResult = await this.coordinator.executeTransactionSetCollection(
+                    browserRequest,
+                    SAGA_D3_AGENT_GEN_COLLECTION,
+                    `thread_saga_${threadId}_${Date.now()}`,
+                    activeContextSet
+                  );
+
+           //2. Analyze results
            const result = await this.coordinator.executeTransactionSetCollection(
                     browserRequest,
                     SAGA_D3JS_COLLECTION,
                     `thread_saga_${threadId}_${Date.now()}`,
                     activeContextSet
                   );
-      
+
+            //3. d3 js code
+             const codeResult = await this.coordinator.executeTransactionSetCollection(
+                    browserRequest,
+                    SAGA_D3JS_CODING_COLLECTION,
+                    `thread_saga_${threadId}_${Date.now()}`,
+                    activeContextSet
+                  );
           }
       
  
