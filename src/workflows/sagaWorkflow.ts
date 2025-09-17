@@ -234,7 +234,7 @@ export class SagaWorkflow {
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
         to be amended in the JSON object that does not follow the rules.`,
         taskDescription:  csvAnalysisRefectingAgentPrompt,
-        taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
+        taskExpectedOutput: 'Provide a concise report.'
       },
        {
         agentName: 'D3JSCodingAgent',

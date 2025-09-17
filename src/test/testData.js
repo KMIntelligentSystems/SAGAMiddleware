@@ -1688,114 +1688,87 @@ export const aggregatorResult_1_5 =  `{
   timestamp: 2025-09-16T02:19:01.024Z
 }`;
 
-export const D3JSCoordinatingAgentFinalResult = `{
+export const D3JSCoordinatingAgentFinalResult = ` {
   agentName: 'D3JSCoordinatingAgent',
-  result: 'Consolidated summary across cycles (20-row analyses) for D3JS Coordinating Agent\n' +
+  result: 'For the D3 Coding Agent\n' +
     '\n' +
-    'Cycle-by-cycle summaries (as provided)\n' +
-    '- cycle_0\n' +
-    '  - xDomain: ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"]\n' +
-    '  - Example series entry: BARCSF1 (Solar) values: 11/02 0.1 MW; 11/03 0; 11/04 0; 11/05 0; (... truncated)\n' +
-    '  - yDomain: [-5, 25]; yTicks: [-5, 0, 5, 10, 15, 20, 25]; tickFormatHint: auto-2dp\n' +
-    '  - Stats.counts: total_rows 20; processed_rows 20; n_installations 16; n_energy_sources 5; n_dates 4\n' +
-    '  - Stats.per_date_totals: 11/02 69.91014775; 11/03 0; 11/04 0; 11/05 0\n' +
-    '  - Stats.extrema: global_min -0.176 at HUGSF1 on 11/02; global_max 28.973424166666664 at REPULSE on 11/02\n' +
-    '  - Data quality: skipped_rows 1; out_of_scope_date_rows 0\n' +
-    '  - Timestamp: 2025-09-07T21:46:25.531Z\n' +
+    'Goal\n' +
+    '- Build a multi-series line chart showing MW/Hr per installation across dates. CSV will be provided at runtime.\n' +
     '\n' +
-    '- cycle_1\n' +
-    '  - xDomain: ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"]\n' +
-    '  - Example series entries: KEPBG1 (Battery) all zeros; LRSF1 (Solar) 11/03 0.004; MLSP1 (Solar) 11/03 0.002; (... truncated)\n' +
-    '  - yDomain: [-1, 70]; yTicks: [-1, 0, 10, 20, 30, 40, 50, 60, 70]; tickFormatHint: auto-1dp\n' +
-    '  - Stats.counts: total_rows 160; processed_rows 160; n_installations 22; n_energy_sources 6; n_dates 4\n' +
-    '  - Stats.per_date_totals: 11/02 0; 11/03 154.96340849999997; 11/04 79.58323216666667; 11/05 0\n' +
-    '  - Stats.extrema: global_min -0.006666666666666667 at CLOVER on 11/04; global_max 68.01666666666667 at WOOLNTH1 on 11/03\n' +
-    '  - Data quality: skipped_rows 0; out_of_scope_date_rows 0\n' +
-    '  - Timestamp: 2025-09-07T21:46:50.798Z\n' +
+    'Data schema (expected columns)\n' +
+    '- date: string in format MM/DD/YYYY (e.g., "11/02/2023")\n' +
+    '- installation: string (e.g., "BARCSF1")\n' +
+    '- MW: number (may be negative; decimals present)\n' +
+    '- energy_source: string (one of: Solar, Wind, Hydro, Diesel, Battery, Coal, Natural Gas)\n' +
     '\n' +
-    '- cycle_2\n' +
-    '  - xDomain: ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"] (ISO format)\n' +
-    '  - Example series entries: DIAPURWF1 (Wind) all zeros; ERGT01 (Diesel) all zeros; ERGTO1 (Coal) all zeros; (... truncated)\n' +
-    '  - yDomain: [-0.1095, 145.70458333333332]; yTicks: [-0.2, 0, 20, 40, 60, 80, 100, 120, 140, 160]; tickFormatHint: auto-2dp\n' +
-    '  - Stats.counts: total_rows 500; processed_rows 20; n_installations 20; n_energy_sources 6; n_dates 4\n' +
-    '  - Stats.per_date_totals: 2023-11-02 0; 2023-11-03 0; 2023-11-04 255.44942904166666; 2023-11-05 0\n' +
-    '  - Stats.extrema: global_min -0.1095 at HUGSF1 on 2023-11-04; global_max 145.70458333333332 at WAUBRAWF on 2023-11-04\n' +
-    '  - Data quality: skipped_rows 2; out_of_scope_date_rows 1\n' +
-    '  - Timestamp: 2025-09-07T21:47:06.722Z\n' +
+    'Parsing and aggregation\n' +
+    '- Parse date with d3.timeParse("%m/%d/%Y").\n' +
+    '- Aggregate to “sum per installation per date”.\n' +
+    '- Create a complete date axis from the min to max date present in the file (unique sorted dates).\n' +
+    '- For each installation, produce a series with one point per x-axis date; use null for missing values to create line gaps.\n' +
     '\n' +
-    '- cycle_3\n' +
-    '  - xDomain: ["11/02/2023", "11/03/2023", "11/04/2023", "11/05/2023"]\n' +
-    '  - Example series entries: BUTLERSG (Hydro) 11/05 9.391665583333333; CAPTL_WF (Wind) 11/05 25.20872; (... truncated)\n' +
-    '  - yDomain: [-5, 25]; yTicks: [-5, 0, 5, 10, 15, 20, 25]; tickFormatHint: auto-2dp\n' +
-    '  - Stats.counts: total_rows 0; processed_rows 20; n_installations 19; n_energy_sources 7; n_dates 1\n' +
-    '  - Stats.per_date_totals: 11/05 93.56824208333334\n' +
-    '  - Stats.extrema: global_min -1.1 at RPCG on 11/05; global_max 25.20872 at CAPTL_WF on 11/05\n' +
-    '  - Data quality: skipped_rows 2; out_of_scope_date_rows 0\n' +
-    '  - Timestamp: 2025-09-07T21:47:21.738Z\n' +
+    'X-axis\n' +
+    '- Type: time scale.\n' +
+    '- Default x_values (based on analysis): ["11/02/2023","11/03/2023","11/04/2023","11/05/2023"]\n' +
+    '- Default date_range: start "11/02/2023", end "11/05/2023"\n' +
+    '- At runtime, derive from CSV (do not rely on defaults if data differs).\n' +
     '\n' +
+    'Y-axis\n' +
+    '- Unit: MW/Hr\n' +
+    '- Negative values are possible (keep zero baseline visible).\n' +
+    '- Decimals: preserve source precision; round only for display (e.g., 2–3 decimals in tooltip/axis).\n' +
+    '- From analyses, observed raw ranges:\n' +
+    '  - min ≈ -0.193 to -0.0067\n' +
+    '  - max ≈ 28.97, 46.83, 68.02, up to 145.70\n' +
+    '- Provide a safe default domain and ticks when preconfiguring:\n' +
+    '  - Default domain: [-1, 150]\n' +
+    '  - Default ticks: [-1, 0, 30, 60, 90, 120, 150] (tick_step 30)\n' +
+    '- Recommended runtime logic:\n' +
+    '  - Compute minRaw, maxRaw over aggregated MW values.\n' +
+    '  - If minRaw < 0, yMin = Math.min(-1, Math.floor(minRaw)); else yMin = 0.\n' +
+    '  - yMax = “nice” round-up above maxRaw (e.g., to nearest 10/15/30 depending on magnitude).\n' +
+    '  - Example heuristics (based on seen maxima):\n' +
+    '    - maxRaw ≤ 30 → domain [-5, 30], step 5\n' +
+    '    - 30 < maxRaw ≤ 50 → domain [-5, 50], step 10\n' +
+    '    - 50 < maxRaw ≤ 70 → domain [-5, 70], step 15\n' +
+    '    - maxRaw ≤ 150 → domain [-1, 150], step 30\n' +
     '\n' +
-    'Consolidated synthesis for graph construction\n' +
-    '- Normalized xDomain (union of all cycles):\n' +
-    '  - Canonical (ISO): ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"]\n' +
-    '  - Note: cycles 0, 1, 3 used "MM/DD/YYYY"; cycle 2 used ISO. Downstream should normalize to a single format (recommend ISO).\n' +
-    '- Global yDomain and ticks:\n' +
-    '  - Global yDomain: [-1.1, 145.70458333333332] (min from cycle_3 RPCG; max from cycle_2 WAUBRAWF)\n' +
-    '  - Suggested yTicks: use D3 automatic ticks with nice() across this domain; if fixed ticks are required, one workable set is [-2, 0, 20, 40, 60, 80, 100, 120, 140, 160]\n' +
-    '  - tickFormatHint: standardize to auto-2dp to safely display small decimals (e.g., 0.004) and high-precision maxima (e.g., 28.973424…)\n' +
-    '- Consolidated per-date totals (summing reported per-cycle values; dates normalized to ISO):\n' +
-    '  - 2023-11-02: 69.91014775\n' +
-    '  - 2023-11-03: 154.96340849999997\n' +
-    '  - 2023-11-04: 335.03266120833333 (79.58323216666667 + 255.44942904166666)\n' +
-    '  - 2023-11-05: 93.56824208333334\n' +
-    '  - Caution: This assumes no duplicate installation-date rows across cycles; if cycles overlapped, these totals would overcount. Deduplicate by (installation, date, interval) before final aggregation.\n' +
-    '- Global extrema across all cycles:\n' +
-    '  - global_min: -1.1 at RPCG on 2023-11-05\n' +
-    '  - global_max: 145.70458333333332 at WAUBRAWF on 2023-11-04\n' +
-    '- Data quality aggregate:\n' +
-    '  - Total processed_rows (as reported): 20 + 160 + 20 + 20 = 220\n' +
-    '  - Skipped_rows sum: 1 + 0 + 2 + 2 = 5\n' +
-    '  - Out_of_scope_date_rows sum: 0 + 0 + 1 + 0 = 1\n' +
-    '  - Notable inconsistencies:\n' +
-    '    - Date format mismatch (MM/DD/YYYY vs ISO)\n' +
-    '    - cycle_3 reports xDomain with four dates but n_dates = 1; ensure missing dates are explicitly represented (0 or null) or excluded consistently\n' +
-    '    - cycle_1 counts indicate 160 processed rows within a single cycle that’s expected to contain 20 rows\n' +
-    '- Coverage observations:\n' +
-    '  - n_installations reported per cycle: 16, 22, 20, 19; true union size cannot be determined from truncated series (“...”). Energy sources observed across cycles: at least 7.\n' +
+    'Chart and labels\n' +
+    '- chart_type: line\n' +
+    '- X label: Date\n' +
+    '- Y label: MW/Hr\n' +
+    '- Title (optional): MW/Hr by Installation over Time\n' +
     '\n' +
-    'Validator’s assessment of sufficiency for constructing the 2D graph\n' +
-    '- What is sufficient now:\n' +
-    '  - A consistent xDomain can be established (the same four dates).\n' +
-    '  - A safe global yDomain and reasonable tick strategy can be set from the extrema.\n' +
-    '  - Aggregated per-date totals can support a totals-by-day series or bars if desired.\n' +
-    '- What is insufficient or risky for a full multi-series time-series plot:\n' +
-    '  - Series data are truncated (“...”) in every cycle; you cannot render all installation-level lines without the complete series arrays.\n' +
-    '  - Potential duplication across cycles cannot be ruled out; totals may overcount unless deduplicated.\n' +
-    '  - Mixed date formats will break time parsing unless normalized; cycle_3’s n_dates inconsistency could mislead scale or imputation if not handled.\n' +
-    '  - Mixed tickFormatHints (auto-1dp vs auto-2dp) should be standardized to avoid inconsistent label precision.\n' +
-    '- Recommended actions for D3JS Coordinating Agent:\n' +
-    '  - Normalize all dates to ISO (YYYY-MM-DD) before merging.\n' +
-    '  - Deduplicate by unique key (installation_id, date) when consolidating series across cycles.\n' +
-    '  - Merge series arrays across cycles into a single series[] keyed by installation, preserving energy_source.\n' +
-    '  - Use the consolidated global yDomain [-1.1, 145.70458333333332]; apply d3.scaleLinear().nice() for tick calculation; clamp to domain.\n' +
-    '  - Standardize formatting to 2 decimal places for y-axis labels; optionally drop trailing zeros for compactness.\n' +
-    '  - Treat missing installation-date values explicitly (null for gaps if you want line breaks, or 0 if domain logic requires zero).\n' +
-    '  - Keep negative MW values; they are present and affect domain and interpretation.\n' +
-    '  - Validate per-cycle counts vs the “20 rows per cycle” expectation; if cycle_1 indeed aggregated more than 20 rows, confirm ingestion boundaries to avoid double counting.\n' +
+    'Series structure (for reference)\n' +
+    '- For each installation:\n' +
+    '  - { installation: "<id>", points: [ {date: <Date>, MW: <number|null>}, ... ] }\n' +
+    '- Missing values should be null to render gaps.\n' +
     '\n' +
-    'If you want a single consolidated specification scaffold for the renderer (with only safe, non-invented fields):\n' +
-    '- xDomain: ["2023-11-02", "2023-11-03", "2023-11-04", "2023-11-05"]\n' +
-    '- yDomain: [-1.1, 145.70458333333332]\n' +
-    '- yTicks: let D3 compute with nice(); or use [-2, 0, 20, 40, 60, 80, 100, 120, 140, 160]\n' +
-    '- tickFormatHint: auto-2dp\n' +
-    '- per_date_totals: as listed above\n' +
-    '- extrema:\n' +
-    '  - min_point: { installation: "RPCG", date: "2023-11-05", mw: -1.1 }\n' +
-    '  - max_point: { installation: "WAUBRAWF", date: "2023-11-04", mw: 145.70458333333332 }\n' +
-    '- notes:\n' +
-    '  - series arrays provided in cycles are incomplete and must be reassembled from full data to render all installations\n' +
-    '  - mixed date formats and possible cycle overlap should be resolved during consolidation',
+    'Known installation IDs observed (derive from data at runtime; list below can help pre-assign colors/order if present)\n' +
+    '- BARCSF1, BUTLERSG, CAPTL_WF, CHALLHWF, CLOVER, CLUNY, CULLRGWF, DIAPURWF1, ERGT01, ERGTO1, GBO1, GRIFSF1, HUGSF1, KEPBG1, LRSF1, MLSP1, MLWF1, PALOONA, REPULSE, ROTALLA1, RPCG, SHOAL1, WAUBRAWF, WOOLNTH1, YAMBUKWF, YSWF1\n' +
+    '\n' +
+    'Energy sources and suggested color mapping (stable legend; use when energy_source present)\n' +
+    '- Solar: #FDB714\n' +
+    '- Wind: #2CA02C\n' +
+    '- Hydro: #1F77B4\n' +
+    '- Diesel: #7F7F7F\n' +
+    '- Battery: #9467BD\n' +
+    '- Coal: #8C564B\n' +
+    '- Natural Gas: #17BECF\n' +
+    '\n' +
+    'Runtime robustness\n' +
+    '- Trim and case-normalize headers if needed; allow mapping to expected keys {date, installation, MW, energy_source}.\n' +
+    '- Coerce MW with Number(); treat non-numeric or empty as 0 during aggregation only if that reflects business rules; otherwise exclude and let missing roll up to null points.\n' +
+    '- Ensure unique dates are aligned across all series so lines share the same x positions.\n' +
+    '- Render a horizontal y=0 line for readability when negatives exist.\n' +
+    '\n' +
+    'Notes from analysis to honor\n' +
+    '- Aggregation: sum per installation per date.\n' +
+    '- negative_values_possible: true\n' +
+    '- missing_values: null to create line gaps\n' +
+    '- decimals: preserve source precision; round for display only.',
   success: true,
-  timestamp: 2025-09-09T00:29:56.139Z
+  timestamp: 2025-09-16T23:04:31.760Z
 }`;
 
 export const D3JSCodeingAgentReuslt = ``
@@ -1900,7 +1873,7 @@ export const d3ChallengeResult1 = `{
     '    },\n' +
     '    "series": {\n' +
     '      "color_by": "energy_source_or_installation",\n' +
-    '      "missing_values": "null_breaks_line"\n' +
+    '      "missing_values": "null_breaks_line"\n' 
     '    }\n' +
     '  },\n' +
     '  "open_questions": [\n' +
@@ -2068,5 +2041,343 @@ export const d3CoordinatorChallengeResponse1 = `{
     '- Y-domain includes negatives if present; computed via nice-step (~6 ticks).\n' +
     '- Series include energy_source derived by mode or "Mixed".\n' +
      Output includes xDomain, series, yDomain, yTicks, tickFormatHint, and stats.`
+
+     export const d3jsCodeResult = `  <html>
+<head>
+  <meta charset="utf-8">
+  <title>D3 Multi-Series Line Chart</title>
+</head>
+<body>
+  <div id="chart"></div>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    (function() {
+      const csvPath = 'C:/repos/SAGAMiddleware/data/Output_one_hour_normalized_daily_avg.csv';
+
+      const outerWidth = 1100;
+      const chartHeight = 480; // drawing area height (not including top/bottom margins)
+      const margin = { top: 40, right: 20, left: 70 };
+      let bottomGapForLegend = 140; // initial space reserved for legend; will adjust dynamically
+
+      const svg = d3.select('#chart').append('svg')
+        .attr('width', outerWidth)
+        .attr('height', margin.top + chartHeight + bottomGapForLegend);
+
+      const g = svg.append('g')
+        .attr('transform', 'translate(${margin.left},${margin.top})');
+
+      const width = outerWidth - margin.left - margin.right;
+
+      const parseDate = d3.timeParse('%m/%d/%Y');
+      const formatDate = d3.timeFormat('%-m/%-d/%Y');
+
+      const energyColors = new Map([
+        ['Solar', '#FDB714'],
+        ['Wind', '#2CA02C'],
+        ['Hydro', '#1F77B4'],
+        ['Diesel', '#7F7F7F'],
+        ['Battery', '#9467BD'],
+        ['Coal', '#8C564B'],
+        ['Natural Gas', '#17BECF']
+      ]);
+
+      function getVal(row, names) {
+        for (let i = 0; i < names.length; i++) {
+          const k = names[i];
+          if (row[k] != null && String(row[k]).trim() !== '') return row[k];
+        }
+        return null;
+      }
+
+      d3.csv(csvPath).catch(err => { console.error('CSV file not found:', err); return []; }).then(raw => {
+        // Normalize and filter rows
+        const normalized = [];
+        for (let i = 0; i < raw.length; i++) {
+          const r = raw[i];
+          const dateStr = getVal(r, ['date/time','date','Date','DATE','Date/Time','Date Time','datetime','Date/time']);
+          const inst = getVal(r, ['installation','Installation','INSTALLATION','installation_id','plant','Plant','site','Site']);
+          const src = getVal(r, ['energy_source','Energy_Source','Energy Source','source','Source']);
+          const mwStr = getVal(r, ['MW','mw','Mw','MWh','Value','value']);
+          if (!dateStr || !inst) continue;
+          const dt = parseDate(String(dateStr).trim());
+          if (!dt || isNaN(+dt)) continue;
+          const mw = Number(mwStr);
+          if (!isFinite(mw)) continue;
+          normalized.push({ date: dt, t: +dt, installation: String(inst).trim(), energy_source: src ? String(src).trim() : null, MW: mw });
+        }
+
+        // Aggregate: sum per installation per date
+        const roll = d3.rollup(
+          normalized,
+          v => d3.sum(v, d => d.MW),
+          d => d.installation,
+          d => d.t
+        );
+
+        // Unique sorted dates
+        const dateSet = new Set(normalized.map(d => d.t));
+        const dates = Array.from(dateSet).sort((a, b) => a - b).map(t => new Date(t));
+        if (dates.length === 0) {
+          // No data: create a placeholder empty chart with axes
+          const xScale = d3.scaleTime().domain([new Date(), new Date()]).range([0, width]);
+          const yScale = d3.scaleLinear().domain([-1, 150]).nice().range([chartHeight, 0]);
+
+          g.append('g').attr('transform', 'translate(0,${chartHeight})').call(d3.axisBottom(xScale).ticks(5));
+          g.append('g').call(d3.axisLeft(yScale).ticks(7));
+
+          svg.append('text')
+            .attr('x', margin.left + width / 2)
+            .attr('y', margin.top + chartHeight + 35)
+            .attr('text-anchor', 'middle')
+            .attr('font-family', 'sans-serif')
+            .attr('font-size', 12)
+            .text('Date');
+
+          svg.append('text')
+            .attr('transform', 'translate(${20},${margin.top + chartHeight/2}) rotate(-90)')
+            .attr('text-anchor', 'middle')
+            .attr('font-family', 'sans-serif')
+            .attr('font-size', 12)
+            .text('MW/Hr');
+
+          svg.append('text')
+            .attr('x', margin.left + width / 2)
+            .attr('y', 20)
+            .attr('text-anchor', 'middle')
+            .attr('font-family', 'sans-serif')
+            .attr('font-size', 16)
+            .attr('font-weight', '600')
+            .text('MW/Hr by Installation over Time');
+          return;
+        }
+
+        // Installation -> energy_source mapping (first seen)
+        const instSource = new Map();
+        for (let i = 0; i < normalized.length; i++) {
+          const d = normalized[i];
+          if (!instSource.has(d.installation) && d.energy_source) {
+            instSource.set(d.installation, d.energy_source);
+          }
+        }
+
+        const installations = Array.from(roll.keys()).sort(d3.ascending);
+
+        // Build series with nulls for missing values
+        const series = installations.map(inst => {
+          const byDate = roll.get(inst) || new Map();
+          const pts = dates.map(dt => {
+            const v = byDate.get(+dt);
+            return { date: dt, MW: v != null ? v : null };
+          });
+          return { installation: inst, points: pts };
+        });
+
+        // Y-domain calculations
+        const allVals = [];
+        for (let s = 0; s < series.length; s++) {
+          const pts = series[s].points;
+          for (let p = 0; p < pts.length; p++) {
+            const v = pts[p].MW;
+            if (v != null && isFinite(v)) allVals.push(v);
+          }
+        }
+        let yMin = -1, yMax = 150, tickStep = 30;
+        if (allVals.length > 0) {
+          const minRaw = d3.min(allVals);
+          const maxRaw = d3.max(allVals);
+          yMin = minRaw < 0 ? Math.min(-1, Math.floor(minRaw)) : 0;
+          if (maxRaw <= 30) { yMax = 30; tickStep = 5; }
+          else if (maxRaw <= 50) { yMax = 50; tickStep = 10; }
+          else if (maxRaw <= 70) { yMax = 70; tickStep = 15; }
+          else if (maxRaw <= 150) { yMax = 150; tickStep = 30; }
+          else {
+            const step = Math.max(10, Math.ceil(maxRaw / 6));
+            yMax = step * 6;
+            tickStep = step;
+          }
+        }
+
+        // Scales
+        const xScale = d3.scaleTime()
+          .domain([dates[0], dates[dates.length - 1]])
+          .range([0, width]);
+
+        const yScale = d3.scaleLinear()
+          .domain([yMin, yMax])
+          .nice()
+          .range([chartHeight, 0]);
+
+        // Axes
+        const xAxis = d3.axisBottom(xScale)
+          .ticks(Math.min(dates.length, 10))
+          .tickFormat(formatDate);
+
+        const yTicksCount = Math.max(2, Math.round((yMax - yMin) / tickStep));
+        const yAxis = d3.axisLeft(yScale)
+          .ticks(yTicksCount);
+
+        g.append('g')
+          .attr('transform', 'translate(0,${chartHeight})')
+          .call(xAxis)
+          .selectAll('text')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 11)
+          .attr('transform', dates.length > 8 ? 'rotate(-35)' : null)
+          .style('text-anchor', dates.length > 8 ? 'end' : 'middle');
+
+        g.append('g')
+          .call(yAxis)
+          .selectAll('text')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 11);
+
+        // Zero baseline if within domain
+        if (yMin < 0 && yMax > 0) {
+          g.append('line')
+            .attr('x1', 0)
+            .attr('x2', width)
+            .attr('y1', yScale(0))
+            .attr('y2', yScale(0))
+            .attr('stroke', '#bbb')
+            .attr('stroke-width', 1)
+            .attr('shape-rendering', 'crispEdges')
+            .attr('stroke-dasharray', '4,3');
+        }
+
+        // Colors by energy source if present, else ordinal by installation
+        const ordinal = d3.scaleOrdinal(d3.schemeTableau10).domain(installations);
+        function lineColor(inst) {
+          const src = instSource.get(inst);
+          return src && energyColors.has(src) ? energyColors.get(src) : ordinal(inst);
+        }
+
+        // Lines
+        const lineGen = d3.line()
+          .defined(d => d.MW != null)
+          .x(d => xScale(d.date))
+          .y(d => yScale(d.MW));
+
+        g.append('g')
+          .selectAll('path.series')
+          .data(series)
+          .join('path')
+          .attr('class', 'series')
+          .attr('fill', 'none')
+          .attr('stroke', d => lineColor(d.installation))
+          .attr('stroke-width', 2)
+          .attr('d', d => lineGen(d.points));
+
+        // Title
+        svg.append('text')
+          .attr('x', margin.left + width / 2)
+          .attr('y', 22)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 16)
+          .attr('font-weight', '600')
+          .text('MW/Hr by Installation over Time');
+
+        // Axis labels
+        svg.append('text')
+          .attr('x', margin.left + width / 2)
+          .attr('y', margin.top + chartHeight + 38)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 12)
+          .text('Date');
+
+        svg.append('text')
+          .attr('transform', 'translate(${18},${margin.top + chartHeight/2}) rotate(-90)')
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 12)
+          .text('MW/Hr');
+
+        // Legend under x-axis (by installation)
+        const instCount = installations.length;
+        const colCount = instCount <= 8 ? 2 : (instCount <= 16 ? 3 : 4);
+        const rows = Math.ceil(instCount / colCount);
+        const itemH = 18;
+        const legendTopGap = 55; // space between x-axis and legend
+        const legendHeight = rows * itemH + 10;
+
+        // Adjust SVG height to fit legend
+        svg.attr('height', margin.top + chartHeight + legendTopGap + legendHeight);
+
+        const legend = svg.append('g')
+          .attr('transform', 'translate(${margin.left},${margin.top + chartHeight + legendTopGap})');
+
+        const colWidth = width / colCount;
+
+        const legendItems = legend.selectAll('g.legend-item')
+          .data(installations)
+          .join('g')
+          .attr('class', 'legend-item')
+          .attr('transform', (d, i) => {
+            const col = Math.floor(i / rows);
+            const row = i % rows;
+            const x = col * colWidth;
+            const y = row * itemH;
+            return 'translate(${x},${y})';
+          });
+
+        legendItems.append('rect')
+          .attr('x', 0)
+          .attr('y', -10 + itemH / 2)
+          .attr('width', 12)
+          .attr('height', 12)
+          .attr('fill', d => lineColor(d))
+          .attr('stroke', '#333')
+          .attr('stroke-width', 0.5);
+
+        legendItems.append('text')
+          .attr('x', 18)
+          .attr('y', itemH / 2)
+          .attr('dominant-baseline', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 12)
+          .text(d => d);
+      }).catch(function(error) {
+        // In case CSV fails to load, render an empty frame
+        const fallbackWidth = outerWidth - margin.left - margin.right;
+        const xScale = d3.scaleTime().domain([new Date(), new Date()]).range([0, fallbackWidth]);
+        const yScale = d3.scaleLinear().domain([-1, 150]).range([chartHeight, 0]);
+
+        const xAxis = d3.axisBottom(xScale).ticks(5);
+        const yAxis = d3.axisLeft(yScale).ticks(7);
+
+        g.append('g').attr('transform', 'translate(0,${chartHeight})').call(xAxis);
+        g.append('g').call(yAxis);
+
+        svg.append('text')
+          .attr('x', margin.left + fallbackWidth / 2)
+          .attr('y', 22)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 16)
+          .attr('font-weight', '600')
+          .text('MW/Hr by Installation over Time');
+
+        svg.append('text')
+          .attr('x', margin.left + fallbackWidth / 2)
+          .attr('y', margin.top + chartHeight + 38)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 12)
+          .text('Date');
+
+        svg.append('text')
+          .attr('transform', 'translate(${18},${margin.top + chartHeight/2}) rotate(-90)')
+          .attr('text-anchor', 'middle')
+          .attr('font-family', 'sans-serif')
+          .attr('font-size', 12)
+          .text('MW/Hr');
+      });
+    })();
+  </script>
+</body>
+</html>`;
+
+export const anthropicTesult = ``
 
 export { csvContent, agentData };

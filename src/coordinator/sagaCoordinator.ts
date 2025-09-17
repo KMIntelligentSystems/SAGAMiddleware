@@ -36,7 +36,8 @@ import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
 import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, 
-  visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, d3CoordinatorChallengeResponse,  } from '../test/testData.js';
+  visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, d3CoordinatorChallengeResponse,
+aggregatorResult_1_1, aggregatorResult_1_2,aggregatorResult_1_3, aggregatorResult_1_4,aggregatorResult_1_5, d3jsCodeResult } from '../test/testData.js';
 import { CSVReader } from '../processing/csvReader.js'
 
 export class SagaCoordinator extends EventEmitter {
@@ -86,7 +87,7 @@ export class SagaCoordinator extends EventEmitter {
     this.agentDefinitions.set(definition.name, definition);
  
     const llmConfig: LLMConfig = {
-            provider: 'openai', //'anthropic'
+            provider: 'openai',//'anthropic',
             model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o-mini', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
             temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
             maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
@@ -331,6 +332,75 @@ if(definition.agentType === 'tool'){
       .replace(/\\n/g, '\n')
       .replace(/\\'/g, "'")
       .replace(/\\"/g, '"');
+    
+    return cleaned.trim();
+  }
+
+  private cleanJavaScriptCode(rawCode: any): string {
+    let codeToClean = rawCode;
+
+    // If it's a string that looks like JavaScript object literal, try to evaluate it
+    if (typeof rawCode === 'string' && rawCode.trim().startsWith('{')) {
+      try {
+        // Safely evaluate the JavaScript object literal
+        const evaluated = eval('(' + rawCode + ')');
+        if (evaluated && typeof evaluated === 'object' && 'result' in evaluated) {
+          codeToClean = evaluated.result;
+        }
+      } catch (e) {
+        console.warn('Could not evaluate JavaScript object literal, treating as raw string');
+        codeToClean = rawCode;
+      }
+    }
+    // Handle object with result property (like d3jsCodeResult structure)
+    else if (typeof rawCode === 'object' && rawCode !== null && 'result' in rawCode) {
+      codeToClean = rawCode.result;
+    }
+
+    // Type safety check
+    if (!codeToClean || typeof codeToClean !== 'string') {
+      console.warn('cleanJavaScriptCode received non-string input:', typeof codeToClean, codeToClean);
+      return typeof codeToClean === 'object' ? JSON.stringify(codeToClean) : String(codeToClean || '');
+    }
+
+    // Handle JavaScript-style concatenated strings with + operators
+    let cleaned = codeToClean
+      // Remove string concatenation operators and newlines
+      .replace(/'\s*\+\s*$/gm, '')
+      .replace(/'\s*\+\s*'/g, '')
+      .replace(/"\s*\+\s*$/gm, '')
+      .replace(/"\s*\+\s*"/g, '')
+      .replace(/`/g, "'")  // Fix backticks to quotes
+      // Remove leading/trailing quotes and handle escape sequences
+      .replace(/^['"]/, '')
+      .replace(/['"]$/, '')
+      .replace(/\\n/g, '\n')
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"');
+
+    // Replace hardcoded file paths with relative paths for browser compatibility
+    cleaned = cleaned.replace(
+      /const CSV_PATH = ['"'][^'"]*\/([^\/'"]+\.csv)['"];/g,
+      "const CSV_PATH = './$1';"
+    );
+
+    // Replace d3.csv absolute paths with relative paths
+    cleaned = cleaned.replace(
+      /d3\.csv\(['"][^'"]*\/([^\/'"]+\.csv)['"]/g,
+      "d3.csv('./$1'"
+    );
+
+    // Add error handling for missing CSV files
+    if (cleaned.includes("d3.csv")) {
+      cleaned = cleaned.replace(
+        /(d3\.csv\([^)]+\))/g,
+        "$1.catch(err => { console.error('CSV file not found:', err); return []; })"
+      );
+    }
+
+    // Restore template literal placeholders that were escaped for text storage
+    // Convert ${/variable} back to ${variable}
+    cleaned = cleaned.replace(/\$\/\{([^}]+)\}/g, '${$1}');
     
     return cleaned.trim();
   }
@@ -728,8 +798,8 @@ graphAnalyzerResult
               set.id = 'd3js-analysis-set'
               set.transactions.forEach(t => {
                 t.dependencies.push('DA-001');  //For both graphAnalyzerResult_1 this is the id
-                console.log('SET ', t.agentName)
-                 console.log('SET 1', t.id)
+                console.log('SET ', t.agentName)  //  SET  Grid-Line Data Analyzer
+                 console.log('SET 1', t.id) //SET 1 DA-001
               })
              })
             dynamicTransactionSet.executionOrder.push('d3js-analysis-set');
@@ -740,11 +810,10 @@ graphAnalyzerResult
                 dynamicTransactionSet?.sets.push(set)
                 
               }
-             })
-         
+          })  
         } else if(transactionSet.id === 'd3js-results-set'){
           console.log('HERE RESULTS')
-        }else if(transactionSet.id === 'd3js-coding-set'){
+        }else if(transactionSet.id === 'd3-coding-agent-set'){
          dynamicTransactionSet = collection;
         }
 
@@ -893,9 +962,8 @@ graphAnalyzerResult
           } else if(setId === 'd3js-results-set'){
             //tx-5 get each of self-ref from storaage and makes report
             const agent = this.agents.get('D3JSCoordinatingAgent');
-            //See line 672 for proper setting of graphAnalyzerResult 
              this.contextManager.updateContext('D3JSCoordinatingAgent',{
-                  lastTransactionResult: graphAnalyzerResult,
+                  lastTransactionResult: graphAnalyzerResult_1,
                   transactionId: 'tx-5', 
                   timestamp: new Date()
                 });  
@@ -903,10 +971,11 @@ graphAnalyzerResult
       
             agent?.deleteContext();
             const prompt = dynamicSet.prompt || '';
-            agent?.setTaskDescription(prompt);
+            agent?.setTaskDescription(prompt); //prompt = D3JSCoordinatingAgentAnalysis
             const allStoredResults = globalDataProcessor.getAllResults();
             const resultEntries = Array.from(allStoredResults.entries());
             let i = 0;
+            //receive the set of analysis results
             agent?.receiveContext({'AGENT RESULTS:': ''});
             console.log('NUM ', resultEntries.length)
             resultEntries.forEach(entry =>{
@@ -915,8 +984,8 @@ graphAnalyzerResult
               agent?.receiveContext({res: entry});
             });
             //D3 Validation csvAnalysisRefectingAgentPrompt
-            const challengeAgent = this.agents.get('D3AnalysChallengingAgent');
-            challengeAgent?.setTaskDescription( csvAnalysisRefectingAgentPrompt);
+         //   const challengeAgent = this.agents.get('D3JSCoordinatingAgent');
+       //     challengeAgent?.setTaskDescription( csvAnalysisRefectingAgentPrompt);
       
              this.agentFlows = []
              this.agentFlows[0] = ['tx-5','tx-6', 'tx-5']
@@ -928,16 +997,29 @@ graphAnalyzerResult
               contextSet,
               lastExecutionResult
             );
+            //TEST
+            setResult.result = D3JSCoordinatingAgentFinalResult;
+            //END
+            this.contextManager.updateContext('D3JSCoordinatingAgent',{
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-5', 
+                  timestamp: new Date()
+                });  
+
           } else if(setId === 'd3-coding-agent-set'){
               const codingRequest = this.parseConversationResultForAgent(request.userQuery,'D3JSCodingAgent');
             console.log('REQUEST ',codingRequest)
+             const agent = this.agents.get('D3JSCoordinatingAgent');
+           
+
             const codingAgent = this.agents.get('D3JSCodingAgent');
             codingAgent?.setTaskDescription(codingRequest);
-        //   codingAgent?.receiveContext({'INFORMATION TOT ASSIST YOU: ': ctx.latestExecutionResult})
+            const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
+            codingAgent?.receiveContext({'INFORMATION TOT ASSIST YOU: ': ctx.lastTransactionResult})
            
       
              this.agentFlows = []
-             this.agentFlows[0] = ['tx-5','tx-7']
+             this.agentFlows[0] = ['tx-7']
           
             setResult = await this.executeSagaWorkflow(
               request,
@@ -984,8 +1066,8 @@ TOOL CTX PREV ''python
 import pandas as pd
      
 */
-console.log('DYNAMIC 1', dynamicSetResult.result)
-console.log('DYNAMIC 2', dynamicSetResult.success)
+//console.log('DYNAMIC 1', dynamicSetResult.result)
+//console.log('DYNAMIC 2', dynamicSetResult.success)
             const dynamicSetEndTime = new Date();
             const dynamicExecutionResult: SetExecutionResult = {
               setId: dynamicSet.id,
@@ -1195,11 +1277,11 @@ console.log('DYNAMIC 2', dynamicSetResult.success)
           const agent = this.agents.get(transaction.agentName);
           console.log('SINGLETON TASK ', agent?.getAgentDefinition().taskDescription)
            console.log('SINGLETON CTX ', agent?.getContext())
-         // result = await agent?.execute({}) as AgentResult;
+           result = await agent?.execute({}) as AgentResult;
          //test
-         result.result = D3JSCoordinatingAgentFinalResult
-    
-        //end test
+         result.result = this.cleanJavaScriptCode( result.result); //d3jsCodeResult
+    console.log('CODE  ', result.result)
+        //end test)
           return result;
 
         }
@@ -2128,17 +2210,19 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     while(this.csvReader.hasMoreRows()){
   //  for (const transaction of chainTransactions/*executionOrder*/) {
       //TEST  
-    /*  if(iteration === 0){
-          result.result = aggregatorResult_1.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      if(iteration === 0){
+          result.result = aggregatorResult_1_1.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 1){
-          result.result = aggregatorResult_2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          result.result = aggregatorResult_1_2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 2){
-          result.result = aggregatorResult_3.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          result.result = aggregatorResult_1_3.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       }  if(iteration === 3){
-          result.result = aggregatorResult_4.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      }*/
+          result.result = aggregatorResult_1_4.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } if(iteration === 4){
+          result.result = aggregatorResult_1_5.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      }
       //End test
-       const result = await agent?.execute({'20 rows of data:': rows});
+      // const result = await agent?.execute({'20 rows of data:': rows});
       if(result){
         console.log('RESULT AGG', result.result)
        // results.push(result.result);
@@ -3502,8 +3586,8 @@ Task Context: ${taskContext}
  //   const aggregatorUserPrompt = this.parseConversationResultForAgent()
    // console.log('AGGREGATOR TASK ', timeSeriesAgent?.getAgentDefinition().taskDescription)
    
-    const startAgent = this.agents.get(cyclePartners[0].agentName);
-    startAgent?.setTaskDescription( D3JSCoordinatingAgentChallengePrompt);
+    const startAgent = this.agents.get(cyclePartners[0].agentName); //'tx-5'
+ //   startAgent?.setTaskDescription( D3JSCoordinatingAgentChallengePrompt);
     let partnerCtx;
     for (let i = 0; i < cyclePartners.length; i++) {
       const transaction = cyclePartners[i];
@@ -3513,17 +3597,22 @@ Task Context: ${taskContext}
       console.log('AGRNT CONTEXT ', agent?.getContext()) 
       console.log('AGRNT TASK DEF ', agent?.getAgentDefinition()) 
       //TEST
-     // result = await agent?.execute(context) as AgentResult
+    //  result = await agent?.execute({}) as AgentResult
        if(i === 0){
-           result.result = d3CoordinatorChallengeResponse//d3CoordinatorChallengeResponse //D3JSCoordinatingAgentFinalResult; //1. 4 cycles 2. d3CoordinatorChallengeResponse "agentName": "D3JSCoordinatingAgent",\n' +  "result":  "decision": "Render a single 2D bar chart of daily totals.
-           startAgent?.deleteContext(); //tx-5
+       //   result = await startAgent?.execute({}) as AgentResult
+     //TEST
+     result.result = D3JSCoordinatingAgentFinalResult;
+     //END
+          console.log('START AGENT RESULT ', result.result)
+       /*    result.result = d3CoordinatorChallengeResponse//d3CoordinatorChallengeResponse //D3JSCoordinatingAgentFinalResult; //1. 4 cycles 2. d3CoordinatorChallengeResponse "agentName": "D3JSCoordinatingAgent",\n' +  "result":  "decision": "Render a single 2D bar chart of daily totals.
+          startAgent?.deleteContext(); //tx-5
            startAgent?.receiveContext({'YOUR ANALYSIS: ': result.result});// 1. agentName: 'D3JSCoordinatingAgent',n  result: 'Consolidated summary across cycles (20-row analyses) 2. 
            const partner = cyclePartners[1].agentName;
            const agent = this.agents.get(partner);
            const agentTask = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
     
            agent?.receiveContext({'USER REQUIREMENTS FOR AGENT: ': agentTask?.lastTransactionResult})
-          agent?.receiveContext({'CHALLENGE AGENT RESPONSE : ': result.result + '...DOES THE RESPONSE MEET USER REQUIREMENTS?'})
+          agent?.receiveContext({'CHALLENGE AGENT RESPONSE : ': result.result + '...DOES THE RESPONSE MEET USER REQUIREMENTS?'})*/
       } else if(i === 1){
       //  result = await agent?.execute({}) as AgentResult
          result.result = d3ChallengeResult1;

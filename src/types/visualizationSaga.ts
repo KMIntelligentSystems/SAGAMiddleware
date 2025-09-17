@@ -129,10 +129,14 @@ The rules are:
 2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
 If these rules are not met, rectify the output accordingly`;
 
-export const csvAnalysisRefectingAgentPrompt = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
+export const csvAnalysisRefectingAgentPrompt_ = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
 The data is provided as a csv file. But the coding agent whose task is to build the code to generate the graph cannot be provided the csv file at build time because of size constraints.
 Therefore, a report is provided by another agent to assist the coding agent. Your task is to challenge and question the report in terms of being clear, logical and concise. Examine the report and think how well 
 the coding agent would have a clear understanding of what it must do. Are all categories provided? Is there a min and max and tick values for the axes? Challenge the report. You must provide a critique`;
+
+export const csvAnalysisRefectingAgentPrompt = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
+The d3 js coding agent can only be provided the csv data at run time. At build time the coding agent is provided with a synopsis of the data. Examine this synopsis. Ask yourself can a d3 js code build the code using this synopsis. What changes would you make to
+the synopsis to assist the coding agent. What information should be added? What information can be removed which appears unnecessary. Remember all the csv data cannot be provided at build time.`;
 
 export const groupingAgentPrompt = `Your role is coordination based on your analysis of errors in python code. 
 You will receive the output of a tool call which runs python code sent to it. This output will register either success or failure. In the case of failure, 
@@ -142,8 +146,9 @@ are no errors then simply provide the tool response to the coding agent. `;
 export const codingAgentErrorPrompt = `The code you created has errors. Look at the errors and a fix that has been provided. You can also see the code with errors. 
 Understand the problems and provide clean and complete python code that fixes the problems. You will find the problem in <context></context>. Your previous incorrect code is:
 `
-export const D3JSCoordinatingAgentAnalysis = `Your role is validator. An agent was provided with 20 rows of a csv file at a time to analyze. The analysis provided information about how the data can be represented in a 2-d graph. You have two tasks: 
-1. Provide a consolidated summary of all the 'cycles' of 20 dadta rows; 2. Think carefully about how well this consolidated summary provides sufficient information about the construction of the required 2-d graph. You will provide a concise specification for the 2-graph`;
+export const D3JSCoordinatingAgentAnalysis = `Your role is validator acting on behalf of a d3 js coding agent. THe coding agent will be provided with a csv data file at run time. But because of size constraints in the Context Window, this file cannot be  provided to the
+coding agent at build time. Therefore, an analysis of the csv data is provided in your <context>. Examine this analysis and extract the minimum amount of information to assist the coding agent. For example, you will provide data points for the x-y axes.
+You will provide the labels for the data items.  Provide as much information as you think is required to assist the coding agent to create code at build time remembering that the csv data will be provided at run time`;
 
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
@@ -918,14 +923,14 @@ export const SAGA_D3JS_CODING_COLLECTION: TransactionSetCollection = {
   sets: 
   
   [
-    { id: 'd3js-coding-set',
+    { id: 'd3-coding-agent-set',
       name: 'D3 Coding Pipeline',
       description: 'Provide analysis of csv file',
       prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_D3_CODING_TRANSACTIONS //Provides the flow and tool calls for agentParser
     }
   ],
-  executionOrder: ['d3js-coding-set'],
+  executionOrder: ['d3-coding-agent-set'],
   metadata: {
     version: '1.0.0',
     created: new Date()
