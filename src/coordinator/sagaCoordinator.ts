@@ -24,7 +24,8 @@ import {
   agentDefinitionPrompt,
   groupingAgentPrompt,
   csvAnalysisRefectingAgentPrompt,
-   D3JSCoordinatingAgentChallengePrompt
+   D3JSCoordinatingAgentChallengePrompt,
+   D3JSCodeValidationResultPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -36,9 +37,11 @@ import { TransactionManager } from '../sublayers/transactionManager.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { ContextSetDefinition } from '../services/contextRegistry.js';
 import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, visualizationGroupingAgentsResult,flowData, 
-  visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, d3CoordinatorChallengeResponse,
-aggregatorResult_1_1, aggregatorResult_1_2,aggregatorResult_1_3, aggregatorResult_1_4,aggregatorResult_1_5, d3jsCodeResult } from '../test/testData.js';
+  visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, 
+  d3CoordinatorChallengeResponse, aggregatorResult_1_1, aggregatorResult_1_2,aggregatorResult_1_3, aggregatorResult_1_4,aggregatorResult_1_5 } from '../test/testData.js';
 import { CSVReader } from '../processing/csvReader.js'
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -88,7 +91,7 @@ export class SagaCoordinator extends EventEmitter {
  
     const llmConfig: LLMConfig = {
             provider: 'openai',//'anthropic',
-            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4o-mini', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
+            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
             temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
             maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
             apiKey: process.env.OPENAI_API_KEY
@@ -400,7 +403,7 @@ if(definition.agentType === 'tool'){
 
     // Restore template literal placeholders that were escaped for text storage
     // Convert ${/variable} back to ${variable}
-    cleaned = cleaned.replace(/\$\/\{([^}]+)\}/g, '${$1}');
+  //  cleaned = cleaned.replace(/\$\/\{([^}]+)\}/g, '${$1}');
     
     return cleaned.trim();
   }
@@ -983,12 +986,9 @@ graphAnalyzerResult
 
               agent?.receiveContext({res: entry});
             });
-            //D3 Validation csvAnalysisRefectingAgentPrompt
-         //   const challengeAgent = this.agents.get('D3JSCoordinatingAgent');
-       //     challengeAgent?.setTaskDescription( csvAnalysisRefectingAgentPrompt);
-      
+
              this.agentFlows = []
-             this.agentFlows[0] = ['tx-5','tx-6', 'tx-5']
+             this.agentFlows[0] = ['tx-5']
           
             setResult = await this.executeSagaWorkflow(
               request,
@@ -1015,12 +1015,37 @@ graphAnalyzerResult
             const codingAgent = this.agents.get('D3JSCodingAgent');
             codingAgent?.setTaskDescription(codingRequest);
             const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
-            codingAgent?.receiveContext({'INFORMATION TOT ASSIST YOU: ': ctx.lastTransactionResult})
+            codingAgent?.receiveContext({'INFORMATION TOT ASSIST YOU: ': ctx.lastTransactionResult})//collated analysis of the csv data provided to coding agent with user prompt
            
       
              this.agentFlows = []
              this.agentFlows[0] = ['tx-7']
           
+            setResult = await this.executeSagaWorkflow(
+              request,
+              `${workflowId}_dynamic_${setId}`,
+              dynamicSet,
+              contextSet,
+              lastExecutionResult
+            );
+           console.log('CODE 1 ', setResult.result)   
+            this.contextManager.updateContext('D3JSCodingAgent',{
+                  lastTransactionResult: setResult.result,
+                  transactionId: 'tx-7', 
+                  timestamp: new Date()
+             });  
+
+          } else if(setId === 'd3-code-validating-agent-set'){
+            
+            const validatingAgent = this.agents.get('ValidatingAgent');
+            validatingAgent?.deleteContext();
+            const prompt = dynamicSet?.prompt || '';
+            validatingAgent?.setTaskDescription(prompt)
+            const ctx = this.contextManager.getContext('D3JSCodingAgent') as WorkingMemory;
+            validatingAgent?.receiveContext({'CODE TO EXAMINE: ': ctx.lastTransactionResult})
+            this.agentFlows = []
+            this.agentFlows[0] = ['tx-3','tx-7','tx-3']
+
             setResult = await this.executeSagaWorkflow(
               request,
               `${workflowId}_dynamic_${setId}`,
@@ -1235,7 +1260,7 @@ import pandas as pd
               this.agentFlows = [];
             }
             // 2. Check for linear flow 
-            else if (this.hasLinearDependencyFromFlow(transaction)) {
+            else if (this.agentFlows.length > 1 && this.hasLinearDependencyFromFlow(transaction)) {
               console.log('📏 Linear flow detected from agentFlow');
               const linearPartners = this.getLinearPartnersFromFlow(transaction, transactionsToExecute);
               
@@ -1257,30 +1282,24 @@ import pandas as pd
                result = await this.executeDataValidatingCycle(cyclePartners, request, processedInCycle);
             } else if(this.activeTransactionSetId === 'code-validating-set'){
                 result = await this.executeCodeValidatingCycle(cyclePartners, request, processedInCycle);
-            } else if(this.activeTransactionSetId === 'd3js-results-set'){
+            } else if(this.activeTransactionSetId === 'd3-code-validating-agent-set'){
                 result = await this.executeD3AnalysisValidatingCycle(cyclePartners, request, processedInCycle);
             }
            
             return result;
-          }/* else if (transaction.status === 'pending' && this.hasCircularDependency(transaction, transactionsToExecute)) {
-            // Handle traditional 2-agent circular dependency
-            const circularPartner = this.findCircularPartner(transaction, transactionsToExecute);
-            console.log('🔄  Circularpartner:', circularPartner?.agentName);
-            if (circularPartner) {
-              result = await this.executeCircularDependencyLoop(transaction, circularPartner, request);
-            } else {
-              throw new Error(`Circular dependency detected but no partner found for ${transaction.id}`);
-            }
-          } */
+          }
         } else if(this.agentFlows  && this.agentFlows[0].length ===1){
-          //FOR TX-5 AS SINGLETON NOW TX-5 -> TX-6 LINEAR
+          //executes [tx-7]
           const agent = this.agents.get(transaction.agentName);
           console.log('SINGLETON TASK ', agent?.getAgentDefinition().taskDescription)
            console.log('SINGLETON CTX ', agent?.getContext())
            result = await agent?.execute({}) as AgentResult;
-         //test
-         result.result = this.cleanJavaScriptCode( result.result); //d3jsCodeResult
-    console.log('CODE  ', result.result)
+       
+           const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
+         fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
+           //test codingAgentValidatedResult  codingAgentResult
+        // const codingResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');
+         //result.result = this.cleanJavaScriptCode( codingResult); //
         //end test)
           return result;
 
@@ -1321,7 +1340,7 @@ import pandas as pd
                 //Linear chain ends with dependencies []
                 const toolCtx = this.contextManager.getContext(transaction.agentName) as WorkingMemory;
                 console.log('TOOL AGENT ',transaction.agentName)
-                result.result = toolCtx.lastActionResult;
+               // result.result = toolCtx.lastActionResult;
               }
           }   
         
@@ -3579,54 +3598,62 @@ Task Context: ${taskContext}
       timestamp: new Date() 
     };
     
-    // Execute each transaction in the cycle
-    // FLOW  [ 'tx-5', 'tx-6', 'tx-5' ] 
-  //  const timeSeriesAgent = this.agents.get('Installation Time-Series Aggregator');
-    
- //   const aggregatorUserPrompt = this.parseConversationResultForAgent()
-   // console.log('AGGREGATOR TASK ', timeSeriesAgent?.getAgentDefinition().taskDescription)
-   
-    const startAgent = this.agents.get(cyclePartners[0].agentName); //'tx-5'
- //   startAgent?.setTaskDescription( D3JSCoordinatingAgentChallengePrompt);
-    let partnerCtx;
     for (let i = 0; i < cyclePartners.length; i++) {
       const transaction = cyclePartners[i];
       console.log(`🔄 Executing cycle step ${i + 1}/${cyclePartners.length}: ${transaction.agentName}`);
       // Execute the transaction
       const agent = this.agents.get(transaction.agentName);
-      console.log('AGRNT CONTEXT ', agent?.getContext()) 
-      console.log('AGRNT TASK DEF ', agent?.getAgentDefinition()) 
-      //TEST
-    //  result = await agent?.execute({}) as AgentResult
-       if(i === 0){
-       //   result = await startAgent?.execute({}) as AgentResult
-     //TEST
-     result.result = D3JSCoordinatingAgentFinalResult;
-     //END
-          console.log('START AGENT RESULT ', result.result)
-       /*    result.result = d3CoordinatorChallengeResponse//d3CoordinatorChallengeResponse //D3JSCoordinatingAgentFinalResult; //1. 4 cycles 2. d3CoordinatorChallengeResponse "agentName": "D3JSCoordinatingAgent",\n' +  "result":  "decision": "Render a single 2D bar chart of daily totals.
-          startAgent?.deleteContext(); //tx-5
-           startAgent?.receiveContext({'YOUR ANALYSIS: ': result.result});// 1. agentName: 'D3JSCoordinatingAgent',n  result: 'Consolidated summary across cycles (20-row analyses) 2. 
-           const partner = cyclePartners[1].agentName;
-           const agent = this.agents.get(partner);
-           const agentTask = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
-    
-           agent?.receiveContext({'USER REQUIREMENTS FOR AGENT: ': agentTask?.lastTransactionResult})
-          agent?.receiveContext({'CHALLENGE AGENT RESPONSE : ': result.result + '...DOES THE RESPONSE MEET USER REQUIREMENTS?'})*/
-      } else if(i === 1){
-      //  result = await agent?.execute({}) as AgentResult
-         result.result = d3ChallengeResult1;
-          startAgent?.receiveContext({'CRITQUE OF YOUR ANALYSIS: ': result.result});//agentName: 'D3AnalysisChallengingAgent',n  result: '{nn "success": false,nn "critique": [nn   {nn     "issue": "Ambiguous chart specification",
-     //   agent?.deleteContext(); = this.agents.get(transaction.agentName);
-         console.log('GENERAL RESULT ', result.result)
-      }else if(i === 2){
-     //  result = await agent?.execute({}) as AgentResult
-          console.log('FINAL RESPONSE ', result.result)//agentName: 'D3AnalysisChallengingAgent',n  result: '{nn "success": false,nn "critique": [nn   {nn     "issue": "Ambiguous chart specification",
-      }
-     
-      //END TEST
-      console.log('GENERAL RESULT ', result.result)
+   
+    if(i === 0){
       
+      //TEST codingAnthropicAgentValidatedResult d3jsCodeValidationResult
+    const codeValidationResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');
+     result.result = this.cleanJavaScriptCode( codeValidationResult); //
+      //END
+      console.log('AGRNT TASK DEF ', agent?.getAgentDefinition().taskDescription) 
+      console.log('AGRNT CONTEXT ', agent?.getContext()) 
+    //  result = await agent?.execute({}) as AgentResult
+    //  fs.writeFileSync('data/codingAgentValidatedResult.txt', JSON.stringify(result.result), 'utf8');
+      console.log('GENERAL RESULT ', result.result)
+      result.result = fs.readFileSync('data/codingAgentValidatedResult.txt', 'utf-8');
+          
+    this.contextManager.updateContext(transaction.agentName,  {
+        lastTransactionResult: result.result,
+        transactionId: 'tx-3',
+        timestamp: new Date(),
+        processedInCycle: true
+      });
+    }
+    if(i === 1){
+      //codingAgentResult
+       const previousCode = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');
+      const ctx = this.contextManager.getContext(cyclePartners[0].agentName) as WorkingMemory;
+      const codingAgent = this.agents.get(transaction.agentName);
+      //TEST
+      codingAgent?.setTaskDescription(D3JSCodeValidationResultPrompt);
+      const codingAgentCtx = this.contextManager.getContext(transaction.agentName) as WorkingMemory;
+      codingAgent?.deleteContext();
+    
+      const codingRequest = this.parseConversationResultForAgent(request.userQuery,'D3JSCodingAgent');
+     // codingAgent?.receiveContext({'USER REQUIREMENTS: ': codingRequest}) 
+     codingAgent?.receiveContext({'EVALUATION: ': ctx.lastTransactionResult})
+     codingAgent?.receiveContext({'PREVIOUS CODE: ': previousCode}) //codingAgentCtx.lastTransactionResult 
+      
+
+     console.log('AGRNT TASK DEF ', codingAgent?.getAgentDefinition().taskDescription) 
+     console.log('AGRNT CONTEXT ', codingAgent?.getContext()) 
+//END
+   //  result = await codingAgent?.execute({}) as AgentResult
+    try{
+     // const code = this.cleanJavaScriptCode(JSON.stringify(result.result, null, 2));
+    //  fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
+     //   console.log('GENERAL RESULT ', code)
+    } catch(error){
+      console.log('ERROR', error)
+    }
+    
+    }
+
     }
     
     this.contextManager.updateContext( cyclePartners[0].agentName,  {

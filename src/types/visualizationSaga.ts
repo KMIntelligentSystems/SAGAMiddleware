@@ -129,6 +129,12 @@ The rules are:
 2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
 If these rules are not met, rectify the output accordingly`;
 
+export const d3CodeValidatingAgentPrompt = `You will validate d3 js code. You will examine the code to determine:
+1. Are there any syntax errors
+2. Is the code complete, for example, there is a beginning <html> and a concluding </html> tag
+4. Does the code use d3 js libraries such as d3.axisLeft(), d3.axisBottom(), d3.line and other functions from "https://d3js.org/d3.v7.min.js"
+If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.`;
+
 export const csvAnalysisRefectingAgentPrompt_ = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
 The data is provided as a csv file. But the coding agent whose task is to build the code to generate the graph cannot be provided the csv file at build time because of size constraints.
 Therefore, a report is provided by another agent to assist the coding agent. Your task is to challenge and question the report in terms of being clear, logical and concise. Examine the report and think how well 
@@ -150,12 +156,29 @@ export const D3JSCoordinatingAgentAnalysis = `Your role is validator acting on b
 coding agent at build time. Therefore, an analysis of the csv data is provided in your <context>. Examine this analysis and extract the minimum amount of information to assist the coding agent. For example, you will provide data points for the x-y axes.
 You will provide the labels for the data items.  Provide as much information as you think is required to assist the coding agent to create code at build time remembering that the csv data will be provided at run time`;
 
+export const D3JSCodeValidationResultPrompt = `You are a coding agent working in a team of other agents. You have these tasks:
+1. <Think> about the code in PREVIOUS CODE and identify problems
+2. Look at the EVALUATION of the previous code 
+3. Update the code following fixes suggested in the EVALUATION`;
+
+export const D3JSCodeValidationResultPrompt__ = `You are a coding agent working in a team of other agents. You have these tasks:
+1. <Think> about the code in PREVIOUS CODE and identify problems
+2. Look at the EVALUATION of the previous code 
+3. Write the code following any instructions in the evaluation
+4. Check that your new code meets the instructions of the evaluation`;
+
+export const D3JSCodeValidationResultPrompt_ = `You are a coding agent working in a team of other agents. You have these tasks:
+1. Understand the user requirement for the d3 js code you must code
+2. <Think> about the code
+3. Look at the EVALUATION of the previous code 
+4. Write the code following any instructions in the evaluation`;
+
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
 You must provide new instructiosn as succinctly as possible`
 /*
 FORBIDDEN ACTIONS:
-❌ Do NOT summarize the input you receive
+❌ Do NOT summarize the input you receive  
 ❌ Do NOT comment on the input you receive
 ❌ Do NOT interpret what you receive
 ❌ Do NOT provide any other output than that specifically requested: 
@@ -637,6 +660,20 @@ export const SAGA_D3_CODING_TRANSACTIONS: SagaTransaction[] = [
     id: 'tx-7',
     name: 'd3 js Code',
     agentName: 'D3JSCodingAgent',
+    dependencies: [],//with 'tx-3' cannot find tx-3: 🔄 Executing Transaction: Validator (tx-3)IN SINNGLETON look at SAGA_VISUALIZATION_TRANSACTIONS
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  },
+  { id: 'tx-3',
+    name: 'Validator',
+    agentName: 'ValidatingAgent',
+    dependencies: ['tx-7'],
+    compensationAction: 'cleanup_conversation_state',
+    status: 'pending'
+  }, {
+    id: 'tx-7',
+    name: 'd3 js Code',
+    agentName: 'D3JSCodingAgent',
     dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
@@ -840,7 +877,7 @@ export const SAGA_CODE_VALIDATION_COLLECTION: TransactionSetCollection = {
     created: new Date()
   }
 };
-
+//1. VisualizationCoordinatingAgent tx-4 creates PandasDailyAveragingCoder
 export const SAGA_VISUALIZATION_COLLECTION: TransactionSetCollection = {
   id: 'visualization-saga-collection',
   name: 'Visualization SAGA Workflow',
@@ -852,13 +889,13 @@ export const SAGA_VISUALIZATION_COLLECTION: TransactionSetCollection = {
       name: 'Data Loading Pipeline',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
       prompt: '',//transactionGroupConversationPrompt,
-      transactions: SAGA_VISUALIZATION_TRANSACTIONS //Provides the flow and tool calls for agentParser
+      transactions: SAGA_VISUALIZATION_TRANSACTIONS //Provides the flow and tool calls for agentParser tx-4 -> tx-3 -> tx-4
     },
     { id: 'agent-generating-set',
       name: 'Agent Generating Pipeline',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
       prompt: agentDefinitionPrompt, //used for second use of transactionGroupingAgent - npt needed for d3 analysis agent creator,
-      transactions: SAGA_AGENT_GEN_TRANSACTIONS
+      transactions: SAGA_AGENT_GEN_TRANSACTIONS //tx-2
     }
   ],
   executionOrder: ['visualization-loading-set', 'agent-generating-set'],
@@ -868,7 +905,7 @@ export const SAGA_VISUALIZATION_COLLECTION: TransactionSetCollection = {
   }
 };
 
-
+// D3 js coordinator creates analyzing agent D3 js agent tx-5 to analyse csv 
 export const SAGA_D3_AGENT_GEN_COLLECTION: TransactionSetCollection = {
   id: 'saga-d3-agent-gen-collection',
   name: 'SAGA Validation Flow',
@@ -879,7 +916,7 @@ export const SAGA_D3_AGENT_GEN_COLLECTION: TransactionSetCollection = {
       name: 'Coordinator',
       description: 'Final transaction grouping and data saving with self-referencing iterations',
       prompt: '',
-      transactions: SAGA_D3_AGENT_GEN_TRANSACTIONS
+      transactions: SAGA_D3_AGENT_GEN_TRANSACTIONS //d3js-agent-gen-set'
     }
   ],
   executionOrder: ['d3js-agent-gen-set'],
@@ -889,6 +926,7 @@ export const SAGA_D3_AGENT_GEN_COLLECTION: TransactionSetCollection = {
   }
 };
 
+//analyzing agent D3 js agent tx-5 analyse csv, collate results, provide results to coding agent 
 export const SAGA_D3JS_COLLECTION: TransactionSetCollection = {
   id: 'd3js-collection',
   name: 'D3 js SAGA Workflow',
@@ -928,9 +966,15 @@ export const SAGA_D3JS_CODING_COLLECTION: TransactionSetCollection = {
       description: 'Provide analysis of csv file',
       prompt: '',//transactionGroupConversationPrompt,
       transactions: SAGA_D3_CODING_TRANSACTIONS //Provides the flow and tool calls for agentParser
+    }, 
+    { id: 'd3-code-validating-agent-set',
+      name: 'D3 Code Validating Pipeline',
+      description: 'Provide analysis of csv file',
+      prompt: d3CodeValidatingAgentPrompt,
+      transactions: SAGA_D3_CODING_TRANSACTIONS //Provides the flow and tool calls for agentParser
     }
   ],
-  executionOrder: ['d3-coding-agent-set'],
+  executionOrder: ['d3-coding-agent-set', 'd3-code-validating-agent-set'], 
   metadata: {
     version: '1.0.0',
     created: new Date()

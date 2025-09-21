@@ -200,6 +200,8 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
       }, 
+
+      //validation of rendering an agent [/AGENT  etc
       {
         agentName: 'ValidatingAgent',
         agentType: 'processing',
@@ -227,6 +229,8 @@ export class SagaWorkflow {
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
       }, 
+
+      //Was part of validation of the collated results of csv data analysis given to challenger tx-6 to make critique and provide back to tx-5 
       {
         agentName: 'D3AnalysisChallengingAgent',
         agentType: 'processinisg',
@@ -243,7 +247,7 @@ export class SagaWorkflow {
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'Your role is d3 js coder using csv data files. You will code graphs given a sample of the csv file and details about the data for a graph such as min-max ranges, date ranges and the number of items to be plotted',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide provide html code without explanation so the code can be run in the browser.'
+        taskExpectedOutput: 'Provide html code without explanation so the code can be run in the browser.'
       }
       
       /*,
