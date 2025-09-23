@@ -29,13 +29,13 @@ export class SagaWorkflow {
   private pythonLogAnalyzer: PythonLogAnalyzer;
   
   // Global thread and message retention
-  private currentThreadId: string | null = null;
+  private currentThreadId: string;
   private currentUserMessage: string | null = null;
   private lastThreadMessage: ThreadMessage | null = null;
   
   constructor(config: HumanInLoopConfig) {
     this.config = config;
-    
+    this.currentThreadId= '';
     // Create multiple MCP server configurations
     const mcpServers = {
       rag: createMCPServerConfig({
@@ -556,69 +556,27 @@ Focus: Only array extraction
       console.log('🧪 Testing AgentParser with new format data...');
    
       
-      // Test with a simple example that matches your expected sequence
-      const testData = {
-        result: `[AGENT: OrchestratorAgent, ORCH-01]
-Task: Coordinate the overall workflow
-[/AGENT]
-
-[AGENT: QueryAgent, QUERY-01]
-Task: Execute structured query tool
-[/AGENT]
-
-[AGENT: ProcessingAgent, PROC-01]
-Task: Process the data
-[/AGENT]
-
-[AGENT: MergeAgent, MERGE-01]
-Task: Merge the results
-[/AGENT]
-
-SEQUENCE:
-{ORCH-01 -> QUERY-01 -> PROC-01 -> MERGE-01 -> ORCH-01}`
-      };
-      
-      console.log('🔄 Testing direct SagaTransaction parsing with test sequence...');
-    /*  const transactions = AgentParser.parseAndCreateSagaTransactions(agentData);
-    //  console.log(`✅ Created ${transactions.length} SagaTransaction objects directly`);
-      
-      console.log('📋 SagaTransactions:');
-      transactions.forEach(tx => {
-        console.log(`   - Transaction ${tx.id}: ${tx.agentName}, Dependencies: [${tx.dependencies.join(', ')}]`);
-      });*/
-      
+     
       // Extract threadId from message
       const { data } = message;
       const threadId = data.threadId;
       
-      if (!threadId) {
+     if (!threadId) {
         console.error('❌ No threadId provided in thread_id_response');
         return;
       }
       
       // Store thread globally for retention
       this.currentThreadId = threadId;
-      
-      // Fetch latest message from OpenAI thread
-      const threadMessage = await this.conversationManager.fetchLatestThreadMessage(threadId);
-      
-      if (!threadMessage) {
-        console.error(`❌ No user message found in thread ${threadId}`);
-        return;
-      }
-      
-      // Store message globally for retention
-      this.currentUserMessage = threadMessage.userMessage;
-      this.lastThreadMessage = threadMessage;
-      
-      console.log(`📝 Fetched user message: ${threadMessage.userMessage.substring(0, 100)}...`);
+       this.currentUserMessage = data.message;
+      this.lastThreadMessage = data.message;
       
       // Create browser request from thread message
       const browserRequest: BrowserGraphRequest = {
-        userQuery: threadMessage.userMessage,
+        userQuery: data.message,
         correlationId: ''
       };
-      
+  
       // Execute SAGA with thread context
       await this.executeThreadVisualizationSAGA(browserRequest, threadId);
       
@@ -769,9 +727,11 @@ PATH  import pandas as pd
                     `thread_saga_${threadId}_${Date.now()}`,
                     activeContextSet
                   );
+
+               await this.conversationManager.sendResponseToThread(this.currentThreadId, JSON.stringify(codeResult.result));
           }
       
- 
+     
       console.log('HEERERERWQRWER')
       // Send response back to thread
       if (result.success) {

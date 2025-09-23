@@ -133,7 +133,8 @@ export const d3CodeValidatingAgentPrompt = `You will validate d3 js code. You wi
 1. Are there any syntax errors
 2. Is the code complete, for example, there is a beginning <html> and a concluding </html> tag
 4. Does the code use d3 js libraries such as d3.axisLeft(), d3.axisBottom(), d3.line and other functions from "https://d3js.org/d3.v7.min.js"
-If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.`;
+If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.
+If there are no problems, simply return: {success: true}`;
 
 export const csvAnalysisRefectingAgentPrompt_ = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
 The data is provided as a csv file. But the coding agent whose task is to build the code to generate the graph cannot be provided the csv file at build time because of size constraints.

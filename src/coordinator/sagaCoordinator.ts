@@ -1293,13 +1293,13 @@ import pandas as pd
           const agent = this.agents.get(transaction.agentName);
           console.log('SINGLETON TASK ', agent?.getAgentDefinition().taskDescription)
            console.log('SINGLETON CTX ', agent?.getContext())
-           result = await agent?.execute({}) as AgentResult;
+        //   result = await agent?.execute({}) as AgentResult;
        
-           const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
-         fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
+       //    const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
+      //   fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
            //test codingAgentValidatedResult  codingAgentResult
-        // const codingResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');
-         //result.result = this.cleanJavaScriptCode( codingResult); //
+         const codingResult = fs.readFileSync('data/codingOpenAIAgentResult.txt', 'utf-8');
+         result.result = this.cleanJavaScriptCode( codingResult); //
         //end test)
           return result;
 
