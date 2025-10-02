@@ -248,6 +248,15 @@ export class SagaWorkflow {
         taskDescription: 'Your role is d3 js coder using csv data files. You will code graphs given a sample of the csv file and details about the data for a graph such as min-max ranges, date ranges and the number of items to be plotted',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide html code without explanation so the code can be run in the browser.'
+      },
+       {
+        agentName: 'FlowDefingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-8',
+        backstory: 'Provide files for indexing using tool calls.',
+        taskDescription: 'Your role is d3 js coder using csv data files. You will code graphs given a sample of the csv file and details about the data for a graph such as min-max ranges, date ranges and the number of items to be plotted',
+      //  context: { dataSources: defaultDataSources },
+        taskExpectedOutput: 'Provide html code without explanation so the code can be run in the browser.'
       }
       
       /*,
@@ -527,12 +536,13 @@ Focus: Only array extraction
     const socket = this.eventBusClient['socket'];
     
     socket.on('event_received', async (message: any) => {
-       if (message.type === 'thread_id_response' && message.source === 'react-app') {
+      console.log('MESSAGE TYPE', message.type)
+       if ((message.type === 'thread_id_response' ||  message.type === 'update_code') && message.source === 'react-app') {
         console.log(`🧵 Received thread_id_response from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
-       } else if (message.type === 'start-graph-request' && message.source === 'react-app') {
+       } else if (message.type === 'update_code' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
-      //  await this.handleBrowserGraphRequest(message);
+    //    await this.handleBrowserGraphRequest(message);
       } else if (message.type === 'enhanced_graph_request') {
         console.log(`📊 Received enhanced routed graph request with priority: ${message.data.routingInfo?.priority}`);
    //     await this.handleEnhancedBrowserRequest(message.data.browserRequest, message.data.routingInfo);
@@ -559,6 +569,7 @@ Focus: Only array extraction
      
       // Extract threadId from message
       const { data } = message;
+      const opType =  message.type;
       const threadId = data.threadId;
       
      if (!threadId) {
@@ -574,7 +585,7 @@ Focus: Only array extraction
       // Create browser request from thread message
       const browserRequest: BrowserGraphRequest = {
         userQuery: data.message,
-        correlationId: ''
+        operationType: opType
       };
   
       // Execute SAGA with thread context
@@ -615,12 +626,13 @@ Focus: Only array extraction
       // Using context set: default_visualization_context for transaction set: visualization
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
 
-       
-      
+      this.coordinator.initializeControlFlow();
+       const result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+       console.log('FINAL RESULT ', result)
       // Execute SAGA through coordinator using the new executeTransactionSetCollection method
       //1.'data-loading-set': TransactionGroupingAgent result = 2 agents defined = groupingAgentResult
       //2. 'agent-generating-set': TransactionGroupingAgent  defines dynamic coder/tool caller 
-      const result: SetExecutionResult = await this.coordinator.executeTransactionSetCollection(
+    /*  const result: SetExecutionResult = await this.coordinator.executeTransactionSetCollection(
         browserRequest,
         SAGA_VISUALIZATION_COLLECTION,//DEFAULT_SAGA_COLLECTION, 
         `thread_saga_${threadId}_${Date.now()}`,
@@ -648,7 +660,7 @@ Focus: Only array extraction
                     sagaTransactionId = transaction.id;
             }) 
           });
-          /*
+          *
 NAME  PandasDailyAveragingCoder
 FLOW 1 [ 'tx-4', 'tx-3', 'tx-4' ]
 FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
@@ -657,7 +669,7 @@ FLOW 1 [ 'tx-4', 'tx-3', 'tx-4' ]
 FLOW 1 [ 'CODE-DAILY-AVG-01', 'TOOL-CALL-EXEC-01' ]
 PATH  import pandas as pd
 
-          */
+          *
       if(!pythonResult.isErrorFree){
             console.log('LATEST LINEAR ',sagaTransactionName) //'PythonToolInvoker'
             try{
@@ -729,12 +741,12 @@ PATH  import pandas as pd
                   );
 
                await this.conversationManager.sendResponseToThread(this.currentThreadId, JSON.stringify(codeResult.result));
-          }
+          }*/
       
      
       console.log('HEERERERWQRWER')
       // Send response back to thread
-      if (result.success) {
+    /*  if (result.success) {
         const responseMessage = result.result || 'Your request has been processed successfully.';
      //   await this.conversationManager.sendResponseToThread(threadId, responseMessage);
         console.log(`✅ Thread SAGA completed successfully for thread: ${threadId}`);
@@ -742,7 +754,7 @@ PATH  import pandas as pd
         const errorMessage = `I encountered an issue processing your request: ${result.error || 'Unknown error'}`;
      //   await this.conversationManager.sendResponseToThread(threadId, errorMessage);
         console.log(`❌ Thread SAGA failed for thread: ${threadId}`);
-      }
+      }*/
       
     } catch (error) {
       console.error(`❌ Error executing Thread Visualization SAGA:`, error);
@@ -981,17 +993,10 @@ export async function runVisualizationSAGAExample(): Promise<void> {
     console.log('Press Ctrl+C to exit...');
 
     console.log('\n✨ Visualization SAGA processing complete!');
-    console.log('Press any key to exit...');
+    console.log('🔄 Listening for more messages...');
     
-    // Keep console open
-    try {
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      process.stdin.on('data', () => process.exit(0));
-    } catch (stdinError) {
-      console.log('Waiting 10 seconds before exit...');
-      setTimeout(() => process.exit(0), 10000);
-    }
+    // Keep the process alive to continue listening for events
+    // The socket event listeners will handle incoming messages
 
   } catch (error) {
     console.error('💥 Visualization SAGA processing failed:', error);

@@ -40,6 +40,14 @@ import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, vi
   visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, 
   d3CoordinatorChallengeResponse, aggregatorResult_1_1, aggregatorResult_1_2,aggregatorResult_1_3, aggregatorResult_1_4,aggregatorResult_1_5 } from '../test/testData.js';
 import { CSVReader } from '../processing/csvReader.js'
+
+import { DefineGenericAgentsProcess } from '../process/DefineGenericAgentsProcess.js';
+import { ValidationProcess } from '../process/ValidationProcess.js';
+import { FlowProcess } from '../process/FlowProcess.js';
+import { AgentGeneratorProcess } from '../process/AgentGeneratorProcess.js';
+import { D3JSCodingProcess } from '../process/D3JSCodingProcess.js';
+import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
+import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -55,12 +63,22 @@ export class SagaCoordinator extends EventEmitter {
   currentExecutingTransactionSet: SagaTransaction[] | null = null;
   private iterationStates: Map<string, IterationState> = new Map();
   private  conversationAgentCompleted = false;
-   private mcpServers: Record<string, MCPServerConfig>;
+  private mcpServers: Record<string, MCPServerConfig>;
   agentFlows: string[][] = [];
   private activeTransactionSetId: string = '';
   private csvReader: CSVReader = new CSVReader();
+ 
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
+
+  // Process execution state tracking
+  private currAgent: GenericAgent | null = null;
+  private currTransactionSet: TransactionSet | null = null;
+  private currToolCallTransactionSet: TransactionSet | null = null;
+
+  // Control flow list: maps agent names to process types
+  // For ValidationProcess: agent is ValidatingAgent, targetAgent is the agent being validated
+  private controlFlowList: Array<{agent: string, process: string, targetAgent?: string}> = [];
 
   constructor(mcpServers: Record<string, MCPServerConfig>) {
     super();
@@ -69,6 +87,10 @@ export class SagaCoordinator extends EventEmitter {
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
     this.mcpServers = mcpServers;
+
+    // Initialize AgentFactory with coordinator-specific config
+  
+
     this.agentFlows.push([ 'tx-4','tx-3', 'tx-4']) //'tx-2' or tx-5 for DEFAULT_SAGA_COLLECTIONS 'tx-4','tx-3', 'tx-4' for visualizationCoordinatingAgent
   }
 
@@ -800,7 +822,7 @@ graphAnalyzerResult
              dynamicTransactionSet.sets.forEach(set =>{
               set.id = 'd3js-analysis-set'
               set.transactions.forEach(t => {
-                t.dependencies.push('DA-001');  //For both graphAnalyzerResult_1 this is the id
+                t.dependencies.push('DA-001');  //For both graphAnalyzerResult_1 this is the id                                                                                                         
                 console.log('SET ', t.agentName)  //  SET  Grid-Line Data Analyzer
                  console.log('SET 1', t.id) //SET 1 DA-001
               })
@@ -974,6 +996,7 @@ graphAnalyzerResult
       
             agent?.deleteContext();
             const prompt = dynamicSet.prompt || '';
+            // an analysis of the csv data is provided in your <context>
             agent?.setTaskDescription(prompt); //prompt = D3JSCoordinatingAgentAnalysis
             const allStoredResults = globalDataProcessor.getAllResults();
             const resultEntries = Array.from(allStoredResults.entries());
@@ -1011,10 +1034,10 @@ graphAnalyzerResult
             console.log('REQUEST ',codingRequest)
              const agent = this.agents.get('D3JSCoordinatingAgent');
            
+            const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
 
             const codingAgent = this.agents.get('D3JSCodingAgent');
             codingAgent?.setTaskDescription(codingRequest);
-            const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
             codingAgent?.receiveContext({'INFORMATION TOT ASSIST YOU: ': ctx.lastTransactionResult})//collated analysis of the csv data provided to coding agent with user prompt
            
       
@@ -1297,7 +1320,7 @@ import pandas as pd
        
        //    const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
       //   fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
-           //test codingAgentValidatedResult  codingAgentResult
+           //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')
          const codingResult = fs.readFileSync('data/codingOpenAIAgentResult.txt', 'utf-8');
          result.result = this.cleanJavaScriptCode( codingResult); //
         //end test)
@@ -3691,6 +3714,7 @@ Task Context: ${taskContext}
       const transaction = cyclePartners[i];
       console.log(`🔄 Executing cycle step ${i + 1}/${cyclePartners.length}: ${transaction.agentName}`);
       if(i === 0 && transaction.id === 'tx-2'){
+        //TransactionGroupingAgent context updated with call to it to create agents
         const agent = this.agents.get(transaction.agentName);
         const ctx = agent?.getContext();
         context = 'FIRST INPUT: ' + ctx + ' SECOND INPUT: ' + groupingAgentResult;
@@ -3767,5 +3791,225 @@ Task Context: ${taskContext}
     });
     
     return await this.executeExtendedCycleLoop(cyclePartners, request);
+  }
+
+  /**
+   * Initialize control flow list
+   * Maps default agents to their corresponding process types
+   */
+  initializeControlFlow(): void {
+    this.controlFlowList = [
+      { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
+      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
+      { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
+      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
+      { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
+      { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
+      { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess' },
+      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }
+    ];
+  }
+
+  /**
+   * Instantiate a process based on process type
+   * Returns the appropriate Process instance configured with required agents
+   */
+  private instantiateProcess(
+    processType: string,
+    agentName: string,
+    userQuery: string,
+    targetAgentName?: string
+  ): DefineGenericAgentsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | null {
+    const agent = this.agents.get(agentName);
+    if (!agent) {
+      console.error(`❌ Agent ${agentName} not found`);
+      return null;
+    }
+
+    switch (processType) {
+      case 'DefineGenericAgentsProcess':
+        return new DefineGenericAgentsProcess(
+          agent,
+          this.contextManager,
+          userQuery
+        );
+
+      case 'ValidationProcess': {
+        // For ValidationProcess, agentName is ValidatingAgent, targetAgentName is the agent being validated
+        if (!targetAgentName) {
+          console.error('❌ ValidationProcess requires targetAgent');
+          return null;
+        }
+        const targetAgent = this.agents.get(targetAgentName);
+        if (!targetAgent) {
+          console.error(`❌ Target agent ${targetAgentName} not found`);
+          return null;
+        }
+        return new ValidationProcess(
+          agent, // ValidatingAgent
+          targetAgent, // Agent being validated
+          this.contextManager,
+          userQuery
+        );
+      }
+
+      case 'FlowProcess': {
+        const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
+        if (!flowDefiningAgent) {
+          console.error('❌ FlowDefiningAgent not found');
+          return null;
+        }
+        return new FlowProcess(
+          flowDefiningAgent,
+          agent,
+          this.contextManager
+        );
+      }
+
+      case 'AgentGeneratorProcess': {
+        const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
+        if (!flowDefiningAgent) {
+          console.error('❌ FlowDefiningAgent not found');
+          return null;
+        }
+        return new AgentGeneratorProcess(
+          flowDefiningAgent,
+          agent,
+          this.contextManager,
+          this
+        );
+      }
+
+      case 'D3JSCodingProcess':
+        return new D3JSCodingProcess(
+          agent,
+          this.contextManager,
+          userQuery
+        );
+
+      case 'DataAnalysisProcess':
+        return new DataAnalysisProcess(
+          agent,
+          this.contextManager,
+          userQuery
+        );
+
+      case 'DataSummarizingProcess':
+        return new DataSummarizingProcess(
+          agent,
+          this.contextManager,
+          userQuery
+        );
+
+      default:
+        console.error(`❌ Unknown process type: ${processType}`);
+        return null;
+    }
+  }
+
+  /**
+   * Execute the control flow
+   * Iterates through control flow list and executes each process in sequence
+   */
+  async executeControlFlow(userQuery: string): Promise<void> {
+    console.log('\n🎯 Starting control flow execution');
+    console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
+
+    for (let i = 0; i < this.controlFlowList.length; i++) {
+      const step = this.controlFlowList[i];
+      console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.process} ---`);
+
+      // Update current agent state
+      this.currAgent = this.agents.get(step.agent) || null;
+
+      // Instantiate process
+      const process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
+      if (!process) {
+        console.error(`❌ Failed to instantiate process at step ${i + 1}`);
+        continue;
+      }
+
+      try {
+        // Execute process
+        const result = await process.execute();
+
+        // Handle ValidationProcess specifically for retry logic
+        if (step.process === 'ValidationProcess') {
+          const validationResult = result as AgentResult;
+
+          if (!validationResult.success) {
+            console.warn(`⚠️  Validation failed for ${step.targetAgent}, retrying...`);
+
+            // Find the previous DefineGenericAgentsProcess step for the target agent
+            const retryStepIndex = this.findPreviousDefineStep(i, step.targetAgent!);
+            if (retryStepIndex !== -1) {
+              console.log(`🔄 Retrying from step ${retryStepIndex + 1}`);
+
+              // Re-execute the define process
+              const retryStep = this.controlFlowList[retryStepIndex];
+              const retryProcess = this.instantiateProcess(
+                retryStep.process,
+                retryStep.agent,
+                userQuery,
+                retryStep.targetAgent
+              );
+
+              if (retryProcess) {
+                await retryProcess.execute();
+
+                // Re-run validation
+                const revalidationProcess = this.instantiateProcess(
+                  step.process,
+                  step.agent,
+                  userQuery,
+                  step.targetAgent
+                );
+
+                if (revalidationProcess) {
+                  const revalidationResult = await revalidationProcess.execute();
+
+                  if (!(revalidationResult as AgentResult).success) {
+                    console.error(`❌ Validation failed after retry for ${step.targetAgent}`);
+                    // Continue anyway or throw error based on requirements
+                  } else {
+                    console.log(`✅ Validation passed after retry for ${step.targetAgent}`);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Handle AgentGeneratorProcess to update currTransactionSet
+        if (step.process === 'AgentGeneratorProcess') {
+          const tsc = result as TransactionSetCollection;
+          if (tsc && tsc.sets && tsc.sets.length > 0) {
+            this.currTransactionSet = tsc.sets[0];
+            console.log(`📦 Updated currTransactionSet: ${this.currTransactionSet.id}`);
+          }
+        }
+
+        console.log(`✅ Step ${i + 1} completed successfully`);
+      } catch (error) {
+        console.error(`❌ Error executing step ${i + 1}:`, error);
+        throw error; // Or continue based on error handling strategy
+      }
+    }
+
+    console.log('\n🎉 Control flow execution completed');
+  }
+
+  /**
+   * Find the previous DefineGenericAgentsProcess step for a given agent
+   * Used for retry logic after validation failure
+   */
+  private findPreviousDefineStep(currentIndex: number, agentName: string): number {
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const step = this.controlFlowList[i];
+      if (step.agent === agentName && step.process === 'DefineGenericAgentsProcess') {
+        return i;
+      }
+    }
+    return -1;
   }
 }

@@ -554,14 +554,14 @@ export const SAGA_CONVERSATION_TRANSACTIONS: SagaTransaction[] = [
      dependencies: ['tx-2'],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  },
+  }/*,
   { id: 'tx-2',
     name: 'Define flows',
     agentName: 'TransactionGroupingAgent',
      dependencies: [],
     compensationAction: 'cleanup_conversation_state',
     status: 'pending'
-  }
+  }*/
 ];
 //this.agentFlows.push(['tx-2', 'tx-2']) to use agentDefinitionPrompt in sagaCoord constructor
 
@@ -920,7 +920,7 @@ export const SAGA_D3_AGENT_GEN_COLLECTION: TransactionSetCollection = {
       transactions: SAGA_D3_AGENT_GEN_TRANSACTIONS //d3js-agent-gen-set'
     }
   ],
-  executionOrder: ['d3js-agent-gen-set'],
+  executionOrder: ['c'],
   metadata: {
     version: '1.0.0',
     created: new Date()

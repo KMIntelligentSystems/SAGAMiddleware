@@ -55,7 +55,7 @@ export interface BrowserGraphRequest {
   
   // Input 2: Data Requirements  
   
-  correlationId: string;
+  operationType: string;
 }
 
 export interface SAGAEventData {

@@ -74,63 +74,6 @@ const r = response.output[0] as ResponseOutputItem;
     }
   }
 
-  /**
-   * Send streaming response using new Responses API
-   * Replaces deprecated threads API with responses.create streaming
-   */
-/*  async sendResponseToThread_(previousResponseId: string | null, responseMessage: string): Promise<ThreadResponse> {
-    try {
-      console.log(`📤 Creating streaming response${previousResponseId ? ` chained to ${ responseMessage}` : ''}`);
-
-      // Create streaming response using new Responses API
-      const responseStream = await this.openaiClient.responses.create({
-        model: 'gpt-4o-mini', // Use appropriate model
-        input: responseMessage,
-        stream: true,
-        previous_response_id: previousResponseId,
-        store: true // Store conversation for retrieval
-      //  ...(previousResponseId && { previous_response_id: previousResponseId }) // Chain conversation
-      });
-
-      let responseId = '';
-      let outputText = '';
-      
-      // Handle streaming events
-      for await (const event of responseStream) {
-        if (event.type === 'response.completed') {
-          responseId = event.response.id;
-          outputText = event.response.output_text || '';
-          console.log(`✅ Response completed with ID: ${responseId}`);
-          break;
-        } else if (event.type === 'response.failed') {
-          console.error(`❌ Response failed:`, event.response);
-          return {
-            success: false,
-            responseId: '',
-            runStatus: 'failed',
-            error: 'Response stream failed'
-          };
-        }
-      }
-
-      return {
-        success: true,
-        responseId,
-        runStatus: 'completed'
-      };
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error(`❌ Error creating streaming response:`, error);
-      return {
-        success: false,
-        responseId: '',
-        runStatus: 'error',
-        error: errorMessage
-      };
-    }
-  }*/
-
   async  sendResponseToThread(sessionId: string, result: string, status = 'completed') {
   if (!sessionId) {
     console.warn('No session ID found, cannot send callback');
@@ -145,7 +88,7 @@ const r = response.output[0] as ResponseOutputItem;
       timestamp: new Date().toISOString()
     };
     
-    console.log('Sending callback payload:', JSON.stringify(payload, null, 2));
+    console.log('Sending callback payload:', result)
     
     const response = await fetch(`${process.env.NEXTJS_URL}/api/callback`, {//http://localhost:3002/
       method: 'POST',
@@ -165,10 +108,6 @@ const r = response.output[0] as ResponseOutputItem;
   } catch (error) {
     console.error('Failed to send callback:', error);
     
-    // Retry logic (optional)
-  //  setTimeout(() => {
-    //  this. sendResponseToThread(sessionId, result, 'completed');
-  //  }, 5000);
   }
 }
 
