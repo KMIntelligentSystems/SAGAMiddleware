@@ -5,6 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import {agentDefinitionPrompt} from '../types/visualizationSaga.js';
+import { flowDefiningAgentResult } from '../test/testData.js';
 
 /**
  * FlowProcess
@@ -61,24 +62,25 @@ export class FlowProcess {
 
     // Clear flow defining agent context
     this.flowDefiningAgent.deleteContext();
+    // Set new context
+    this.flowDefiningAgent.receiveContext({ 'THE DATA TO PROCESS': ctx.lastTransactionResult });
 
     // Set context with agent definitions
-    this.flowDefiningAgent.receiveContext({
-      'EXTRACT FLOW AND TOOL CALLS': agentDefinitionPrompt
-    });
+    this.flowDefiningAgent.setTaskDescription(agentDefinitionPrompt);
 
     // Execute flow defining agent
- //   const result = await this.flowDefiningAgent.execute({});
-  const result: AgentResult = {
+   //const result = await this.flowDefiningAgent.execute({});
+  // console.log('FLOW RESULT ', result.result)
+   const result: AgentResult = {
       agentName: 'cycle_start',
-      result: 'TEST',
+      result: flowDefiningAgentResult,
       success: true,
       timestamp: new Date()
     };
     // Store flow result
     this.contextManager.updateContext(this.flowDefiningAgent.getName(), {
       lastTransactionResult: result.result,
-      transactionId: this.flowDefiningAgent.getId(),
+      transactionId: 'tx-8',
       timestamp: new Date()
     });
 

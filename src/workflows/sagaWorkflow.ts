@@ -250,7 +250,7 @@ export class SagaWorkflow {
         taskExpectedOutput: 'Provide html code without explanation so the code can be run in the browser.'
       },
        {
-        agentName: 'FlowDefingAgent',
+        agentName: 'FlowDefiningAgent',
         agentType: 'processing',
         transactionId: 'tx-8',
         backstory: 'Provide files for indexing using tool calls.',

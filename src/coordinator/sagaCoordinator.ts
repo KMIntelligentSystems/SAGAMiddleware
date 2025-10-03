@@ -3801,8 +3801,10 @@ Task Context: ${taskContext}
     this.controlFlowList = [
       { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
       { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
+      { agent: 'FlowDefiningAgent', process: 'FlowProcess' },
       { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
       { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
+      { agent: 'FlowDefiningAgent', process: 'FlowProcess' },
       { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
       { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
       { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess' },
@@ -3980,6 +3982,17 @@ Task Context: ${taskContext}
           }
         }
 
+        if (step.process === 'FlowProcess') {
+          const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
+          const TransactionSetCollection = await process?.execute() as TransactionSetCollection;
+          console.log('GENERATOR ', TransactionSetCollection)
+            Object.values(TransactionSetCollection.sets).forEach((transactionSet: TransactionSet) => {
+            transactionSet.transactions.forEach((transaction: SagaTransaction) => {
+            console.log('NAME ', transaction.agentName)//PandasDailyAveragingCoder
+            })
+          });
+        }
+        
         // Handle AgentGeneratorProcess to update currTransactionSet
         if (step.process === 'AgentGeneratorProcess') {
           const tsc = result as TransactionSetCollection;

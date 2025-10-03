@@ -4,6 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
+import { validationFixedSyntaxResult } from '../test/testData.js'
 
 /**
  * ValidationProcess
@@ -47,6 +48,12 @@ export class ValidationProcess {
   async execute(): Promise<AgentResult> {
     console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent.getName()}`);
 
+    const taskDescription = `You will validate two inputs, one against the other. The first input is a set of instructions for the building of two agents.
+The second input is the formatted construction of those agents. There are certain rules that you must understand from the first input to determine if the second input follows the rules.
+The rules are:
+1. Does the output create two distinct agents with their tasks clearly defined based on your analysis of the first input?
+2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
+If these rules are not met, rectify the output accordingly`;
     // Get target agent's last result
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
 
@@ -75,16 +82,24 @@ export class ValidationProcess {
     // Set context for validation
     this.validatingAgent.receiveContext({ 'USER REQUEST': conversationContext });
     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
-
+    this.validatingAgent.setTaskDescription(taskDescription );
     // Execute validation
-  //  const result = await this.validatingAgent.execute({});
+ //   const result = await this.validatingAgent.execute({});
+   // console.log('VALIDATION ', result.result)
   const result: AgentResult = {
       agentName: 'cycle_start',
-      result: 'TEST',
+      result: validationFixedSyntaxResult,
       success: true,
       timestamp: new Date()
     };
-    // Store validation result in context manager
+   
+
+    // Check if validation passed
+    const validationPassed = this.isValidationSuccessful(result.result);
+
+    if (validationPassed) {
+      console.log(`✅ Validation PASSED for ${this.targetAgent.getName()}`);
+       // Store validation result in context manager
     // NOTE: We store under targetAgent's name so it can see validation feedback
     this.contextManager.updateContext(this.targetAgent.getName(), {
       lastTransactionResult: result.result,
@@ -92,16 +107,17 @@ export class ValidationProcess {
       transactionId: this.validatingAgent.getId(),
       timestamp: new Date()
     });
-
-    // Check if validation passed
-    const validationPassed = this.isValidationSuccessful(result.result);
-
-    if (validationPassed) {
-      console.log(`✅ Validation PASSED for ${this.targetAgent.getName()}`);
     } else {
       console.warn(`⚠️  Validation FAILED for ${this.targetAgent.getName()}`);
       console.log(`📋 Validation feedback: ${result.result.substring(0, 200)}...`);
     }
+//Assume that ValidatingAgent has fixed errors
+    this.contextManager.updateContext('FlowDefiningAgent', {
+      lastTransactionResult: result.result,
+      validationResult: result.result,
+      transactionId: this.validatingAgent.getId(),
+      timestamp: new Date()
+    });
 
     return {
       ...result,
@@ -111,29 +127,63 @@ export class ValidationProcess {
 
   /**
    * Check if validation result indicates success
+   * Based on typical validation results like validationFixedSyntaxResult in testData.js
    */
-  private isValidationSuccessful(validationResult: string): boolean {
-    const resultLower = validationResult.toLowerCase();
-
-    // Check for success indicators
-    if (resultLower.includes('valid') && !resultLower.includes('invalid')) {
-      return true;
+  private isValidationSuccessful(validationResult: any): boolean {
+    // Type guard: ensure validationResult can be converted to string
+    if (validationResult === null || validationResult === undefined) {
+      return false;
     }
 
-    if (resultLower.includes('success')) {
-      return true;
+    const resultStr = typeof validationResult === 'string' ? validationResult : String(validationResult);
+    const resultLower = resultStr.toLowerCase();
+
+    // Try to parse as JSON to check for structured success/error fields
+    try {
+      // Look for JSON object in the string
+      const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        // Check for explicit success field (e.g., "success": false)
+        if (typeof parsed.success === 'boolean') {
+          return parsed.success;
+        }
+
+        // Check for errors array (presence indicates failure)
+        if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
+          return false;
+        }
+      }
+    } catch (e) {
+      // Not JSON or invalid JSON, continue with text-based checks
     }
 
-    if (resultLower.includes('correct')) {
-      return true;
+    // Check for explicit failure indicators
+    if (resultLower.includes('"success": false') ||
+        resultLower.includes('"success":false')) {
+      return false;
     }
 
-    // Check for failure indicators
+    if (resultLower.includes('"errors"') && resultLower.includes('[')) {
+      return false;
+    }
+
+    // Check for text-based failure indicators
     if (resultLower.includes('error') ||
         resultLower.includes('invalid') ||
         resultLower.includes('incorrect') ||
         resultLower.includes('fail')) {
       return false;
+    }
+
+    // Check for success indicators
+    if (resultLower.includes('"success": true') ||
+        resultLower.includes('"success":true') ||
+        resultLower.includes('valid') && !resultLower.includes('invalid') ||
+        resultLower.includes('correct') ||
+        resultLower.includes('passed')) {
+      return true;
     }
 
     // Default: assume validation passed if no clear failure indicators

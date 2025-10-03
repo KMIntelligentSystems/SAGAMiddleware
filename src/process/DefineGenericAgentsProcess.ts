@@ -4,6 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
+import { groupingAgentFailedResult, groupingAgentResult } from '../test/testData.js'
 
 /**
  * DefineGenericAgentsProcess
@@ -77,13 +78,13 @@ console.log('CONVERSATION ',conversationContext )
 
    const result: AgentResult = {
       agentName: 'cycle_start',
-      result: 'TEST',
+      result: groupingAgentResult,//groupingAgentFailedResult,
       success: true,
       timestamp: new Date()
     };
     if(this.agent.getName() === 'TransactionGroupingAgent'){
-       const result = await this.agent.execute({});
-      console.log('DEFINE AGENT ', result.result)
+     //  const result = await this.agent.execute({});
+     // console.log('DEFINE AGENT ', result.result)
     }
    
     // Store result in context manager

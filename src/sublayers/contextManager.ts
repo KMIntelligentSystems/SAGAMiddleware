@@ -34,6 +34,7 @@ export class ContextManager {
   updateContext(agentName: string, updates: Partial<WorkingMemory>): void {
     const current = this.workingMemory.get(agentName) || {};
     this.setContext(agentName, { ...current, ...updates });
+    console.log('CONTEXT MGR', agentName)
   }
 
   clearContext(agentName: string): void {
