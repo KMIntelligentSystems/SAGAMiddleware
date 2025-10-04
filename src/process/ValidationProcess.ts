@@ -53,7 +53,7 @@ The second input is the formatted construction of those agents. There are certai
 The rules are:
 1. Does the output create two distinct agents with their tasks clearly defined based on your analysis of the first input?
 2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
-If these rules are not met, rectify the output accordingly`;
+If these rules are not met, rectify the output accordingly. Return your result as JSON: {'solution': [the correct result]}`;
     // Get target agent's last result
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
 

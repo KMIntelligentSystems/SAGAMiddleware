@@ -80,6 +80,7 @@ export class FlowProcess {
     // Store flow result
     this.contextManager.updateContext(this.flowDefiningAgent.getName(), {
       lastTransactionResult: result.result,
+      previousTransactionResult: ctx.lastTransactionResult,
       transactionId: 'tx-8',
       timestamp: new Date()
     });

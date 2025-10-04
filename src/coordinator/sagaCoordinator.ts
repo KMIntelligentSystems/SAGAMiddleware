@@ -48,6 +48,7 @@ import { AgentGeneratorProcess } from '../process/AgentGeneratorProcess.js';
 import { D3JSCodingProcess } from '../process/D3JSCodingProcess.js';
 import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
 import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
+import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -3820,8 +3821,9 @@ Task Context: ${taskContext}
     processType: string,
     agentName: string,
     userQuery: string,
-    targetAgentName?: string
-  ): DefineGenericAgentsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | null {
+    targetAgentName?: string,
+    transactionSetCollection?: TransactionSetCollection
+  ): DefineGenericAgentsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | null {
     const agent = this.agents.get(agentName);
     if (!agent) {
       console.error(`❌ Agent ${agentName} not found`);
@@ -3866,7 +3868,18 @@ Task Context: ${taskContext}
           agent,
           this.contextManager
         );
-      }
+      } 
+ 
+      case 'ExecuteGenericAgentsProcess': {
+        if (!transactionSetCollection) {
+          console.error('❌ ExecuteGenericAgentsProcess requires transactionSetCollection');
+          return null;
+        }
+        return new ExecuteGenericAgentsProcess(
+          this,
+          transactionSetCollection
+        );
+      } 
 
       case 'AgentGeneratorProcess': {
         const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
@@ -3984,23 +3997,11 @@ Task Context: ${taskContext}
 
         if (step.process === 'FlowProcess') {
           const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
-          const TransactionSetCollection = await process?.execute() as TransactionSetCollection;
-          console.log('GENERATOR ', TransactionSetCollection)
-            Object.values(TransactionSetCollection.sets).forEach((transactionSet: TransactionSet) => {
-            transactionSet.transactions.forEach((transaction: SagaTransaction) => {
-            console.log('NAME ', transaction.agentName)//PandasDailyAveragingCoder
-            })
-          });
+          const transactionSetCollection = await process?.execute() as TransactionSetCollection;
+          const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,'',transactionSetCollection );
+          await executionProcess?.execute()
         }
         
-        // Handle AgentGeneratorProcess to update currTransactionSet
-        if (step.process === 'AgentGeneratorProcess') {
-          const tsc = result as TransactionSetCollection;
-          if (tsc && tsc.sets && tsc.sets.length > 0) {
-            this.currTransactionSet = tsc.sets[0];
-            console.log(`📦 Updated currTransactionSet: ${this.currTransactionSet.id}`);
-          }
-        }
 
         console.log(`✅ Step ${i + 1} completed successfully`);
       } catch (error) {

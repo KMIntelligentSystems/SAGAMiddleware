@@ -26,9 +26,63 @@ export class AgentParser {
     if (!textToParse) {
       console.log('AgentParser: No conversation text provided');
       return this.createEmptyCollection();
-    }   
+    }
+
+    console.log(`AgentParser: Initial text length: ${textToParse.length}`);
+    console.log(`AgentParser: First 300 characters: ${textToParse.substring(0, 300)}`);
+
+    // Clean up string concatenation artifacts FIRST
+    textToParse = textToParse
+      .replace(/\'\s*\+\s*[\r\n]\s*\'/g, '') // Remove ' + \n '
+      .replace(/\'\s*\+\s*\'/g, '') // Remove ' + '
+      .replace(/\\\\/g, '\\'); // Replace double backslashes with single
+
+    // Extract "solution" field if present (from validation results)
+    // This handles cases where validation results wrap corrected agent definitions
+    try {
+      // Try to parse as JSON to find nested result or solution fields
+      const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        console.log(`AgentParser: Found JSON structure, attempting to parse`);
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        // Check for nested result.result structure (common in validation results)
+        if (parsed.result && typeof parsed.result === 'string') {
+          console.log(`AgentParser: Found nested "result" field, checking for solution within it`);
+          try {
+            const innerParsed = JSON.parse(parsed.result);
+            if (innerParsed.solution && typeof innerParsed.solution === 'string') {
+              console.log(`AgentParser: Found "solution" field in nested result`);
+              textToParse = innerParsed.solution;
+              console.log(`AgentParser: Extracted solution text length: ${textToParse.length}`);
+            }
+          } catch (e) {
+            // Inner result is not JSON, continue
+            console.log(`AgentParser: Inner result is not JSON`);
+          }
+        }
+        // Check for direct solution field
+        else if (parsed.solution && typeof parsed.solution === 'string') {
+          console.log(`AgentParser: Found direct "solution" field in validation result`);
+          textToParse = parsed.solution;
+          console.log(`AgentParser: Extracted solution text length: ${textToParse.length}`);
+        }
+
+        console.log(`AgentParser: After solution extraction, first 300 chars: ${textToParse.substring(0, 300)}`);
+      }
+    } catch (e) {
+      // Not JSON or no solution field, continue with original text
+      console.log(`AgentParser: JSON parsing failed or no solution field found, using processed text`);
+    }
+
+    // Now clean up escaped characters in the extracted text
+    textToParse = textToParse
+      .replace(/\\n/g, '\n') // Replace \n with actual newlines
+      .replace(/\\"/g, '"') // Replace escaped quotes
+      .replace(/\\'/g, "'"); // Replace escaped single quotes
+
     // Replace [AGENT followed by space with [AGENT: (handles cases like '[AGENT Python Executor')
-    textToParse = textToParse.replace(/\[AGENT\s+([^:,\]]+)/g, '[AGENT: $1');                       
+    textToParse = textToParse.replace(/\[AGENT\s+([^:,\]]+)/g, '[AGENT: $1');
     if(textToParse.includes('[ / AGENT]')){
       textToParse = textToParse.replace(/\[\s*\/\s*AGENT\]/g, '[/AGENT]');
     }
@@ -36,15 +90,8 @@ export class AgentParser {
       textToParse = textToParse.replace('/AGENT]', '[/AGENT]');
     }
 
-    console.log(`AgentParser: Processing text of length ${textToParse.length}`);
-    console.log(`AgentParser: First 200 characters: ${textToParse.substring(0, 200)}`);
-    
-    // Clean up string concatenation artifacts
-    textToParse = textToParse
-      .replace(/\'\s*\+\s*[\r\n]\s*\'/g, '') // Remove ' + \n '
-      .replace(/\'\s*\+\s*\'/g, '') // Remove ' + '
-      .replace(/\\\'/g, "'") // Replace escaped quotes
-      .replace(/\\\"/g, '"'); // Replace escaped quotes
+    console.log(`AgentParser: Final processed text of length ${textToParse.length}`);
+    console.log(`AgentParser: First 200 characters after all processing: ${textToParse.substring(0, 200)}`);
 
     // Step 1: Parse agents from conversationText
     console.log(`AgentParser: Parsing agents from conversationText`);
@@ -415,6 +462,8 @@ AgentParser: Created transaction FTS-005 for FinalTotalsSaver (type: tool) with 
     
     // Register agents with coordinator if provided, but don't need the return value
     this.createGenericAgentsFromTransactions(transactions, sagaCoordinator);
+
+    console.log('CONVERSATION START ', conversationText)
     
     // Return the transactions as they contain the workflow information
     return transactionCollection;

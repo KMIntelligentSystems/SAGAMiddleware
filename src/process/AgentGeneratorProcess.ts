@@ -60,11 +60,11 @@ export class AgentGeneratorProcess {
     const flowCtx = this.contextManager.getContext(
       this.flowDefiningAgent.getName()
     ) as WorkingMemory;
-
-    const agentDefinitionsText = agentDefinitionsCtx.lastTransactionResult;
+ 
+    const agentDefinitionsText = flowCtx?.previousTransactionResult;
     const flowData = flowCtx?.lastTransactionResult;
 
-    console.log(`📝 Agent definitions: ${agentDefinitionsText.substring(0, 150)}...`);
+    console.log(`📝 Agent definitions: $agentFlowText}...`);
     if (flowData) {
       console.log(`🔀 Flow data: ${flowData.substring(0, 150)}...`);
     } else {
@@ -83,12 +83,12 @@ export class AgentGeneratorProcess {
     console.log(`   Sets: ${transactionSetCollection.sets.length}`);
 
     // Log all transactions from all sets
-    transactionSetCollection.sets.forEach(set => {
+   /* transactionSetCollection.sets.forEach(set => {
       console.log(`   Set: ${set.id}`);
       set.transactions.forEach(tx => {
         console.log(`     - ${tx.name} (${tx.agentName}, ${tx.id})`);
       });
-    });
+    });*/
 
     return transactionSetCollection;
   }
