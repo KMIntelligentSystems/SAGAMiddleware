@@ -3802,14 +3802,17 @@ Task Context: ${taskContext}
     this.controlFlowList = [
       { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
       { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
-      { agent: 'FlowDefiningAgent', process: 'FlowProcess' },
+      { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' },
       { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
       { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
-      { agent: 'FlowDefiningAgent', process: 'FlowProcess' },
-      { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
+      { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent', },
+      { agent: 'D3JSCoordinatingAgent', process:'DefineGenericAgentsProcess'},
+      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
+      { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent', },
+    /*  { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
       { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
       { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess' },
-      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }
+      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }*/
     ];
   }
 
@@ -3829,7 +3832,8 @@ Task Context: ${taskContext}
       console.error(`❌ Agent ${agentName} not found`);
       return null;
     }
-
+   
+   
     switch (processType) {
       case 'DefineGenericAgentsProcess':
         return new DefineGenericAgentsProcess(
@@ -3858,16 +3862,20 @@ Task Context: ${taskContext}
       }
 
       case 'FlowProcess': {
-        const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
+       /* const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
         if (!flowDefiningAgent) {
           console.error('❌ FlowDefiningAgent not found');
           return null;
-        }
-        return new FlowProcess(
-          flowDefiningAgent,
-          agent,
-          this.contextManager
+        }*/
+       if(targetAgentName){
+          const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
+          return new FlowProcess(
+            agent,
+            targetAgent,
+            this.contextManager
         );
+       }
+      
       } 
  
       case 'ExecuteGenericAgentsProcess': {
@@ -3952,7 +3960,7 @@ Task Context: ${taskContext}
         if (step.process === 'ValidationProcess') {
           const validationResult = result as AgentResult;
 
-          if (!validationResult.success) {
+         /* if (!validationResult.success) {
             console.warn(`⚠️  Validation failed for ${step.targetAgent}, retrying...`);
 
             // Find the previous DefineGenericAgentsProcess step for the target agent
@@ -3992,7 +4000,7 @@ Task Context: ${taskContext}
                 }
               }
             }
-          }
+          }*/
         }
 
         if (step.process === 'FlowProcess') {

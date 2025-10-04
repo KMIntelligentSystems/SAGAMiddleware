@@ -474,6 +474,22 @@ cute_python tool.\n' +
 export const flowData = `'<flow>CODE-DAILY-AVG-01 -> TOOL-CALL-EXEC-01</flow>\n' +
     '{"toolUsers": ["MCPExecutePythonCaller"]}'`;
 
+export const d3jsFlowData = `{
+  agentName: 'FlowDefiningAgent',
+  result: '<!doctype html>\n' +
+    '<html>\n' +
+    '  <head>\n' +
+    '    <meta charset="utf-8">\n' +
+    '    <title>Agent Flow</title>\n' +
+    '  </head>\n' +
+    '  <body>\n' +
+    '    <flow>DA-001</flow>\n' +
+    '    {"toolUsers": []}\n' +
+    '  </body>\n' +
+    '</html>',
+  success: true,
+  timestamp: 2025-10-04T06:47:01.676Z
+}`
 export const codeWriterTaskDescription = `            Your task: Write a complete Python script that reads a CSV exported from Excel, normalizes the data into long format, and outputs:
     - A single combined CSV with columns: date/time, installation, energy_source, MW
     - Individual CSVs per installation (one file per installation)

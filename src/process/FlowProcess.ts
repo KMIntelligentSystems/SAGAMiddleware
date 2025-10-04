@@ -5,7 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import {agentDefinitionPrompt} from '../types/visualizationSaga.js';
-import { flowDefiningAgentResult } from '../test/testData.js';
+import { flowDefiningAgentResult, flowData,d3jsFlowData } from '../test/testData.js';
 
 /**
  * FlowProcess
@@ -42,7 +42,7 @@ export class FlowProcess {
    * Execute flow extraction
    */
   async execute(): Promise<AgentResult> {
-    console.log(`\n🔀 FlowProcess: Extracting flow from ${this.targetAgent.getName()} output`);
+    console.log(`\n🔀 FlowProcess: Extracting flow from ${this.targetAgent.getName()} output`); //FlowDefiningAgent
 
     // Get target agent's last result (agent definitions)
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
@@ -73,10 +73,24 @@ export class FlowProcess {
   // console.log('FLOW RESULT ', result.result)
    const result: AgentResult = {
       agentName: 'cycle_start',
-      result: flowDefiningAgentResult,
+      result: '',
       success: true,
       timestamp: new Date()
     };
+
+      if(this.targetAgent.getName() === 'TransactionGroupingAgent'){
+         //  const result = await this.agent.execute({});
+          console.log('DEFINE AGENT TRANSACTION GROUPING AGENT')
+         result.result = flowDefiningAgentResult;
+        } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
+           console.log('VISUALISATION AGENT')
+         result.result = flowData;
+        } else if(this.targetAgent.getName() === 'D3JSCoordinatingAgent'){
+        //  const result = await this.flowDefiningAgent.execute({});
+        //   console.log('D3JS AGENT', result.result )
+           result.result = d3jsFlowData;
+        } 
+       
     // Store flow result
     this.contextManager.updateContext(this.flowDefiningAgent.getName(), {
       lastTransactionResult: result.result,

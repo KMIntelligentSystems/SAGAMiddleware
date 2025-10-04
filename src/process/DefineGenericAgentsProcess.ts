@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
-import { groupingAgentFailedResult, groupingAgentResult } from '../test/testData.js'
+import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1 } from '../test/testData.js'
 
 /**
  * DefineGenericAgentsProcess
@@ -47,7 +47,7 @@ export class DefineGenericAgentsProcess {
   const taskDescription = `Your role is coordinator. You will receive instructions which will indicate your specific task 
   and the output from thinking through the task to provide meaningful instructions for other agents to 
   enable them to execute their tasks`;
-      //
+
    
     // Parse user query to extract this agent's task
     const conversationContext = this.parseConversationResultForAgent(
@@ -76,16 +76,23 @@ export class DefineGenericAgentsProcess {
 console.log('CONVERSATION ',conversationContext )
     // Execute agent
 
-   const result: AgentResult = {
+   
+   let result: AgentResult = {
       agentName: 'cycle_start',
-      result: groupingAgentResult,//groupingAgentFailedResult,
+      result: '',//visualizationGroupingAgentsResult groupingAgentResult,groupingAgentFailedResult,
       success: true,
       timestamp: new Date()
     };
+
     if(this.agent.getName() === 'TransactionGroupingAgent'){
      //  const result = await this.agent.execute({});
      // console.log('DEFINE AGENT ', result.result)
-    }
+     result.result = groupingAgentResult
+    } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
+     result.result = visualizationGroupingAgentsResult;
+    } else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
+     result.result = graphAnalyzerResult_1;
+    } 
    
     // Store result in context manager
     this.contextManager.updateContext(this.agent.getName(), {

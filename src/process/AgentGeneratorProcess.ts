@@ -45,7 +45,7 @@ export class AgentGeneratorProcess {
    * Execute agent generation
    */
   async execute(): Promise<TransactionSetCollection> {
-    console.log(`\n🏭 AgentGeneratorProcess: Creating agents from ${this.targetAgent.getName()} definitions`);
+    console.log(`\n🏭 AgentGeneratorProcess: Creating agents from ${this.targetAgent.getName()} definitions`);//FlowDefiningAgent
 
     // Get agent definitions from target agent
     const agentDefinitionsCtx = this.contextManager.getContext(
@@ -53,7 +53,7 @@ export class AgentGeneratorProcess {
     ) as WorkingMemory;
 
     if (!agentDefinitionsCtx || !agentDefinitionsCtx.lastTransactionResult) {
-      throw new Error(`No agent definitions found for ${this.targetAgent.getName()}`);
+      throw new Error(`No target agent definitions found for ${this.targetAgent.getName()}`);
     }
 
     // Get flow information from flow defining agent

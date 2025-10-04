@@ -89,5 +89,90 @@ export class DataAnalysisProcess {
   getAnalysisResult(): string | null {
     const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
     return ctx?.lastTransactionResult || null;
-  }
+  }  
+  
+/* private async executeSelfReferencingChain(
+      chainTransactions: SagaTransaction[],
+      request: BrowserGraphRequest
+    ): Promise<AgentResult> {
+      console.log(`🔄 Starting self-referencing chain with ${chainTransactions.length} agents`);
+      let iteration = 0;
+      // Find the self-referencing transaction (the one that iterates)
+      const iteratingTransaction = chainTransactions.find(tx => 
+        tx.dependencies.length === 1 && tx.dependencies[0] === tx.id
+      );
+      
+      if (!iteratingTransaction) {
+        console.error('❌ No self-referencing transaction found in chain');
+        return {
+          agentName: 'self_referencing_chain',
+          result: null,
+          success: false,
+          error: 'No self-referencing transaction found',
+          timestamp: new Date()
+        };
+      }
+      
+      // Execute the chain up to the self-referencing transaction first
+      const preIterationTransactions = chainTransactions.filter(tx => tx.id !== iteratingTransaction.id);
+      
+      console.log(`📋 Pre-iteration transactions: ${preIterationTransactions.map(t => `${t.id}(${t.agentName})`).join(' → ')}`);
+      console.log(`🔄 Iterating transaction: ${iteratingTransaction.id}(${iteratingTransaction.agentName})`);
+      
+      let finalResult: AgentResult = {
+        agentName: 'chain_start',
+        result: null,
+        success: true,
+        timestamp: new Date()
+      };
+   let result: AgentResult = {
+        agentName: 'chain_start',
+        result: null,
+        success: true,
+        timestamp: new Date()
+      };
+      // Execute pre-iteration transactions in reverse order (dependencies first)
+      const executionOrder = [...preIterationTransactions].reverse();
+      const agent = this.agents.get(iteratingTransaction.agentName);
+      const headerRow = this.csvReader.getHeaderRow();
+      console.log('HEADER', headerRow)
+      const results: string[] = [];
+   let rows = this.csvReader.getNext20Rows();
+      while(this.csvReader.hasMoreRows()){
+   
+        if(iteration === 0){
+            result.result = aggregatorResult_1_1.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        }  if(iteration === 1){
+            result.result = aggregatorResult_1_2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        }  if(iteration === 2){
+            result.result = aggregatorResult_1_3.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        }  if(iteration === 3){
+            result.result = aggregatorResult_1_4.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } if(iteration === 4){
+            result.result = aggregatorResult_1_5.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        }
+        //End test
+        // const result = await agent?.execute({'20 rows of data:': rows});
+        if(result){
+          console.log('RESULT AGG', result.result)
+         // results.push(result.result);
+         //For test did not take into account last 5 rows only 20 rows rturned last 5 not but iterates anyway because currentPosition < 105
+          const cycleKey = `cycle_${iteration++}`;
+          if(iteration < 5){
+            globalDataProcessor.storeResult(cycleKey, {cleanedData: result.result});
+          } 
+          rows = this.csvReader.getNext20Rows();
+          rows.unshift(headerRow);
+          finalResult = result;
+           agent?.deleteContext();
+        }
+  
+     // }
+    }*/
+     
+
+     
+      
+   
+    
 }

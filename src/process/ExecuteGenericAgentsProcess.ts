@@ -6,7 +6,7 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../types/visualizationSaga.js';
-import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt } from '../test/testData.js'
+import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1 } from '../test/testData.js'
 
 /**
  * ExecuteGenericAgentsProcess
@@ -56,18 +56,37 @@ export class ExecuteGenericAgentsProcess {
 
     if(sagaTransactions.length > 1){
      result = await this.executeSagaTransactionWithLinearContext( sagaTransactions);
-  }
-
+    } else if(sagaTransactions.length === 1){
+     result = await this.executeSagaTransactionWithSingletonContext( sagaTransactions[0]);
+    }
 
     // Store execution result
   
     return result;
   }
 
-  private async executeSagaTransactionWithLinearContext(
+  private async executeSagaTransactionWithSingletonContext(
+      transaction: SagaTransaction
+    ): Promise<AgentResult> {
+     
+      const agent = this.coordinator.agents.get(transaction.agentName);
+
+
+       let result: AgentResult = {agentName: '',
+      result:  graphAnalyzerResult_1,
+      success: false,
+      timestamp: new Date()
+    };
+
+    return result;
+
+    }  
+    
+    private async executeSagaTransactionWithLinearContext(
       linearTransactions: SagaTransaction[]
     ): Promise<AgentResult> {
      
+
        let result: AgentResult = {agentName: '',
       result: '',
       success: false,
