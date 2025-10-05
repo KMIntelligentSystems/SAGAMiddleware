@@ -4,6 +4,9 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
+import { globalDataProcessor } from '../processing/dataResultProcessor.js';
+import { D3JSCoordinatingAgentAnalysis } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentFinalResult } from '../test/testData.js'
 
 /**
  * DataSummarizingProcess
@@ -21,11 +24,12 @@ export class DataSummarizingProcess {
   private agent: GenericAgent;
   private contextManager: ContextManager;
   private userQuery: string;
+  
 
   constructor(
     agent: GenericAgent,
     contextManager: ContextManager,
-    userQuery: string
+    userQuery: string,
   ) {
     this.agent = agent;
     this.contextManager = contextManager;
@@ -48,17 +52,32 @@ export class DataSummarizingProcess {
     }
 
     // Clear agent context
+    this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis );
     this.agent.deleteContext();
 
-    // Set context with user query for summarization
+    // Set context with user que)ry for summarization
     this.agent.receiveContext({
       'DATA_SUMMARIZATION_TASK': this.userQuery
-    });
+    }); 
+    
+    const allStoredResults = globalDataProcessor.getAllResults();
+            const resultEntries = Array.from(allStoredResults.entries());
+            let i = 0;
+            //receive the set of analysis results
+            this.agent.receiveContext({'AGENT RESULTS:': ''});
+            console.log('NUM ', resultEntries.length)
+            resultEntries.forEach(entry =>{
+              const res = `Iteration ${i++}:\n`;
+
+              this.agent.receiveContext({res: entry});
+            });
+
 
     // Execute agent for data summarization
+    this.agent.execute({});
     const result: AgentResult = {
       agentName: this.agent.getName(),
-      result: 'TEST',
+      result: D3JSCoordinatingAgentFinalResult,
       success: true,
       timestamp: new Date()
     };

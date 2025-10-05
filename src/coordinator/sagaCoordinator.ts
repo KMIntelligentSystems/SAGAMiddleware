@@ -2247,7 +2247,7 @@ Extracted content for DataFilteringAgent: Task for structured query search. **CR
     const executionOrder = [...preIterationTransactions].reverse();
     const agent = this.agents.get(iteratingTransaction.agentName);
     const headerRow = this.csvReader.getHeaderRow();
-    console.log('HEADER', headerRow)
+  //  console.log('HEADER', headerRow)
     const results: string[] = [];
  let rows = this.csvReader.getNext20Rows();
     while(this.csvReader.hasMoreRows()){
@@ -3809,10 +3809,10 @@ Task Context: ${taskContext}
       { agent: 'D3JSCoordinatingAgent', process:'DefineGenericAgentsProcess'},
       { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
       { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent', },
-    /*  { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
-      { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
-      { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess' },
-      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }*/
+      { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
+     { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
+      { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodingAgent' },
+     // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }
     ];
   }
 
@@ -3828,6 +3828,9 @@ Task Context: ${taskContext}
     transactionSetCollection?: TransactionSetCollection
   ): DefineGenericAgentsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | null {
     const agent = this.agents.get(agentName);
+    
+    console.log('PROCESS TYPE', processType)
+    console.log(' AGENT ',  agentName)
     if (!agent) {
       console.error(`❌ Agent ${agentName} not found`);
       return null;
@@ -3843,6 +3846,7 @@ Task Context: ${taskContext}
         );
 
       case 'ValidationProcess': {
+        console.log('TARGET AGENT NAME', targetAgentName)
         // For ValidationProcess, agentName is ValidatingAgent, targetAgentName is the agent being validated
         if (!targetAgentName) {
           console.error('❌ ValidationProcess requires targetAgent');
@@ -3884,6 +3888,7 @@ Task Context: ${taskContext}
           return null;
         }
         return new ExecuteGenericAgentsProcess(
+          agent,
           this,
           transactionSetCollection
         );
@@ -3907,14 +3912,16 @@ Task Context: ${taskContext}
         return new D3JSCodingProcess(
           agent,
           this.contextManager,
-          userQuery
+          userQuery,
+          targetAgentName as string
         );
 
       case 'DataAnalysisProcess':
         return new DataAnalysisProcess(
           agent,
           this.contextManager,
-          userQuery
+          userQuery,
+          targetAgentName as string
         );
 
       case 'DataSummarizingProcess':
@@ -3938,12 +3945,19 @@ Task Context: ${taskContext}
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
 
+    let lastDynamicAgentName = '';
+
     for (let i = 0; i < this.controlFlowList.length; i++) {
       const step = this.controlFlowList[i];
       console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.process} ---`);
 
       // Update current agent state
       this.currAgent = this.agents.get(step.agent) || null;
+
+      if (step.process === 'DataAnalysisProcess') {
+        step.targetAgent = lastDynamicAgentName;
+      }
+        
 
       // Instantiate process
       const process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
@@ -4007,9 +4021,22 @@ Task Context: ${taskContext}
           const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
           const transactionSetCollection = await process?.execute() as TransactionSetCollection;
           const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,'',transactionSetCollection );
-          await executionProcess?.execute()
+          await executionProcess?.execute();
+          transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
+            if(transactionSet.transactions.length > 1){
+                 transactionSet.transactions.forEach((transaction: SagaTransaction) => {
+                lastDynamicAgentName = transaction.agentName
+            })
+            }
+         
+          });
+           this.instantiateProcess('ValidationProcess', '', lastDynamicAgentName );
+          // const validatingResult = await executionProcess?.execute();
+          // console.log('VALIDATING EXEC', validatingResult)
+           console.log('LASTE', lastDynamicAgentName)
         }
-        
+
+       
 
         console.log(`✅ Step ${i + 1} completed successfully`);
       } catch (error) {

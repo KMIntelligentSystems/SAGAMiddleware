@@ -84,7 +84,7 @@ export class GenericAgent {
       
       const prompt = this.createPrompt();//buildPrompt(contextData);
       console.log("PROMPT ",prompt)
-      const llmResult = await this.invokeLLM(prompt);
+      const llmResult = ''//await this.invokeLLM(prompt);
       
       const result = llmResult;
       

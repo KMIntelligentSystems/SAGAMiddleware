@@ -3,8 +3,9 @@
 
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
-import { AgentResult } from '../types/index.js';
-
+import { AgentResult, WorkingMemory } from '../types/index.js';
+import * as fs from 'fs';
+import * as path from 'path';
 /**
  * D3JSCodingProcess
  *
@@ -23,15 +24,17 @@ export class D3JSCodingProcess {
   private agent: GenericAgent;
   private contextManager: ContextManager;
   private userQuery: string;
-
+  private targetAgentName: string;
   constructor(
     agent: GenericAgent,
     contextManager: ContextManager,
-    userQuery: string
+    userQuery: string,
+     targetAgentName: string
   ) {
     this.agent = agent;
     this.contextManager = contextManager;
     this.userQuery = userQuery;
+    this.targetAgentName = targetAgentName;
   }
 
   /**
@@ -58,24 +61,32 @@ export class D3JSCodingProcess {
     }
 
     console.log(`📝 Extracted task for ${this.agent.getName()}`);
-
+   
+    const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+    console.log('CODING PROCESS', this.targetAgentName)
+     this.agent.setTaskDescription(conversationContext);
     // Clear previous context
     this.agent.deleteContext();
 
     // Set context with task
-    this.agent.receiveContext({ 'YOUR TASK': conversationContext });
+    this.agent.receiveContext({ 'INFORMATION TOT ASSIST YOU: ' :ctx.lastTransactionResult });
 
     // Note: The data analysis summary should already be in the agent's context
     // from DataSummarizingProcess or set by SagaCoordinator
-
-    // Execute agent to generate D3 code
-   // const result = await this.agent.execute({});
-     const result: AgentResult = {
+ const result: AgentResult = {
       agentName: 'cycle_start',
       result: 'TEST',
       success: true,
       timestamp: new Date()
     };
+    // Execute agent to generate D3 code
+     //   result = await agent?.execute({}) as AgentResult;
+     //    const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
+    //   fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
+    //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')
+      const codingResult = fs.readFileSync('data/codingOpenAIAgentResult.txt', 'utf-8');
+      result.result = this.cleanJavaScriptCode( codingResult); //
+    
 
     // Store D3 code result
     this.contextManager.updateContext(this.agent.getName(), {
@@ -131,6 +142,75 @@ export class D3JSCodingProcess {
       console.warn(`Failed to parse for agent ${agentName}:`, error);
       return '';
     }
+  }
+
+   private cleanJavaScriptCode(rawCode: any): string {
+    let codeToClean = rawCode;
+
+    // If it's a string that looks like JavaScript object literal, try to evaluate it
+    if (typeof rawCode === 'string' && rawCode.trim().startsWith('{')) {
+      try {
+        // Safely evaluate the JavaScript object literal
+        const evaluated = eval('(' + rawCode + ')');
+        if (evaluated && typeof evaluated === 'object' && 'result' in evaluated) {
+          codeToClean = evaluated.result;
+        }
+      } catch (e) {
+        console.warn('Could not evaluate JavaScript object literal, treating as raw string');
+        codeToClean = rawCode;
+      }
+    }
+    // Handle object with result property (like d3jsCodeResult structure)
+    else if (typeof rawCode === 'object' && rawCode !== null && 'result' in rawCode) {
+      codeToClean = rawCode.result;
+    }
+
+    // Type safety check
+    if (!codeToClean || typeof codeToClean !== 'string') {
+      console.warn('cleanJavaScriptCode received non-string input:', typeof codeToClean, codeToClean);
+      return typeof codeToClean === 'object' ? JSON.stringify(codeToClean) : String(codeToClean || '');
+    }
+
+    // Handle JavaScript-style concatenated strings with + operators
+    let cleaned = codeToClean
+      // Remove string concatenation operators and newlines
+      .replace(/'\s*\+\s*$/gm, '')
+      .replace(/'\s*\+\s*'/g, '')
+      .replace(/"\s*\+\s*$/gm, '')
+      .replace(/"\s*\+\s*"/g, '')
+      .replace(/`/g, "'")  // Fix backticks to quotes
+      // Remove leading/trailing quotes and handle escape sequences
+      .replace(/^['"]/, '')
+      .replace(/['"]$/, '')
+      .replace(/\\n/g, '\n')
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"');
+
+    // Replace hardcoded file paths with relative paths for browser compatibility
+    cleaned = cleaned.replace(
+      /const CSV_PATH = ['"'][^'"]*\/([^\/'"]+\.csv)['"];/g,
+      "const CSV_PATH = './$1';"
+    );
+
+    // Replace d3.csv absolute paths with relative paths
+    cleaned = cleaned.replace(
+      /d3\.csv\(['"][^'"]*\/([^\/'"]+\.csv)['"]/g,
+      "d3.csv('./$1'"
+    );
+
+    // Add error handling for missing CSV files
+    if (cleaned.includes("d3.csv")) {
+      cleaned = cleaned.replace(
+        /(d3\.csv\([^)]+\))/g,
+        "$1.catch(err => { console.error('CSV file not found:', err); return []; })"
+      );
+    }
+
+    // Restore template literal placeholders that were escaped for text storage
+    // Convert ${/variable} back to ${variable}
+  //  cleaned = cleaned.replace(/\$\/\{([^}]+)\}/g, '${$1}');
+    
+    return cleaned.trim();
   }
 
   /**
