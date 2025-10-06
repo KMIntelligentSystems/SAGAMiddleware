@@ -16,6 +16,30 @@ import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { CSVReader } from '../processing/csvReader.js'
 
+// Default control flow list for saga coordinator
+const CONTROL_FLOW_LIST = [
+  { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
+  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' },
+  { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
+  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent', },
+  { agent: 'D3JSCoordinatingAgent', process:'DefineGenericAgentsProcess'},
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
+  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent', },
+  { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
+  { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
+  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent' },
+  // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }
+];
+
+const CONTROL_UPDATE_FLOW_LIST = [
+  { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
+  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent' },
+  //{ agent: 'D3JSCoordinatingAgent' , process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent'},
+]
+
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
   private ragServerConfig: any;
@@ -626,7 +650,12 @@ Focus: Only array extraction
       // Using context set: default_visualization_context for transaction set: visualization
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
 
-      this.coordinator.initializeControlFlow();
+      if(browserRequest.operationType === 'thread_id_response'){
+         this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
+      } else  if(browserRequest.operationType === 'update_code'){
+         this.coordinator.initializeControlFlow(CONTROL_UPDATE_FLOW_LIST);
+      }
+     
        const result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
        console.log('FINAL RESULT ', result)
       // Execute SAGA through coordinator using the new executeTransactionSetCollection method

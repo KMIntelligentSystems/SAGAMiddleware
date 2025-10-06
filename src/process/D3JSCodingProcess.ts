@@ -46,8 +46,7 @@ export class D3JSCodingProcess {
     // Parse user query to extract D3JSCodingAgent's task
     const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
-      this.agent.getName()
-    );
+      this.agent.getName())
 
     if (!conversationContext) {
       console.warn(`⚠️  No task found for ${this.agent.getName()} in user query`);
@@ -62,7 +61,7 @@ export class D3JSCodingProcess {
 
     console.log(`📝 Extracted task for ${this.agent.getName()}`);
    
-    const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+    const ctx = this.contextManager.getContext(this. targetAgentName) as WorkingMemory;
     console.log('CODING PROCESS', this.targetAgentName)
      this.agent.setTaskDescription(conversationContext);
     // Clear previous context
@@ -73,14 +72,14 @@ export class D3JSCodingProcess {
 
     // Note: The data analysis summary should already be in the agent's context
     // from DataSummarizingProcess or set by SagaCoordinator
- const result: AgentResult = {
+ const result_: AgentResult = {
       agentName: 'cycle_start',
       result: 'TEST',
       success: true,
       timestamp: new Date()
     };
     // Execute agent to generate D3 code
-     //   result = await agent?.execute({}) as AgentResult;
+     const  result = await this.agent.execute({}) as AgentResult;
      //    const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
     //   fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
     //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')

@@ -6,6 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult } from '../test/testData.js'
 
+
 /**
  * ValidationProcess
  *
@@ -48,12 +49,8 @@ export class ValidationProcess {
   async execute(): Promise<AgentResult> {
     console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent.getName()}`);
 
-    const taskDescription = `You will validate two inputs, one against the other. The first input is a set of instructions for the building of two agents.
-The second input is the formatted construction of those agents. There are certain rules that you must understand from the first input to determine if the second input follows the rules.
-The rules are:
-1. Does the output create two distinct agents with their tasks clearly defined based on your analysis of the first input?
-2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
-If these rules are not met, rectify the output accordingly. Return your result as JSON: {'solution': [the correct result]}`;
+    const taskDescription = this.userQuery;
+    console.log('VALIDATION TASK DESC', taskDescription)
     // Get target agent's last result
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
 
@@ -69,10 +66,10 @@ If these rules are not met, rectify the output accordingly. Return your result a
     }
 
     // Extract target agent's original task from user query
-    const conversationContext = this.parseConversationResultForAgent(
+  /*  const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
       this.targetAgent.getName()
-    );
+    );*/
 
     console.log(`📝 Target agent output: ${ctx.lastTransactionResult.substring(0, 100)}...`);
 
@@ -80,13 +77,13 @@ If these rules are not met, rectify the output accordingly. Return your result a
     this.validatingAgent.deleteContext();
 
     // Set context for validation
-    this.validatingAgent.receiveContext({ 'USER REQUEST': conversationContext });
+  //  this.validatingAgent.receiveContext({ 'USER REQUEST': conversationContext });
     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
     this.validatingAgent.setTaskDescription(taskDescription );
     // Execute validation
- //   const result = await this.validatingAgent.execute({});
+   const result = await this.validatingAgent.execute({});
    // console.log('VALIDATION ', result.result)
-  const result: AgentResult = {
+  const result_: AgentResult = {
       agentName: 'cycle_start',
       result: validationFixedSyntaxResult,
       success: true,
@@ -98,26 +95,26 @@ If these rules are not met, rectify the output accordingly. Return your result a
     const validationPassed = this.isValidationSuccessful(result.result);
 
     if (validationPassed) {
-      console.log(`✅ Validation PASSED for ${this.targetAgent.getName()}`);
+      console.log(`✅ Validation PASSED for ${this.targetAgent.getName()}`); //TransactionGroupingAgent
        // Store validation result in context manager
     // NOTE: We store under targetAgent's name so it can see validation feedback
-    this.contextManager.updateContext(this.targetAgent.getName(), {
+  /* this.contextManager.updateContext(this.targetAgent.getName(), {
       lastTransactionResult: result.result,
       validationResult: result.result,
       transactionId: this.validatingAgent.getId(),
       timestamp: new Date()
-    });
+    });*/
     } else {
       console.warn(`⚠️  Validation FAILED for ${this.targetAgent.getName()}`);
       console.log(`📋 Validation feedback: ${result.result.substring(0, 200)}...`);
     }
 //Assume that ValidatingAgent has fixed errors
-    this.contextManager.updateContext('FlowDefiningAgent', {
+  /*  this.contextManager.updateContext('FlowDefiningAgent', {
       lastTransactionResult: result.result,
       validationResult: result.result,
       transactionId: this.validatingAgent.getId(),
       timestamp: new Date()
-    });
+    });*/
 
     return {
       ...result,

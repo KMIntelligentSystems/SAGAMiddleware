@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
-import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1 } from '../test/testData.js'
+import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult } from '../test/testData.js'
 
 /**
  * DefineGenericAgentsProcess
@@ -27,15 +27,17 @@ export class DefineGenericAgentsProcess {
   private agent: GenericAgent;
   private contextManager: ContextManager;
   private userQuery: string;
-
+  private targetAgent?: string
   constructor(
     agent: GenericAgent,
     contextManager: ContextManager,
-    userQuery: string
+    userQuery: string,
+    targetAgent?: string
   ) {
     this.agent = agent;
     this.contextManager = contextManager;
     this.userQuery = userQuery;
+    this.targetAgent = targetAgent;
   }
 
   /**
@@ -48,7 +50,9 @@ export class DefineGenericAgentsProcess {
   and the output from thinking through the task to provide meaningful instructions for other agents to 
   enable them to execute their tasks`;
 
-   
+   if(this.targetAgent && this.targetAgent === this.agent.getName()){
+
+   }
     // Parse user query to extract this agent's task
     const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
@@ -89,8 +93,10 @@ console.log('CONVERSATION ',conversationContext )
      // console.log('DEFINE AGENT ', result.result)
      result.result = groupingAgentResult
     } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
-     result.result = visualizationGroupingAgentsResult;
+     result.result = d3jsCodeUpdateResult;//visualizationGroupingAgentsResult;
     } else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
+     result.result = graphAnalyzerResult_1;
+    } else if(this.agent.getName() === 'D3JSCoordinatingAgent' && this.targetAgent  === 'D3JSCoordinatingAgent'){
      result.result = graphAnalyzerResult_1;
     } 
    

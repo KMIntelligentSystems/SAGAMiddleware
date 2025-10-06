@@ -129,6 +129,13 @@ The rules are:
 2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
 If these rules are not met, rectify the output accordingly`;
 
+export const pythonCodeValidatingAgentPrompt = `You will validate python code. You will examine the code to determine:
+1. Are there any syntax errors
+2. Is the code complete
+4. Does the code use python libraries such as pandas
+If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.
+If there are no problems, simply return: {success: true}`
+
 export const d3CodeValidatingAgentPrompt = `You will validate d3 js code. You will examine the code to determine:
 1. Are there any syntax errors
 2. Is the code complete, for example, there is a beginning <html> and a concluding </html> tag

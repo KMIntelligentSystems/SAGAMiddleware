@@ -25,7 +25,9 @@ import {
   groupingAgentPrompt,
   csvAnalysisRefectingAgentPrompt,
    D3JSCoordinatingAgentChallengePrompt,
-   D3JSCodeValidationResultPrompt
+   D3JSCodeValidationResultPrompt,
+   pythonCodeValidatingAgentPrompt,
+    dataValidatingAgentPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -3798,22 +3800,8 @@ Task Context: ${taskContext}
    * Initialize control flow list
    * Maps default agents to their corresponding process types
    */
-  initializeControlFlow(): void {
-    this.controlFlowList = [
-      { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
-      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
-      { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' },
-      { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
-      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
-      { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent', },
-      { agent: 'D3JSCoordinatingAgent', process:'DefineGenericAgentsProcess'},
-      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
-      { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent', },
-      { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
-     { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
-      { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodingAgent' },
-     // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }
-    ];
+  initializeControlFlow(controlFlowList: Array<{agent: string, process: string, targetAgent?: string}>): void {
+    this.controlFlowList = controlFlowList;
   }
 
   /**
@@ -3945,6 +3933,10 @@ Task Context: ${taskContext}
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
 
+    const clientReq = userQuery;
+    const validationAgentSyntaxReq =  dataValidatingAgentPrompt;
+    const validationPythonReq = pythonCodeValidatingAgentPrompt;
+
     let lastDynamicAgentName = '';
 
     for (let i = 0; i < this.controlFlowList.length; i++) {
@@ -3960,7 +3952,14 @@ Task Context: ${taskContext}
         
 
       // Instantiate process
-      const process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
+      let query = ''
+      if( step.process === 'ValidationProcess'){
+        query = validationAgentSyntaxReq;
+      } else{
+        query = clientReq;
+      }
+  
+      const process = this.instantiateProcess(step.process, step.agent, query, step.targetAgent);
       if (!process) {
         console.error(`❌ Failed to instantiate process at step ${i + 1}`);
         continue;
@@ -3972,6 +3971,7 @@ Task Context: ${taskContext}
 
         // Handle ValidationProcess specifically for retry logic
         if (step.process === 'ValidationProcess') {
+
           const validationResult = result as AgentResult;
 
          /* if (!validationResult.success) {
@@ -4026,12 +4026,14 @@ Task Context: ${taskContext}
             if(transactionSet.transactions.length > 1){
                  transactionSet.transactions.forEach((transaction: SagaTransaction) => {
                 lastDynamicAgentName = transaction.agentName
-            })
+            }) 
+            } else {
+              lastDynamicAgentName = transactionSetCollection.sets[0].transactions[0].agentName;
             }
          
           });
-           this.instantiateProcess('ValidationProcess', '', lastDynamicAgentName );
-          // const validatingResult = await executionProcess?.execute();
+           const validatingProcess = this.instantiateProcess('ValidationProcess', 'ValidatingAgent',validationPythonReq, lastDynamicAgentName );
+           const validatingResult = await  validatingProcess?.execute();
           // console.log('VALIDATING EXEC', validatingResult)
            console.log('LASTE', lastDynamicAgentName)
         }
