@@ -30,13 +30,13 @@ const CONTROL_FLOW_LIST = [
   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
   { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
   { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent' },
-  // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' }
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' }
 ];
 
 const CONTROL_UPDATE_FLOW_LIST = [
-  { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
-  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent' },
+  { agent: 'D3JSCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
+  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent' },
   //{ agent: 'D3JSCoordinatingAgent' , process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent'},
 ]
 
@@ -44,6 +44,7 @@ export class SagaWorkflow {
   private coordinator: SagaCoordinator;
   private ragServerConfig: any;
   private codeGenServerConfig: any;
+  private playwrightServerConfig: any;
   private initialized: boolean = false;
   private eventBusClient: SAGAEventBusClient;
   private config: HumanInLoopConfig;
@@ -75,12 +76,20 @@ export class SagaWorkflow {
         command: "node",
         args: ["C:/repos/codeGen-mcp-server/dist/server.js", "--stdio"],
         timeout: 300000
+      }),
+      playwright: createMCPServerConfig({
+        name: "playwright-server",
+        transport: "stdio",
+        command: "node",
+        args: ["C:/repos/playwright-mcp-server/dist/server.js"],
+        timeout: 300000
       })
     };
 
     // Store for backward compatibility
     this.ragServerConfig = mcpServers.rag;
     this.codeGenServerConfig = mcpServers.execution;
+    this.playwrightServerConfig = mcpServers.playwright;
     
     // Pass all servers to coordinator
     this.coordinator = new SagaCoordinator(mcpServers);
@@ -123,13 +132,16 @@ export class SagaWorkflow {
     // Register default context set for the visualization transaction set
     this.registerDefaultContextSet();
     
-    // Connect to RAG server
+    // Connect to MCP servers
     try {
     //  await connectToMCPServer(this.ragServerConfig);
       await connectToMCPServer(this.codeGenServerConfig);
-      console.log('✅ Connected to RAG MCP server');
+      console.log('✅ Connected to CodeGen MCP server');
+
+      await connectToMCPServer(this.playwrightServerConfig);
+      console.log('✅ Connected to Playwright MCP server');
     } catch (error) {
-      throw new Error(`Failed to connect to RAG server: ${error}`);
+      throw new Error(`Failed to connect to MCP servers: ${error}`);
     }
 
     // Ensure data is indexed
@@ -561,8 +573,8 @@ Focus: Only array extraction
     
     socket.on('event_received', async (message: any) => {
       console.log('MESSAGE TYPE', message.type)
-       if ((message.type === 'thread_id_response' ||  message.type === 'update_code') && message.source === 'react-app') {
-        console.log(`🧵 Received thread_id_response from browser:` + JSON.stringify(message.data));
+       if ((message.type === 'create_code' ||  message.type === 'update_code') && message.source === 'react-app') {
+        console.log(`🧵 Received create_code from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'update_code' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
@@ -597,7 +609,7 @@ Focus: Only array extraction
       const threadId = data.threadId;
       
      if (!threadId) {
-        console.error('❌ No threadId provided in thread_id_response');
+        console.error('❌ No threadId provided in create_code');
         return;
       }
       
@@ -650,7 +662,7 @@ Focus: Only array extraction
       // Using context set: default_visualization_context for transaction set: visualization
       console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
 
-      if(browserRequest.operationType === 'thread_id_response'){
+      if(browserRequest.operationType === 'create_code'){
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_FLOW_LIST);

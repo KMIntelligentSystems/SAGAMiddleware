@@ -31,6 +31,7 @@ export interface MCPClientManager {
   getResource(serverName: string, resourceUri: string): Promise<any>;
   listResources(serverName?: string): Promise<MCPResource[]>;
   isConnected(serverName: string): boolean;
+  getConnectedServers(): string[];
   addToolEnhancementRule(rule: ToolCallEnhancementRule): void;
   removeToolEnhancementRule(toolName: string): boolean;
 }
@@ -418,7 +419,12 @@ MCP tool execute_python raw response: {
           serverName: name
         }));
         allResources.push(...resources);
-      } catch (error) {
+      } catch (error: any) {
+        // Silently skip servers that don't support resources (MCP error -32601: Method not found)
+        if (error?.code === -32601) {
+          // This is expected for servers that don't implement resources
+          continue;
+        }
         console.error(`Error listing resources from server ${name}:`, error);
       }
     }

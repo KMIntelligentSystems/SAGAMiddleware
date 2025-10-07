@@ -23,15 +23,18 @@ import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyze
 export class ExecuteGenericAgentsProcess {
   private agent: GenericAgent;
   private transactionSetCollection: TransactionSetCollection;
-  private coordinator: SagaCoordinator
+  private coordinator: SagaCoordinator;
+  private targetAgent: string;
   constructor(
     agent: GenericAgent,
     coordinator: SagaCoordinator,
-    transactionSetCollection: TransactionSetCollection
+    transactionSetCollection: TransactionSetCollection,
+    targetAgent: string
   ) {
     this.agent = agent; //FlowDefiningAgent
     this.coordinator = coordinator;
     this.transactionSetCollection = transactionSetCollection;
+    this.targetAgent = targetAgent;
   }
 
   /**
@@ -57,7 +60,9 @@ export class ExecuteGenericAgentsProcess {
       success: true,
       timestamp: new Date()
     };
-
+sagaTransactions.forEach(e => {
+  console.log('EXEC NAME ', e.agentName)
+})
     if(sagaTransactions.length > 1){
      result = await this.executeSagaTransactionWithLinearContext( sagaTransactions);
     } else if(sagaTransactions.length === 1){
@@ -82,23 +87,32 @@ export class ExecuteGenericAgentsProcess {
   private async executeSagaTransactionWithSingletonContext(
       transaction: SagaTransaction
     ): Promise<AgentResult> {
-     
+     console.log('SINGLETON ', transaction.agentName)
       const agent = this.coordinator.agents.get(transaction.agentName);
 
+      const result = await agent?.execute({});
+//flowProcess
       this.coordinator.contextManager.updateContext(this.agent.getName(), {
+      lastTransactionResult: graphAnalyzerResult_1,
+      transactionId: this.agent.getId(),
+      timestamp: new Date()
+    });
+//D3JSCoordinationAgent
+console.log('target agent 1',this.targetAgent)
+      this.coordinator.contextManager.updateContext(this.targetAgent, {
       lastTransactionResult: graphAnalyzerResult_1,
       transactionId: this.agent.getId(),
       timestamp: new Date()
     });
 
     
-       let result: AgentResult = {agentName: this.agent.getName(),
+       let result_: AgentResult = {agentName: this.agent.getName(),
       result:  graphAnalyzerResult_1,
       success: false,
       timestamp: new Date()
     };
 
-    return result;
+    return result_;
 
     }  
     

@@ -48,7 +48,7 @@ export class FlowProcess {
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
 
     if (!ctx || !ctx.lastTransactionResult) {
-      console.error(`❌ No result found for ${this.targetAgent.getName()}`);
+      console.error(`❌ Flow No result found for ${this.targetAgent.getName()}`);
       return {
         agentName: this.flowDefiningAgent.getName(),
         result: '',
@@ -133,6 +133,10 @@ export class FlowProcess {
    */
   getFlowDefiningAgent(): GenericAgent {
     return this.flowDefiningAgent;
+  }
+
+  getTargetAgent(){
+    return this.targetAgent;
   }
 
   /**

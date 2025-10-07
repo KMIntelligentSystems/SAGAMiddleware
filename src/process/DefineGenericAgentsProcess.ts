@@ -5,6 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
 import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult } from '../test/testData.js'
+import { dataValidatingAgentPrompt } from '../types/visualizationSaga.js'
 
 /**
  * DefineGenericAgentsProcess
@@ -93,11 +94,14 @@ console.log('CONVERSATION ',conversationContext )
      // console.log('DEFINE AGENT ', result.result)
      result.result = groupingAgentResult
     } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
-     result.result = d3jsCodeUpdateResult;//visualizationGroupingAgentsResult;
+     result.result = visualizationGroupingAgentsResult;
+      this.agent.setTaskDescription(dataValidatingAgentPrompt);
     } else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
      result.result = graphAnalyzerResult_1;
+           this.agent.setTaskDescription(dataValidatingAgentPrompt);
     } else if(this.agent.getName() === 'D3JSCoordinatingAgent' && this.targetAgent  === 'D3JSCoordinatingAgent'){
-     result.result = graphAnalyzerResult_1;
+            this.agent.setTaskDescription(dataValidatingAgentPrompt);
+     result.result = graphAnalyzerResult_1; // d3jsCodeUpdateResult;//
     } 
    
     // Store result in context manager

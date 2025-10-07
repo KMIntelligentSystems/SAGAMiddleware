@@ -50,7 +50,7 @@ export class ValidationProcess {
     console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent.getName()}`);
 
     const taskDescription = this.userQuery;
-    console.log('VALIDATION TASK DESC', taskDescription)
+    console.log('VALIDATION TASK DESC', taskDescription)// You will validate python code
     // Get target agent's last result
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
 
@@ -79,10 +79,10 @@ export class ValidationProcess {
     // Set context for validation
   //  this.validatingAgent.receiveContext({ 'USER REQUEST': conversationContext });
     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
-    this.validatingAgent.setTaskDescription(taskDescription );
+    this.validatingAgent.setTaskDescription(this.targetAgent.getAgentDefinition().taskDescription);
     // Execute validation
    const result = await this.validatingAgent.execute({});
-   // console.log('VALIDATION ', result.result)
+   console.log('VALIDATION ', result.result)
   const result_: AgentResult = {
       agentName: 'cycle_start',
       result: validationFixedSyntaxResult,

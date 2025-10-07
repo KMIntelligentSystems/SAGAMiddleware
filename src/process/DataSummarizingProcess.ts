@@ -74,7 +74,7 @@ export class DataSummarizingProcess {
 
 
     // Execute agent for data summarization
-    this.agent.execute({});
+  //  this.agent.execute({});
     const result: AgentResult = {
       agentName: this.agent.getName(),
       result: D3JSCoordinatingAgentFinalResult,

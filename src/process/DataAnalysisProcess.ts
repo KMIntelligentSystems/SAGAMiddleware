@@ -42,6 +42,7 @@ export class DataAnalysisProcess {
    * Execute data analysis
    */
   async execute(): Promise<AgentResult> {
+    console.log('ANALYSIS TARGET ', this.targeAgentName)
     console.log(`\n📊 DataAnalysisProcess: Analyzing data with ${this.agent.getName()}`);
 
     // Get context for the agent

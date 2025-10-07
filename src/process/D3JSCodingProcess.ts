@@ -4,6 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
+import { d3CodeValidatingAgentPrompt } from '../types/visualizationSaga.js'
 import * as fs from 'fs';
 import * as path from 'path';
 /**
@@ -72,14 +73,14 @@ export class D3JSCodingProcess {
 
     // Note: The data analysis summary should already be in the agent's context
     // from DataSummarizingProcess or set by SagaCoordinator
- const result_: AgentResult = {
+ const result: AgentResult = {
       agentName: 'cycle_start',
       result: 'TEST',
       success: true,
       timestamp: new Date()
     };
     // Execute agent to generate D3 code
-     const  result = await this.agent.execute({}) as AgentResult;
+    // const  result = await this.agent.execute({}) as AgentResult;
      //    const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
     //   fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
     //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')
@@ -88,11 +89,19 @@ export class D3JSCodingProcess {
     
 
     // Store D3 code result
-    this.contextManager.updateContext(this.agent.getName(), {
+    this.contextManager.updateContext(this.targetAgentName, {
       lastTransactionResult: result.result,
       transactionId: this.agent.getId(),
       timestamp: new Date()
     });
+
+       this.contextManager.updateContext(this.agent.getName(), {
+      lastTransactionResult: result.result,
+      transactionId: this.agent.getId(),
+      timestamp: new Date()
+    });
+
+    this.agent.setTaskDescription(d3CodeValidatingAgentPrompt);
 
     console.log(`✅ D3.js code generated`);
     console.log(`📄 Code preview: ${result.result.substring(0, 200)}...`);

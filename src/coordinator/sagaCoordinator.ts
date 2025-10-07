@@ -27,7 +27,8 @@ import {
    D3JSCoordinatingAgentChallengePrompt,
    D3JSCodeValidationResultPrompt,
    pythonCodeValidatingAgentPrompt,
-    dataValidatingAgentPrompt
+    dataValidatingAgentPrompt,
+    d3CodeValidatingAgentPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -42,6 +43,7 @@ import { groupingAgentResult, groupingAgentFailedResult, pythonLogCodeResult, vi
   visCodeWriterResult, graphAnalyzerResult,graphAnalyzerResult_1, csvData, aggregatorResult_1, aggregatorResult_2,aggregatorResult_3, aggregatorResult_4, D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, d3ChallengeResult1, 
   d3CoordinatorChallengeResponse, aggregatorResult_1_1, aggregatorResult_1_2,aggregatorResult_1_3, aggregatorResult_1_4,aggregatorResult_1_5 } from '../test/testData.js';
 import { CSVReader } from '../processing/csvReader.js'
+import { D3VisualizationClient, D3RenderResult } from '../mcp/d3VisualizationClient.js';
 
 import { DefineGenericAgentsProcess } from '../process/DefineGenericAgentsProcess.js';
 import { ValidationProcess } from '../process/ValidationProcess.js';
@@ -70,6 +72,7 @@ export class SagaCoordinator extends EventEmitter {
   agentFlows: string[][] = [];
   private activeTransactionSetId: string = '';
   private csvReader: CSVReader = new CSVReader();
+  private d3Client: D3VisualizationClient | null = null;
  
 //  private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
@@ -3858,6 +3861,8 @@ Task Context: ${taskContext}
         if (!flowDefiningAgent) {
           console.error('❌ FlowDefiningAgent not found');
           return null;
+
+        
         }*/
        if(targetAgentName){
           const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
@@ -3878,7 +3883,8 @@ Task Context: ${taskContext}
         return new ExecuteGenericAgentsProcess(
           agent,
           this,
-          transactionSetCollection
+          transactionSetCollection,
+          targetAgentName as string
         );
       } 
 
@@ -3936,8 +3942,10 @@ Task Context: ${taskContext}
     const clientReq = userQuery;
     const validationAgentSyntaxReq =  dataValidatingAgentPrompt;
     const validationPythonReq = pythonCodeValidatingAgentPrompt;
+    const validationD3JSReq = d3CodeValidatingAgentPrompt;
 
     let lastDynamicAgentName = '';
+    let lastFlowTargetName = '';
 
     for (let i = 0; i < this.controlFlowList.length; i++) {
       const step = this.controlFlowList[i];
@@ -3950,16 +3958,20 @@ Task Context: ${taskContext}
         step.targetAgent = lastDynamicAgentName;
       }
         
+      if (step.process === 'FlowProcess') {
+        console.log('LAST NAME', lastFlowTargetName)
+    //    step.targetAgent = lastFlowTargetName;
+      }
 
       // Instantiate process
       let query = ''
       if( step.process === 'ValidationProcess'){
-        query = validationAgentSyntaxReq;
+        query = validationAgentSyntaxReq; //d3CodeValidatingAgentPrompt
       } else{
         query = clientReq;
       }
   
-      const process = this.instantiateProcess(step.process, step.agent, query, step.targetAgent);
+      const process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
       if (!process) {
         console.error(`❌ Failed to instantiate process at step ${i + 1}`);
         continue;
@@ -4018,9 +4030,10 @@ Task Context: ${taskContext}
         }
 
         if (step.process === 'FlowProcess') {
+  
           const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
           const transactionSetCollection = await process?.execute() as TransactionSetCollection;
-          const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,'',transactionSetCollection );
+          const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,step.targetAgent,transactionSetCollection );
           await executionProcess?.execute();
           transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
             if(transactionSet.transactions.length > 1){
@@ -4028,17 +4041,45 @@ Task Context: ${taskContext}
                 lastDynamicAgentName = transaction.agentName
             }) 
             } else {
-              lastDynamicAgentName = transactionSetCollection.sets[0].transactions[0].agentName;
+              transactionSetCollection.sets[0].transactions[0].agentName; //lastDynamicAgentName = 
             }
          
           });
+          console.log('LASTE', lastDynamicAgentName)
            const validatingProcess = this.instantiateProcess('ValidationProcess', 'ValidatingAgent',validationPythonReq, lastDynamicAgentName );
            const validatingResult = await  validatingProcess?.execute();
           // console.log('VALIDATING EXEC', validatingResult)
-           console.log('LASTE', lastDynamicAgentName)
+           
         }
 
-       
+        // Auto-render D3 visualization after D3JSCodingProcess
+        if (step.process === 'D3JSCodingProcess') {
+          const agentResult = result as AgentResult;
+
+          if (agentResult.success) {
+            console.log('\n🎨 Auto-rendering D3 visualization...');
+
+            // Get the D3 code from the result
+            const d3Code = agentResult.result;
+
+            if (d3Code && typeof d3Code === 'string') {
+              // Render the visualization
+              const renderResult = await this.renderD3Visualization(
+                d3Code,
+                step.agent,
+                `${step.agent}-output`
+              );
+
+              if (renderResult.success) {
+                console.log('✅ D3 visualization auto-rendered successfully');
+              } else {
+                console.warn(`⚠️  D3 visualization rendering failed: ${renderResult.error}`);
+              }
+            } else {
+              console.warn('⚠️  No D3 code found in result, skipping auto-render');
+            }
+          }
+        }
 
         console.log(`✅ Step ${i + 1} completed successfully`);
       } catch (error) {
@@ -4062,5 +4103,90 @@ Task Context: ${taskContext}
       }
     }
     return -1;
+  }
+
+  /**
+   * Initialize D3 visualization client with Playwright MCP server
+   */
+  initializeD3Client(): void {
+    if (!this.d3Client) {
+      this.d3Client = new D3VisualizationClient(mcpClientManager, 'playwright-server');
+      console.log('✅ D3 visualization client initialized');
+    }
+  }
+
+  /**
+   * Render D3 visualization code using Playwright MCP
+   *
+   * @param d3Code - The D3.js code to render
+   * @param agentName - The name of the agent that generated the code (optional, for context)
+   * @param outputName - Custom name for output files (optional)
+   * @returns Promise with render result including paths to PNG and SVG files
+   */
+  async renderD3Visualization(
+    d3Code: string,
+    agentName?: string,
+    outputName?: string
+  ): Promise<D3RenderResult> {
+    // Initialize D3 client if not already initialized
+    if (!this.d3Client) {
+      this.initializeD3Client();
+    }
+
+    if (!this.d3Client) {
+      console.error('❌ Failed to initialize D3 client');
+      return {
+        success: false,
+        error: 'D3 client initialization failed'
+      };
+    }
+
+    console.log(`🎨 Rendering D3 visualization${agentName ? ` from ${agentName}` : ''}...`);
+
+    // Generate output name based on agent or timestamp
+    const baseName = outputName || (agentName ? `${agentName}-${Date.now()}` : `visualization-${Date.now()}`);
+
+    try {
+      const result = await this.d3Client.renderD3({
+        d3Code,
+        screenshotName: `${baseName}.png`,
+        svgName: `${baseName}.svg`,
+        outputPath: path.join(process.cwd(), 'output', 'd3-visualizations')
+      });
+
+      if (result.success) {
+        console.log(`✅ D3 visualization rendered successfully`);
+        console.log(`  📸 PNG: ${result.screenshotPath}`);
+        console.log(`  💾 SVG: ${result.svgPath}`);
+
+        // Store visualization paths in context for the agent
+        if (agentName) {
+          this.contextManager.updateContext(agentName, {
+            lastVisualizationPNG: result.screenshotPath,
+            lastVisualizationSVG: result.svgPath,
+            timestamp: new Date()
+          });
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error rendering D3 visualization:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
+  /**
+   * Close D3 client and cleanup
+   */
+  async closeD3Client(): Promise<void> {
+    if (this.d3Client) {
+      await this.d3Client.close();
+      this.d3Client = null;
+      console.log('🔒 D3 visualization client closed');
+    }
   }
 }
