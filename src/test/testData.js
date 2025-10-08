@@ -2183,4 +2183,134 @@ export const flowDefiningAgentResult = `{
   timestamp: 2025-10-03T04:33:30.405Z
 }`
 
+export const genReflectSVGResult = `{
+  agentName: 'GeneratingAgent',
+  result: '{\n' +
+    '  "success": true,\n' +
+    '  "interpretation": {\n' +
+    '    "chart": {\n' +
+    '      "title": "MW/Hr by Installation over Time",\n' +
+    '      "size": {\n' +
+    '        "width": 1000,\n' +
+    '        "height": 630\n' +
+    '      },\n' +
+    '      "plot_area": {\n' +
+    '        "translate": [70, 50],\n' +
+    '        "inner_size": {\n' +
+    '          "width": 900,\n' +
+    '          "height": 370\n' +
+    '        }\n' +
+    '      },\n' +
+    '      "type": "multi-series line chart",\n' +
+    '      "units": "MW/Hr"\n' +
+    '    },\n' +
+    '    "axes": {\n' +
+    '      "x": {\n' +
+    '        "label": "Date",\n' +
+    '        "domain_pixels": [0.5, 900.5],\n' +
+    '        "ticks": [\n' +
+    '          {"x": 0.5, "label": "11/02/2023"},\n' +
+    '          {"x": 300.5, "label": "11/03/2023"},\n' +
+    '          {"x": 600.5, "label": "11/04/2023"},\n' +
+    '          {"x": 900.5, "label": "11/05/2023"}\n' +
+    '        ],\n' +
+    '        "label_rotation_deg": -35,\n' +
+    '        "tick_anchor": "end",\n' +
+    '        "x_to_date_map_pixels": {\n' +
+    '          "0": "11/02/2023",\n' +
+    '          "300": "11/03/2023",\n' +
+    '          "600": "11/04/2023",\n' +
+    '          "900": "11/05/2023"\n' +
+    '        }\n' +
+    '      },\n' +
+    '      "y": {\n' +
+    '        "label": "MW/Hr",\n' +
+    '        "domain_value_range": [-20, 160],\n' +
+    '        "domain_pixels": [370.5, 0.5],\n' +
+    '        "ticks": [\n' +
+    '          {"y": 370.5, "value": -20},\n' +
+    '          {"y": 329.3888888889, "value": 0},\n' +
+    '          {"y": 288.2777777778, "value": 20},\n' +
+    '          {"y": 247.1666666667, "value": 40},\n' +
+    '          {"y": 206.0555555556, "value": 60},\n' +
+    '          {"y": 164.9444444444, "value": 80},\n' +
+    '          {"y": 123.8333333333, "value": 100},\n' +
+    '          {"y": 82.7222222222, "value": 120},\n' +
+    '          {"y": 41.6111111111, "value": 140},\n' +
+    '          {"y": 0.5, "value": 160}\n' +
+    '        ],\n' +
+    '        "pixel_to_value": "value = (329.3888888889 - y) / 2.0555555556"\n' +
+    '      },\n' +
+    '      "gridlines": [\n' +
+    '        {"orientation": "horizontal", "y": 328.8888888889, "stroke_dasharray": "4,3", "meaning": "approximate 0 baseline"}\n' +
+    '      ]\n' +
+    '    },\n' +
+    '    "legend": [\n' +
+    '      {"name": "BARCSF1", "color": "#FDB714"},\n' +
+    '      {"name": "BUTLERSG", "color": "#1F77B4"},\n' +
+    '      {"name": "CAPTL_WF", "color": "#2CA02C"},\n' +
+    '      {"name": "CHALLHWF", "color": "#2CA02C"},\n' +
+    '      {"name": "CLOVER", "color": "#1F77B4"},\n' +
+    '      {"name": "CLUNY", "color": "#1F77B4"},\n' +
+    '      {"name": "CULLRGWF", "color": "#2CA02C"},\n' +
+    '      {"name": "DIAPURWF1", "color": "#2CA02C"},\n' +
+    '      {"name": "ERGT01", "color": "#7F7F7F"},\n' +
+    '      {"name": "ERGTO1", "color": "#8C564B"},\n' +
+    '      {"name": "GBO1", "color": "#7F7F7F"},\n' +
+    '      {"name": "GRIFSF1", "color": "#FDB714"},\n' +
+    '      {"name": "HUGSF1", "color": "#FDB714"},\n' +
+    '      {"name": "KEPBG1", "color": "#9467BD"},\n' +
+    '      {"name": "LRSF1", "color": "#FDB714"},\n' +
+    '      {"name": "MLSP1", "color": "#FDB714"},\n' +
+    '      {"name": "MLWF1", "color": "#2CA02C"},\n' +
+    '      {"name": "PALOONA", "color": "#1F77B4"},\n' +
+    '      {"name": "REPULSE", "color": "#1F77B4"},\n' +
+    '      {"name": "ROTALLA1", "color": "#FDB714"},\n' +
+    '      {"name": "RPCG", "color": "#8C564B"},\n' +
+    '      {"name": "SHOAL1", "color": "#17BECF"},\n' +
+    '      {"name": "WAUBRAWF", "color": "#2CA02C"},\n' +
+    '      {"name": "WOOLNTH1", "color": "#2CA02C"},\n' +
+    '      {"name": "YAMBUKWF", "color": "#2CA02C"},\n' +
+    '      {"name": "YSWF1", "color": "#2CA02C"}\n' +
+    '    ],\n' +
+    '    "series_mapping_method": "Legend order matches path order; colors are reused across multiple series, so order is used to disambiguate.",\n' +
+    '    "series": [\n' +
+    '      {"name": "BARCSF1", "color": "#FDB714", "points": [{"x": 0, "y": 328.683}, {"x": 300, "y": 328.889}, {"x": 600, "y": 328.683}, {"x": 900, "y": 328.889}]},\n' +
+    '      {"name": "BUTLERSG", "color": "#1F77B4", "points": [{"x": 0, "y": 309.567}, {"x": 300, "y": 309.584}, {"x": 600, "y": 309.584}, {"x": 900, "y": 309.584}]},\n' +
+    '      {"name": "CAPTL_WF", "color": "#2CA02C", "points": [{"x": 0, "y": 312.903}, {"x": 300, "y": 328.889}, {"x": 600, "y": 274.983}, {"x": 900, "y": 277.071}]},\n' +
+    '      {"name": "CHALLHWF", "color": "#2CA02C", "points": [{"x": 0, "y": 280.035}, {"x": 300, "y": 260.576}, {"x": 600, "y": 272.635}, {"x": 900, "y": 298.278}]},\n' +
+    '      {"name": "CLOVER", "color": "#1F77B4", "points": [{"x": 0, "y": 328.906}, {"x": 300, "y": 328.599}, {"x": 600, "y": 328.903}, {"x": 900, "y": 328.901}]},\n' +
+    '      {"name": "CLUNY", "color": "#1F77B4", "points": [{"x": 0, "y": 291.443}, {"x": 300, "y": 316.29}, {"x": 600, "y": 308.698}, {"x": 900, "y": 312.017}]},\n' +
+    '      {"name": "CULLRGWF", "color": "#2CA02C", "points": [{"x": 0, "y": 309.25}, {"x": 300, "y": 313.286}, {"x": 600, "y": 292.948}, {"x": 900, "y": 284.318}]},\n' +
+    '      {"name": "DIAPURWF1", "color": "#2CA02C", "points": [], "note": "no path data"},\n' +
+    '      {"name": "ERGT01", "color": "#7F7F7F", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 328.889}, {"x": 600, "y": 328.889}, {"x": 900, "y": 328.889}]},\n' +
+    '      {"name": "ERGTO1", "color": "#8C564B", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 328.889}]},\n' +
+    '      {"name": "GBO1", "color": "#7F7F7F", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 328.889}, {"x": 600, "y": 328.889}, {"x": 900, "y": 301.735}]},\n' +
+    '      {"name": "GRIFSF1", "color": "#FDB714", "points": [{"x": 0, "y": 328.886}, {"x": 300, "y": 328.886}, {"x": 600, "y": 328.886}, {"x": 900, "y": 328.886}]},\n' +
+    '      {"name": "HUGSF1", "color": "#FDB714", "points": [{"x": 0, "y": 329.251}, {"x": 300, "y": 329.286}, {"x": 600, "y": 329.114}, {"x": 900, "y": 329.016}]},\n' +
+    '      {"name": "KEPBG1", "color": "#9467BD", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 328.889}, {"x": 600, "y": 328.889}, {"x": 900, "y": 328.889}]},\n' +
+    '      {"name": "LRSF1", "color": "#FDB714", "points": [{"x": 0, "y": 328.879}, {"x": 300, "y": 328.881}, {"x": 600, "y": 328.909}, {"x": 900, "y": 328.84}]},\n' +
+    '      {"name": "MLSP1", "color": "#FDB714", "points": [{"x": 0, "y": 328.813}, {"x": 300, "y": 328.885}, {"x": 600, "y": 328.796}, {"x": 900, "y": 328.889}]},\n' +
+    '      {"name": "MLWF1", "color": "#2CA02C", "points": [{"x": 0, "y": 324.917}, {"x": 300, "y": 311.476}, {"x": 600, "y": 312.383}, {"x": 900, "y": 317.594}]},\n' +
+    '      {"name": "PALOONA", "color": "#1F77B4", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 277.724}, {"x": 600, "y": 297.85}, {"x": 900, "y": 326.042}]},\n' +
+    '      {"name": "REPULSE", "color": "#1F77B4", "points": [{"x": 0, "y": 269.332}, {"x": 300, "y": 309.469}, {"x": 600, "y": 297.427}, {"x": 900, "y": 301.533}]},\n' +
+    '      {"name": "ROTALLA1", "color": "#FDB714", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 328.889}, {"x": 600, "y": 328.889}, {"x": 900, "y": 328.889}]},\n' +
+    '      {"name": "RPCG", "color": "#8C564B", "points": [{"x": 0, "y": 298.227}, {"x": 300, "y": 298.467}, {"x": 600, "y": 300.831}, {"x": 900, "y": 331.15}]},\n' +
+    '      {"name": "SHOAL1", "color": "#17BECF", "points": [{"x": 0, "y": 283.667}, {"x": 300, "y": 283.667}, {"x": 600, "y": 283.667}, {"x": 900, "y": 283.667}]},\n' +
+    '      {"name": "WAUBRAWF", "color": "#2CA02C", "points": [{"x": 0, "y": 328.889}, {"x": 300, "y": 328.889}, {"x": 600, "y": 29.385}, {"x": 900, "y": 127.61}]},\n' +
+    '      {"name": "WOOLNTH1", "color": "#2CA02C", "points": [{"x": 0, "y": 232.626}, {"x": 300, "y": 189.077}, {"x": 600, "y": 250.932}, {"x": 900, "y": 329.778}]},\n' +
+    '      {"name": "YAMBUKWF", "color": "#2CA02C", "points": [{"x": 0, "y": 326.063}, {"x": 300, "y": 304.0}, {"x": 600, "y": 282.091}, {"x": 900, "y": 304.856}]},\n' +
+    '      {"name": "YSWF1", "color": "#2CA02C", "points": [{"x": 0, "y": 326.902}, {"x": 300, "y": 318.114}, {"x": 600, "y": 319.313}, {"x": 900, "y": 322.568}]}\n' +
+    '    ],\n' +
+    '    "notes": [\n' +
+    '      "X-axis labels are rotated -35 degrees for readability.",\n' +
+    '      "Multiple legend entries share colors; series identification is by legend order.",\n' +
+    '      "Dashed horizontal line marks the zero baseline approximately at y ≈ 328.889 px."\n' +
+    '    ]\n' +
+    '  }\n' +
+    '}',
+  success: true,
+  timestamp: 2025-10-08T23:27:07.479Z
+}`
+
 export { csvContent, agentData };

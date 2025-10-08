@@ -78,12 +78,13 @@ export class ValidationProcess {
 
     // Set context for validation
   //  this.validatingAgent.receiveContext({ 'USER REQUEST': conversationContext });
+    this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
     this.validatingAgent.setTaskDescription(this.targetAgent.getAgentDefinition().taskDescription);
     // Execute validation
-   const result = await this.validatingAgent.execute({});
-   console.log('VALIDATION ', result.result)
-  const result_: AgentResult = {
+ //  const result = await this.validatingAgent.execute({});
+ //  console.log('VALIDATION ', result.result)
+  const result: AgentResult = {
       agentName: 'cycle_start',
       result: validationFixedSyntaxResult,
       success: true,

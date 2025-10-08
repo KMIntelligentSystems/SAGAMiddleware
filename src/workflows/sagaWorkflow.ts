@@ -3,7 +3,8 @@ import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
   SAGA_D3_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
-  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis, csvAnalysisRefectingAgentPrompt, SAGA_D3JS_CODING_COLLECTION, SAGA_D3_AGENT_GEN_TRANSACTIONS } from '../types/visualizationSaga.js';
+  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis, csvAnalysisRefectingAgentPrompt, 
+  SAGA_D3JS_CODING_COLLECTION, SAGA_D3_AGENT_GEN_TRANSACTIONS, SVGInterpreterPrompt } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -30,7 +31,8 @@ const CONTROL_FLOW_LIST = [
   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
   { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
   { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent' },
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' }
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
+  { agent: 'GeneratingAgent', process: 'GenReflectProcess' },
 ];
 
 const CONTROL_UPDATE_FLOW_LIST = [
@@ -245,6 +247,15 @@ export class SagaWorkflow {
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
         to be amended in the JSON object that does not follow the rules.`,
         taskDescription:  dataValidatingAgentPrompt,
+        taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
+      },
+       {
+        agentName: 'GeneratingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-3-1',
+        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
+        to be amended in the JSON object that does not follow the rules.`,
+        taskDescription: SVGInterpreterPrompt,
         taskExpectedOutput: 'JSON object indicating success or failure of the rules being followed. If failure than provide the solution in the JSON'
       },
       {

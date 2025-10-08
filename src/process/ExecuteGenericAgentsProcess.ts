@@ -90,7 +90,7 @@ sagaTransactions.forEach(e => {
      console.log('SINGLETON ', transaction.agentName)
       const agent = this.coordinator.agents.get(transaction.agentName);
 
-      const result = await agent?.execute({});
+ //     const result = await agent?.execute({});
 //flowProcess
       this.coordinator.contextManager.updateContext(this.agent.getName(), {
       lastTransactionResult: graphAnalyzerResult_1,

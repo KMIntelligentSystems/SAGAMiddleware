@@ -90,7 +90,7 @@ export class D3JSCodingProcess {
 
     // Store D3 code result
     this.contextManager.updateContext(this.targetAgentName, {
-      lastTransactionResult: result.result,
+      d3jsCodeResult: result.result,
       transactionId: this.agent.getId(),
       timestamp: new Date()
     });

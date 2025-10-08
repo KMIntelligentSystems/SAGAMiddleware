@@ -28,7 +28,8 @@ import {
    D3JSCodeValidationResultPrompt,
    pythonCodeValidatingAgentPrompt,
     dataValidatingAgentPrompt,
-    d3CodeValidatingAgentPrompt
+    d3CodeValidatingAgentPrompt,
+    SVGInterpreterPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -53,6 +54,7 @@ import { D3JSCodingProcess } from '../process/D3JSCodingProcess.js';
 import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
 import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
 import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
+import { GenReflectProcess } from '../process/GenReflectProcess.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -3821,8 +3823,9 @@ Task Context: ${taskContext}
     agentName: string,
     userQuery: string,
     targetAgentName?: string,
-    transactionSetCollection?: TransactionSetCollection
-  ): DefineGenericAgentsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | null {
+    transactionSetCollection?: TransactionSetCollection,
+    svgFilePath?: string
+  ): DefineGenericAgentsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | GenReflectProcess | null {
     const agent = this.agents.get(agentName);
     
     console.log('PROCESS TYPE', processType)
@@ -3930,6 +3933,18 @@ Task Context: ${taskContext}
           userQuery
         );
 
+      case 'GenReflectProcess':
+        if (!svgFilePath) {
+          console.error('❌ GenReflectProcess requires svgFilePath');
+          return null;
+        }
+       
+        return new GenReflectProcess(
+          agent,
+          this.contextManager,
+          svgFilePath
+        );
+
       default:
         console.error(`❌ Unknown process type: ${processType}`);
         return null;
@@ -3950,8 +3965,7 @@ Task Context: ${taskContext}
     const validationD3JSReq = d3CodeValidatingAgentPrompt;
 
     let lastDynamicAgentName = '';
-    let lastFlowTargetName = '';
-
+    let svgPath = '';
     for (let i = 0; i < this.controlFlowList.length; i++) {
       const step = this.controlFlowList[i];
       console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.process} ---`);
@@ -3962,21 +3976,17 @@ Task Context: ${taskContext}
       if (step.process === 'DataAnalysisProcess') {
         step.targetAgent = lastDynamicAgentName;
       }
-        
-      if (step.process === 'FlowProcess') {
-        console.log('LAST NAME', lastFlowTargetName)
-    //    step.targetAgent = lastFlowTargetName;
-      }
+       
+    
 
       // Instantiate process
-      let query = ''
-      if( step.process === 'ValidationProcess'){
-        query = validationAgentSyntaxReq; //d3CodeValidatingAgentPrompt
-      } else{
-        query = clientReq;
+      let process;
+      if (step.process === 'GenReflectProcess') {
+        process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, svgPath);
       }
-  
-      const process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
+      else{
+        process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
+      }
       if (!process) {
         console.error(`❌ Failed to instantiate process at step ${i + 1}`);
         continue;
@@ -3987,52 +3997,7 @@ Task Context: ${taskContext}
         const result = await process.execute();
 
         // Handle ValidationProcess specifically for retry logic
-        if (step.process === 'ValidationProcess') {
-
-          const validationResult = result as AgentResult;
-
-         /* if (!validationResult.success) {
-            console.warn(`⚠️  Validation failed for ${step.targetAgent}, retrying...`);
-
-            // Find the previous DefineGenericAgentsProcess step for the target agent
-            const retryStepIndex = this.findPreviousDefineStep(i, step.targetAgent!);
-            if (retryStepIndex !== -1) {
-              console.log(`🔄 Retrying from step ${retryStepIndex + 1}`);
-
-              // Re-execute the define process
-              const retryStep = this.controlFlowList[retryStepIndex];
-              const retryProcess = this.instantiateProcess(
-                retryStep.process,
-                retryStep.agent,
-                userQuery,
-                retryStep.targetAgent
-              );
-
-              if (retryProcess) {
-                await retryProcess.execute();
-
-                // Re-run validation
-                const revalidationProcess = this.instantiateProcess(
-                  step.process,
-                  step.agent,
-                  userQuery,
-                  step.targetAgent
-                );
-
-                if (revalidationProcess) {
-                  const revalidationResult = await revalidationProcess.execute();
-
-                  if (!(revalidationResult as AgentResult).success) {
-                    console.error(`❌ Validation failed after retry for ${step.targetAgent}`);
-                    // Continue anyway or throw error based on requirements
-                  } else {
-                    console.log(`✅ Validation passed after retry for ${step.targetAgent}`);
-                  }
-                }
-              }
-            }
-          }*/
-        }
+      
 
         if (step.process === 'FlowProcess') {
   
@@ -4057,7 +4022,7 @@ Task Context: ${taskContext}
            
         }
 
-        // Auto-render D3 visualization after D3JSCodingProcess
+        // Auto-render D3 visualization after D3JSCodingProcess SVGInterpreterPrompt
         if (step.process === 'D3JSCodingProcess') {
           const agentResult = result as AgentResult;
 
@@ -4100,11 +4065,57 @@ Task Context: ${taskContext}
                 csvFilename || undefined
               );
 
-              if (renderResult.success) {
+              svgPath = renderResult.svgPath as string;
+           /*   if (renderResult.success) {
                 console.log('✅ D3 visualization auto-rendered successfully');
+
+                // After successful rendering, analyze the SVG with GenReflectProcess
+                if (renderResult.svgPath) {
+                  console.log('\n🔍 Running GenReflectProcess to analyze SVG...');
+
+                  // Get or create GeneratingAgent for SVG interpretation
+                  const generatingAgent = this.agents.get('GeneratingAgent');
+                  if (generatingAgent) {
+                    const reflectProcess = this.instantiateProcess(
+                      'GenReflectProcess',
+                      'GeneratingAgent',
+                      userQuery,
+                      step.agent, // Target agent is the D3 coding agent
+                      undefined,
+                      renderResult.svgPath // SVG file path
+                    );
+
+                    const validatingProocess = this.instantiateProcess(
+                      'ValidationProcess',
+                      'ValidatingAgent',
+                      userQuery,
+                      'D3JSCoordinationAgent',
+                      undefined,
+                      renderResult.svgPath // SVG file path
+                    );
+
+                    if (reflectProcess) {
+                      try {
+                        const reflectResult = await reflectProcess.execute() as AgentResult;
+                        if (reflectResult.success) {
+                          console.log('SVG ', reflectResult.result)
+                          console.log('✅ SVG analysis completed successfully');
+                        } else {
+                          console.warn(`⚠️  SVG analysis failed: ${reflectResult.error}`);
+                        }
+                      } catch (error) {
+                        console.error('❌ Error during SVG analysis:', error);
+                      }
+                    } else {
+                      console.warn('⚠️  Failed to instantiate GenReflectProcess');
+                    }
+                  } else {
+                    console.warn('⚠️  GeneratingAgent not found, skipping SVG analysis');
+                  }
+                }
               } else {
                 console.warn(`⚠️  D3 visualization rendering failed: ${renderResult.error}`);
-              }
+              }*/
             } else {
               console.warn('⚠️  No D3 code found in result, skipping auto-render');
             }
@@ -4194,7 +4205,7 @@ Task Context: ${taskContext}
         console.log(`✅ D3 visualization rendered successfully`);
         console.log(`  📸 PNG: ${result.screenshotPath}`);
         console.log(`  💾 SVG: ${result.svgPath}`);
-
+console.log('D3CODE',d3Code)
         // Store visualization paths in context for the agent
         if (agentName) {
           this.contextManager.updateContext(agentName, {
