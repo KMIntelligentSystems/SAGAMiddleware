@@ -55,6 +55,11 @@ import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
 import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export class SagaCoordinator extends EventEmitter {
   agents: Map<string, GenericAgent> = new Map();
@@ -4063,11 +4068,36 @@ Task Context: ${taskContext}
             const d3Code = agentResult.result;
 
             if (d3Code && typeof d3Code === 'string') {
+              // Extract CSV filename from the HTML code
+              const csvMatch = d3Code.match(/d3\.csv\(['"]\.?\/?([^'"]+\.csv)['"]/);
+              const csvFilename = csvMatch ? csvMatch[1] : null;
+
+              let csvData: string | undefined;
+
+              // If CSV file is referenced, try to load it
+              if (csvFilename) {
+                console.log(`📊 Found CSV reference: ${csvFilename}`);
+                const csvPath = path.join(__dirname, '..', '..', 'data', csvFilename);
+
+                try {
+                  if (fs.existsSync(csvPath)) {
+                    csvData = fs.readFileSync(csvPath, 'utf-8');
+                    console.log(`✅ Loaded CSV data from: ${csvPath} (${csvData.length} bytes)`);
+                  } else {
+                    console.warn(`⚠️  CSV file not found at: ${csvPath}`);
+                  }
+                } catch (error) {
+                  console.error(`❌ Error reading CSV file:`, error);
+                }
+              }
+
               // Render the visualization
               const renderResult = await this.renderD3Visualization(
                 d3Code,
                 step.agent,
-                `${step.agent}-output`
+                `${step.agent}-output`,
+                csvData,
+                csvFilename || undefined
               );
 
               if (renderResult.success) {
@@ -4121,12 +4151,16 @@ Task Context: ${taskContext}
    * @param d3Code - The D3.js code to render
    * @param agentName - The name of the agent that generated the code (optional, for context)
    * @param outputName - Custom name for output files (optional)
+   * @param csvData - CSV data content to provide to d3.csv() calls (optional)
+   * @param csvFilename - CSV filename to intercept (optional)
    * @returns Promise with render result including paths to PNG and SVG files
    */
   async renderD3Visualization(
     d3Code: string,
     agentName?: string,
-    outputName?: string
+    outputName?: string,
+    csvData?: string,
+    csvFilename?: string
   ): Promise<D3RenderResult> {
     // Initialize D3 client if not already initialized
     if (!this.d3Client) {
@@ -4149,6 +4183,8 @@ Task Context: ${taskContext}
     try {
       const result = await this.d3Client.renderD3({
         d3Code,
+        csvData,
+        csvFilename,
         screenshotName: `${baseName}.png`,
         svgName: `${baseName}.svg`,
         outputPath: path.join(process.cwd(), 'output', 'd3-visualizations')
