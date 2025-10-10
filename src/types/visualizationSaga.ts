@@ -184,6 +184,13 @@ export const D3JSCodeValidationResultPrompt_ = `You are a coding agent working i
 3. Look at the EVALUATION of the previous code 
 4. Write the code following any instructions in the evaluation`;
 
+export const SVGValidationPrompt = `You are a validating and advising agent. You will receive information concernning requirements for a 2-d graphical representation of structured data and you will receive another agent's summaary of the SVG elements which represents
+the graphical display of that data. Therefore, you have these tasks:
+1. You will understand the requirements and their analogus structure of the SVG elements
+2. You will look at the agent's report. The basis of which is the SVG representation
+Finally, you will affirm or not that the requirements seem to be met by providing {affirmed: yes/no}. In case of the negative provide explanations.
+As a bonus in the affirmative case, can you see any enhancements that could be made. You will find the actual SVG elements enclosed`
+
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
 You must provide new instructiosn as succinctly as possible`

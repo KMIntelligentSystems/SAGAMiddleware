@@ -7,6 +7,7 @@ import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult } from '../test/testData.js'
 
 
+
 /**
  * ValidationProcess
  *
@@ -30,7 +31,7 @@ export class ValidationProcess {
   private targetAgent: GenericAgent;
   private contextManager: ContextManager;
   private userQuery: string;
-
+ 
   constructor(
     validatingAgent: GenericAgent,
     targetAgent: GenericAgent,
@@ -50,7 +51,7 @@ export class ValidationProcess {
     console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent.getName()}`);
 
     const taskDescription = this.userQuery;
-    console.log('VALIDATION TASK DESC', taskDescription)// You will validate python code
+    console.log('VALIDATION TASK DESC', taskDescription)//1 [AGENT: TransactionGroupingAgent, tx-2]  2 You will validate python code 3 [AGENT: TransactionGroupingAgent, tx-2] 4 You will validate python code 5 [AGENT: TransactionGroupingAgent, tx-2] 4 5 repeated
     // Get target agent's last result
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
 
@@ -76,11 +77,23 @@ export class ValidationProcess {
     // Clear validating agent context
     this.validatingAgent.deleteContext();
 
-    // Set context for validation
-  //  this.validatingAgent.receiveContext({ 'USER REQUEST': conversationContext });
-    this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
-    this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
     this.validatingAgent.setTaskDescription(this.targetAgent.getAgentDefinition().taskDescription);
+    // Set context for validation
+  if(this.targetAgent.getName() === 'D3JSCodingAgent'){
+     this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
+    this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
+  
+  } else if(this.targetAgent.getName() === 'GeneratingAgent') {
+       const previousCtx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
+       this.validatingAgent.receiveContext({ 'REQUIREMENTS': previousCtx.lastTransactionResult });
+       this.validatingAgent.receiveContext({ 'SVG ANALYSIS': ctx.lastTransactionResult });
+       this.validatingAgent.receiveContext({'SVG': ctx.svgContent});
+       const result = await this.validatingAgent.execute({});
+       console.log('VALIDATING RESULT ', result.result)
+  } else {
+     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
+  }
+   
     // Execute validation
  //  const result = await this.validatingAgent.execute({});
  //  console.log('VALIDATION ', result.result)

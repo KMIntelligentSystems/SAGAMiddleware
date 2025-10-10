@@ -2313,4 +2313,192 @@ export const genReflectSVGResult = `{
   timestamp: 2025-10-08T23:27:07.479Z
 }`
 
+export const genReflectSVGResult_1 = `{
+  agentName: 'GeneratingAgent',
+  result: '{\n' +
+    '  "success": true,\n' +
+    '  "interpretation": {\n' +
+    '    "file_path": "C:\\\\repos\\\\SAGAMiddleware\\\\output\\\\d3-visualizations\\\\D3JSCodingAgent-output.svg",\n' +
+    '    "chart_title": "MW/Hr by Installation over Time",\n' +
+    '    "svg_size": {\n' +
+    '      "width": 1000,\n' +
+    '      "height": 630\n' +
+    '    },\n' +
+    '    "plot_group_transform": {\n' +
+    '      "translate": [70, 50]\n' +
+    '    },\n' +
+    '    "plot_area": {\n' +
+    '      "width": 900,\n' +
+    '      "height": 370\n' +
+    '    },\n' +
+    '    "axes": {\n' +
+    '      "x": {\n' +
+    '        "label": "Date",\n' +
+    '        "ticks": [\n' +
+    '          {\n' +
+    '            "x": 0.5,\n' +
+    '            "label": "11/02/2023",\n' +
+    '            "rotation": -35\n' +
+    '          },\n' +
+    '          {\n' +
+    '            "x": 300.5,\n' +
+    '            "label": "11/03/2023",\n' +
+    '            "rotation": -35\n' +
+    '          },\n' +
+    '          {\n' +
+    '            "x": 600.5,\n' +
+    '            "label": "11/04/2023",\n' +
+    '            "rotation": -35\n' +
+    '          },\n' +
+    '          {\n' +
+    '            "x": 900.5,\n' +
+    '            "label": "11/05/2023",\n' +
+    '            "rotation": -35\n' +
+    '          }\n' +
+    '        ],\n' +
+    '        "domain_path": "M0.5,6V0.5H900.5V6"\n' +
+    '      },\n' +
+    '      "y": {\n' +
+    '        "label": "MW/Hr",\n' +
+    '        "ticks": [\n' +
+    '          { "y": 370.5, "label": "-20.00" },\n' +
+    '          { "y": 329.38888888888886, "label": "0.00" },\n' +
+    '          { "y": 288.27777777777777, "label": "20.00" },\n' +
+    '          { "y": 247.16666666666669, "label": "40.00" },\n' +
+    '          { "y": 206.05555555555557, "label": "60.00" },\n' +
+    '          { "y": 164.94444444444443, "label": "80.00" },\n' +
+    '          { "y": 123.83333333333334, "label": "100.00" },\n' +
+    '          { "y": 82.72222222222221, "label": "120.00" },\n' +
+    '          { "y": 41.61111111111113, "label": "140.00" },\n' +
+    '          { "y": 0.5, "label": "160.00" }\n' +
+    '        ],\n' +
+    '        "domain_path": "M-6,370.5H0.5V0.5H-6",\n' +
+    '        "scale_mapping": "Linear; value ≈ (329.3889 − y) × (20 / 41.1111) ≈ (329.3889 − y) × 0.486. Higher values are plotted higher (smaller y)."\n' +
+    '      }\n' +
+    '    },\n' +
+    '    "reference_lines": [\n' +
+    '      {\n' +
+    '        "type": "horizontal",\n' +
+    '        "y": 328.88888888888886,\n' +
+    '        "style": "dashed",\n' +
+    '        "color": "#aaa",\n' +
+    '        "note": "Near y=0 baseline (tick at 329.3889)"\n' +
+    '      }\n' +
+    '    ],\n' +
+    '    "series_summary": {\n' +
+    '      "count": 26,\n' +
+    '      "by_color_count": {\n' +
+    '        "#FDB714": 6,\n' +
+    '        "#1F77B4": 5,\n' +
+    '        "#2CA02C": 9,\n' +
+    '        "#7F7F7F": 2,\n' +
+    '        "#8C564B": 2,\n' +
+    '        "#9467BD": 1,\n' +
+    '        "#17BECF": 1\n' +
+    '      },\n' +
+    '      "x_sample_positions": [0, 300, 600, 900],\n' +
+    '      "notable_patterns": [\n' +
+    '        "Multiple constant or near-constant lines at y≈328.889 (near 0 MW/Hr).",\n' +
+    '        "One series with a very high point: y=29.385 at x=600 (≈150–160 MW/Hr).",\n' +
+    '       "One path element is empty (no 'd' attribute content).",\n` +
+    '        "Several series show moderate variability between dates."\n' +
+    '      ],\n' +
+    '      "integrity_checks": {\n' +
+    '        "empty_series_paths": 1,\n' +
+    '        "all_series_have_4_x_points_expected": false,\n' +
+    '        "comment": "Some series are flat lines; at least one series path is empty."\n' +
+    '      }\n' +
+    '    },\n' +
+    '    "legend": {\n' +
+    '      "position_transform": [70, 490],\n' +
+    '      "items": [\n' +
+    '        { "label": "BARCSF1", "color": "#FDB714" },\n' +
+    '        { "label": "BUTLERSG", "color": "#1F77B4" },\n' +
+    '        { "label": "CAPTL_WF", "color": "#2CA02C" },\n' +
+    '        { "label": "CHALLHWF", "color": "#2CA02C" },\n' +
+    '        { "label": "CLOVER", "color": "#1F77B4" },\n' +
+    '        { "label": "CLUNY", "color": "#1F77B4" },\n' +
+    '        { "label": "CULLRGWF", "color": "#2CA02C" },\n' +
+    '        { "label": "DIAPURWF1", "color": "#2CA02C" },\n' +
+    '        { "label": "ERGT01", "color": "#7F7F7F" },\n' +
+    '        { "label": "ERGTO1", "color": "#8C564B" },\n' +
+    '        { "label": "GBO1", "color": "#7F7F7F" },\n' +
+    '        { "label": "GRIFSF1", "color": "#FDB714" },\n' +
+    '        { "label": "HUGSF1", "color": "#FDB714" },\n' +
+    '        { "label": "KEPBG1", "color": "#9467BD" },\n' +
+    '        { "label": "LRSF1", "color": "#FDB714" },\n' +
+    '        { "label": "MLSP1", "color": "#FDB714" },\n' +
+    '        { "label": "MLWF1", "color": "#2CA02C" },\n' +
+    '        { "label": "PALOONA", "color": "#1F77B4" },\n' +
+    '        { "label": "REPULSE", "color": "#1F77B4" },\n' +
+    '        { "label": "ROTALLA1", "color": "#FDB714" },\n' +
+    '        { "label": "RPCG", "color": "#8C564B" },\n' +
+    '        { "label": "SHOAL1", "color": "#17BECF" },\n' +
+    '        { "label": "WAUBRAWF", "color": "#2CA02C" },\n' +
+    '        { "label": "WOOLNTH1", "color": "#2CA02C" },\n' +
+    '        { "label": "YAMBUKWF", "color": "#2CA02C" },\n' +
+    '        { "label": "YSWF1", "color": "#2CA02C" }\n' +
+    '      ],\n' +
+    '      "note": "Colors are reused across multiple installations; color alone does not uniquely identify a series."\n' +
+    '    },\n' +
+    '    "semantics": {\n' +
+    '      "chart_type": "Multi-series line chart (time series)",\n' +
+    '      "x_dimension": "Date (4 daily ticks: 11/02/2023 to 11/05/2023)",\n' +
+    '      "y_dimension": "MW/Hr (range approx -20 to 160)",\n' +
+     '     "encoding": "Each path with class series represents an installations MW/Hr over time; legend maps color to installation name.",\n '+
+    '      "layout": "Margins via group translate(70,50); x-axis at bottom (translate(0,370)); y-axis at left."\n' +
+    '    },\n' +
+    '    "issues_and_recommendations": [\n' +
+     '    "One series path has an empty d attribute; remove or populate with data.",\n' +
+    '     "Dashed reference line at y=328.889 does not exactly match the 0.00 tick at y=329.389; align for accuracy.",\n' +
+    '      "Because colors are reused across many series, consider unique styling (e.g., dashes or markers) or interactive legend to disambiguate."\n' +
+    '    ]\n' +
+    '  }\n' +
+    '}'
+ ' success: true,' +
+ ' timestamp: 2025-10-10T03:22:00.210Z'
+
+ export const genReflectValidateResponse = `{
+  agentName: 'ValidatingAgent',
+  result: '{\n' +
+    '  "affirmed": "yes",\n' +
+    '  "reasons": "The SVG renders a multi-series line chart with consistent x-date ticks (11/02–11/05/2023), labeled axes (Date, MW/Hr), a visible y=0 baseline, and multiple series paths aligned to shared x positions. Legend lists the expected installations with st
+able colors. Series with missing points manifest as shortened/empty paths, producing gaps.",\n' +
+    '  "checks": {\n' +
+    '    "chart_type_line": true,\n' +
+    '    "x_axis_time_dates_present": true,\n' +
+    '    "date_range_complete_for_shown_data": true,\n' +
+    '    "y_axis_supports_negative_and_zero": true,\n' +
+    '    "labels_present": true,\n' +
+    '    "title_present": true,\n' +
+    '    "series_share_x_positions": true,\n' +
+    '    "line_gaps_for_missing_values": true,\n' +
+    '    "legend_present_with_known_installations": true\n' +
+    '  },\n' +
+    '  "notes_unverifiable_from_svg": [\n' +
+    '    "Runtime CSV parsing and header normalization",\n' +
+    '    "Aggregation rule (sum per installation per date)",\n' +
+    '    "Dynamic domain/tick heuristics and nice rounding",\n' +
+    '    "Energy source to color mapping correctness (no energy_source field in SVG)"\n' +
+    '  ],\n' +
+    '  "minor_discrepancies": [\n' +
+    '    "Zero baseline dashed line is at y=328.8889 px while the 0.00 tick is at y=329.3889 px (~0.5 px offset). Aligning them would be cleaner.",\n' +
+    '    "DIAPURWF1 renders an empty path; consider omitting the path or indicating 'No data' to avoid confusion.",\n' +
+    '    "Y-axis domain/ticks use [-20,160] with step 20 rather than the suggested defaults; acceptable, but consider 'nice' ticks tuned to the data."\n' +
+    '  ],\n' +
+    '  "enhancements": [\n' +
+    '    "Align the zero baseline exactly to the y=0 tick position from the scale.",\n' +
+    '    "Add y-axis gridlines for each major tick to improve readability across many series.",\n' +
+    '    "Use d3.line().defined(...) to explicitly break lines at nulls and optionally render small gaps or markers for missing points.",\n' +
+    '    "Provide interactivity: tooltips with date/MW values, series hover highlight, and legend toggles to isolate series.",\n' +
+    '    "Clip lines to the plot area with a clipPath to prevent any overflow.",\n' +
+    '    "Consider adaptive time tick formatting and density for longer date ranges (e.g., d3.timeFormat with multi-format).",\n' +
+    '    "If color encodes energy_source, add a secondary legend grouping or annotate legend entries by source; otherwise, vary stroke-dasharray per series to disambiguate repeated colors.",\n' +
+    '    "Show a subtle horizontal reference line at y=0 with a label '0' or use a stronger style when negatives are present."\n' +
+    '  ]\n' +
+    '}',
+  success: true,
+  timestamp: 2025-10-10T06:35:03.119Z
+}`
+
 export { csvContent, agentData };

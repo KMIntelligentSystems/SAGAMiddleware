@@ -5,6 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { SVGInterpreterPrompt } from '../types/visualizationSaga.js';
+import { genReflectSVGResult } from '../test/testData.js'
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -75,7 +76,7 @@ export class GenReflectProcess {
       };
     }
 
-    // Set SVGInterpreterPrompt as task description
+    // Set SVGInterpreterPrompt as task description 
     this.agent.setTaskDescription(SVGInterpreterPrompt);
     console.log(`📋 Set task description: SVGInterpreterPrompt`);
 
@@ -90,9 +91,15 @@ export class GenReflectProcess {
     });
 
     console.log(`🤖 Executing ${this.agent.getName()} to interpret SVG...`);
-
+ const result: AgentResult = {
+      agentName: 'cycle_start',
+      result: genReflectSVGResult,
+      success: true,
+      timestamp: new Date()
+    };
+   
     // Execute agent to analyze SVG
-    const result = await this.agent.execute({}) as AgentResult;
+ //   const result = await this.agent.execute({}) as AgentResult;
 console.log('GEN RESULT', result.result)
     if (result.success) {
       console.log(`✅ SVG analysis completed`);
@@ -109,6 +116,7 @@ console.log('GEN RESULT', result.result)
 
       this.contextManager.updateContext(this.agent.getName(), {
         lastTransactionResult: result.result,
+        svgContent: svgContent,
         svgAnalysis: result.result,
         transactionId: this.agent.getId(),
         timestamp: new Date()

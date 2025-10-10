@@ -29,7 +29,7 @@ import {
    pythonCodeValidatingAgentPrompt,
     dataValidatingAgentPrompt,
     d3CodeValidatingAgentPrompt,
-    SVGInterpreterPrompt
+    SVGValidationPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -3981,12 +3981,13 @@ Task Context: ${taskContext}
 
       // Instantiate process
       let process;
-      if (step.process === 'GenReflectProcess') {
+      if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
         process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, svgPath);
       }
       else{
         process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
       }
+
       if (!process) {
         console.error(`❌ Failed to instantiate process at step ${i + 1}`);
         continue;
@@ -4055,6 +4056,7 @@ Task Context: ${taskContext}
                   console.error(`❌ Error reading CSV file:`, error);
                 }
               }
+              //Add the 
 
               // Render the visualization
               const renderResult = await this.renderD3Visualization(
@@ -4122,14 +4124,22 @@ Task Context: ${taskContext}
           }
         }
 
+        if (step.process === 'GenReflectProcess') {
+          const genAgent = this.agents.get('GeneratingAgent')
+          genAgent?.setTaskDescription(SVGValidationPrompt);
+          process = this.instantiateProcess('ValidationProcess', 'ValidatingAgent', SVGValidationPrompt,  'GeneratingAgent');
+          process?.execute();
+        }
+
         console.log(`✅ Step ${i + 1} completed successfully`);
       } catch (error) {
         console.error(`❌ Error executing step ${i + 1}:`, error);
         throw error; // Or continue based on error handling strategy
       }
-    }
+         console.log('\n🎉 Control flow execution completed');
 
-    console.log('\n🎉 Control flow execution completed');
+    
+    }
   }
 
   /**

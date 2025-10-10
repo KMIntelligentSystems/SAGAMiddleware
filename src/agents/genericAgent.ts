@@ -44,7 +44,7 @@ export class GenericAgent {
   private context: string[] = [];
   private mcpToolCallContext?: ToolCallContext;
   private agentDefn: AgentDefinition;
-  
+  private counter = 0;
   constructor(private definition: AgentDefinition) {
     this.agentDefn = definition;
     this.initializeMCPConnections();
@@ -74,19 +74,28 @@ export class GenericAgent {
 
   async execute(contextData: Record<string, any>): Promise<AgentResult> {
     const startTime = new Date();
-    
+     let result: AgentResult = {
+            agentName: 'cycle_start',
+            result: '',
+            success: true,
+            timestamp: new Date()
+          };
+
     try {
       // Refresh MCP capabilities if needed
       await this.refreshMCPCapabilities();
       if(contextData){
         this.receiveContext(contextData);
       }
-      
+     
       const prompt = this.createPrompt();//buildPrompt(contextData);
+      if(this.definition.name === 'ValidatingAgent'){
+        result = await this.invokeLLM(prompt);
+      }
       console.log("PROMPT ",prompt)
-      const llmResult = await this.invokeLLM(prompt);
+      const llmResult = '' //await this.invokeLLM(prompt);
       
-      const result = llmResult;
+     // const result = llmResult;
       
       return {
         agentName: this.definition.name,
