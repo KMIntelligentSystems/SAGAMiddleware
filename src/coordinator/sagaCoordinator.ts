@@ -29,7 +29,8 @@ import {
    pythonCodeValidatingAgentPrompt,
     dataValidatingAgentPrompt,
     d3CodeValidatingAgentPrompt,
-    SVGValidationPrompt
+    SVGValidationPrompt,
+    D3JSCodingAgentPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -92,6 +93,7 @@ export class SagaCoordinator extends EventEmitter {
   // Control flow list: maps agent names to process types
   // For ValidationProcess: agent is ValidatingAgent, targetAgent is the agent being validated
   private controlFlowList: Array<{agent: string, process: string, targetAgent?: string}> = [];
+  private svgPath = '';
 
   constructor(mcpServers: Record<string, MCPServerConfig>) {
     super();
@@ -3938,11 +3940,22 @@ Task Context: ${taskContext}
           console.error('❌ GenReflectProcess requires svgFilePath');
           return null;
         }
+
+        if(targetAgentName){
+         const targetAgent = this.agents.get(targetAgentName);
+           return new GenReflectProcess(
+            agent,
+            this.contextManager,
+            svgFilePath,
+            targetAgent
+        );
+        }
        
         return new GenReflectProcess(
           agent,
           this.contextManager,
-          svgFilePath
+          svgFilePath,
+          undefined
         );
 
       default:
@@ -3955,7 +3968,7 @@ Task Context: ${taskContext}
    * Execute the control flow
    * Iterates through control flow list and executes each process in sequence
    */
-  async executeControlFlow(userQuery: string): Promise<void> {
+  async executeControlFlow(userQuery: string): Promise<string> {
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
 
@@ -3963,9 +3976,9 @@ Task Context: ${taskContext}
     const validationAgentSyntaxReq =  dataValidatingAgentPrompt;
     const validationPythonReq = pythonCodeValidatingAgentPrompt;
     const validationD3JSReq = d3CodeValidatingAgentPrompt;
+    let validatedResultForD3JS = '';
 
     let lastDynamicAgentName = '';
-    let svgPath = '';
     for (let i = 0; i < this.controlFlowList.length; i++) {
       const step = this.controlFlowList[i];
       console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.process} ---`);
@@ -3982,7 +3995,10 @@ Task Context: ${taskContext}
       // Instantiate process
       let process;
       if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
-        process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, svgPath);
+        process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, this.svgPath);
+      } else if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent'){
+          process = this.instantiateProcess(step.process, step.agent, d3CodeValidatingAgentPrompt, step.targetAgent);
+          //
       }
       else{
         process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
@@ -4067,7 +4083,7 @@ Task Context: ${taskContext}
                 csvFilename || undefined
               );
 
-              svgPath = renderResult.svgPath as string;
+              this.svgPath = renderResult.svgPath as string;
            /*   if (renderResult.success) {
                 console.log('✅ D3 visualization auto-rendered successfully');
 
@@ -4124,22 +4140,28 @@ Task Context: ${taskContext}
           }
         }
 
+        if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent') {
+            const validatedResult = result as AgentResult
+             validatedResultForD3JS = validatedResult.result
+        }
+       
+
         if (step.process === 'GenReflectProcess') {
           const genAgent = this.agents.get('GeneratingAgent')
           genAgent?.setTaskDescription(SVGValidationPrompt);
-          process = this.instantiateProcess('ValidationProcess', 'ValidatingAgent', SVGValidationPrompt,  'GeneratingAgent');
-          process?.execute();
+       //   process = this.instantiateProcess('ValidationProcess', 'ValidatingAgent', SVGValidationPrompt,  'GeneratingAgent');
+       //   process?.execute();
         }
 
         console.log(`✅ Step ${i + 1} completed successfully`);
+      
       } catch (error) {
         console.error(`❌ Error executing step ${i + 1}:`, error);
         throw error; // Or continue based on error handling strategy
       }
-         console.log('\n🎉 Control flow execution completed');
-
-    
+         console.log('\n🎉 Control flow execution completed')             
     }
+      return validatedResultForD3JS;
   }
 
   /**

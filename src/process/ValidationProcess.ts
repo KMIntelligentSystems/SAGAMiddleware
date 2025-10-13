@@ -4,8 +4,8 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { validationFixedSyntaxResult } from '../test/testData.js'
-
+import { validationFixedSyntaxResult,genReflectValidateResponse } from '../test/testData.js'
+import { d3CodeValidatingAgentPrompt } from '../types/visualizationSaga.js'
 
 
 /**
@@ -72,6 +72,13 @@ export class ValidationProcess {
       this.targetAgent.getName()
     );*/
 
+     let result: AgentResult = {
+      agentName: this.targetAgent.getName(),
+      result: validationFixedSyntaxResult,
+      success: true,
+      timestamp: new Date()
+    };
+
     console.log(`📝 Target agent output: ${ctx.lastTransactionResult.substring(0, 100)}...`);
 
     // Clear validating agent context
@@ -82,14 +89,23 @@ export class ValidationProcess {
   if(this.targetAgent.getName() === 'D3JSCodingAgent'){
      this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
-  
+    this.validatingAgent.setTaskDescription(taskDescription);
+    result =  await this.validatingAgent.execute({});
+    console.log('VALIDATION RESULT FOR D3JS',result.result)
   } else if(this.targetAgent.getName() === 'GeneratingAgent') {
        const previousCtx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
        this.validatingAgent.receiveContext({ 'REQUIREMENTS': previousCtx.lastTransactionResult });
        this.validatingAgent.receiveContext({ 'SVG ANALYSIS': ctx.lastTransactionResult });
        this.validatingAgent.receiveContext({'SVG': ctx.svgContent});
-       const result = await this.validatingAgent.execute({});
-       console.log('VALIDATING RESULT ', result.result)
+       result.result = genReflectValidateResponse;
+       this.contextManager.updateContext(this.targetAgent.getName(), {
+        lastTransactionResult: result.result,
+        transactionId: this.targetAgent.getId(),
+        timestamp: new Date()
+      });
+
+     //  await this.validatingAgent.execute({});
+       
   } else {
      this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
   }
@@ -97,12 +113,7 @@ export class ValidationProcess {
     // Execute validation
  //  const result = await this.validatingAgent.execute({});
  //  console.log('VALIDATION ', result.result)
-  const result: AgentResult = {
-      agentName: 'cycle_start',
-      result: validationFixedSyntaxResult,
-      success: true,
-      timestamp: new Date()
-    };
+ 
    
 
     // Check if validation passed

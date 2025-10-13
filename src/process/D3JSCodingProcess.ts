@@ -5,7 +5,8 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { d3CodeValidatingAgentPrompt } from '../types/visualizationSaga.js'
-import * as fs from 'fs';
+
+import * as fs from 'fs'; 
 import * as path from 'path';
 /**
  * D3JSCodingProcess
@@ -66,10 +67,10 @@ export class D3JSCodingProcess {
     console.log('CODING PROCESS', this.targetAgentName)
      this.agent.setTaskDescription(conversationContext);
     // Clear previous context
-    this.agent.deleteContext();
+  //  this.agent.deleteContext();
 
     // Set context with task
-    this.agent.receiveContext({ 'INFORMATION TOT ASSIST YOU: ' :ctx.lastTransactionResult });
+    this.agent.receiveContext({ 'INFORMATION TO ASSIST YOU: ' :ctx.d3jsCodeResult });
 
     // Note: The data analysis summary should already be in the agent's context
     // from DataSummarizingProcess or set by SagaCoordinator
@@ -80,12 +81,13 @@ export class D3JSCodingProcess {
       timestamp: new Date()
     };
     // Execute agent to generate D3 code
-    // const  result = await this.agent.execute({}) as AgentResult;
-     //    const code = this.cleanJavaScriptCode( JSON.stringify(result.result));
-    //   fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
+  //   const  result = await this.agent.execute({}) as AgentResult;
+//result.result = D3JSAfterSVGResult;
+     //   const code = this.cleanJavaScriptCode( result.result);
+       //fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
     //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')
-      const codingResult = fs.readFileSync('data/codingOpenAIAgentResult.txt', 'utf-8');
-      result.result = this.cleanJavaScriptCode( codingResult); //
+      const codingResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
+      result.result = codingResult;//this.cleanJavaScriptCode( codingResult); //
     
 
     // Store D3 code result
@@ -101,7 +103,7 @@ export class D3JSCodingProcess {
       timestamp: new Date()
     });
 
-    this.agent.setTaskDescription(d3CodeValidatingAgentPrompt);
+ //   this.agent.setTaskDescription(d3CodeValidatingAgentPrompt); 
 
     console.log(`✅ D3.js code generated`);
     console.log(`📄 Code preview: ${result.result.substring(0, 200)}...`);

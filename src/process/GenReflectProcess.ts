@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { SVGInterpreterPrompt } from '../types/visualizationSaga.js';
+import { SVGInterpreterPrompt,  D3JSCodingAgentPrompt } from '../types/visualizationSaga.js';
 import { genReflectSVGResult } from '../test/testData.js'
 import * as fs from 'fs';
 import * as path from 'path';
@@ -29,28 +29,49 @@ export class GenReflectProcess {
   private agent: GenericAgent;
   private contextManager: ContextManager;
   private svgFilePath: string;
-  private targetAgentName = 'ValidatingAgent';
+  private targetAgent?: GenericAgent;
   constructor(
     agent: GenericAgent,
     contextManager: ContextManager,
     svgFilePath: string,
-
+    targetAgent?: GenericAgent
   ) {
     this.agent = agent;
     this.contextManager = contextManager;
     this.svgFilePath = svgFilePath;
-
+    this.targetAgent = targetAgent;
   }
 
   /**
    * Execute SVG reflection/interpretation
+   * { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'ValidatingAgent'},
+   * { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'D3JSCodingAgent'},
    */
   async execute(): Promise<AgentResult> {
     console.log(`\n🔍 GenReflectProcess: Analyzing SVG with ${this.agent.getName()}`);
     console.log(`📄 SVG file: ${this.svgFilePath}`);
+   
+    
+    let result =  {
+      agentName: 'cycle_start',
+      result: genReflectSVGResult,
+      success: true,
+      timestamp: new Date()
+    };
 
-    // Read SVG file
-    let svgContent: string;
+  if(this.targetAgent?.getName()=== 'ValidatingAgent'){
+      result = await this.executeEvaluateSVG();
+  } else  if(this.targetAgent && this.targetAgent?.getName() === 'D3JSCodingAgent'){
+      const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
+      this.targetAgent.receiveContext({'SVG ANALYSIS: ': ctx.lastTransactionResult })
+     //this.targetAgent.setTaskDescription(D3JSCodingAgentPrompt)
+  }
+    return result;
+ 
+  }
+
+  async executeEvaluateSVG(): Promise<AgentResult>{
+     let svgContent: string;
     try {
       if (!fs.existsSync(this.svgFilePath)) {
         console.error(`❌ SVG file not found: ${this.svgFilePath}`);
@@ -106,7 +127,7 @@ console.log('GEN RESULT', result.result)
       console.log(`📊 Analysis preview: ${String(result.result).substring(0, 200)}...`);
 
       // Store analysis result in context
-      this.contextManager.updateContext(this.targetAgentName, {
+      this.contextManager.updateContext('ValidatingAgent', {
         lastTransactionResult: result.result,
         svgAnalysis: result.result,
         svgFilePath: this.svgFilePath,
@@ -127,4 +148,8 @@ console.log('GEN RESULT', result.result)
 
     return result;
   }
+
+  
 }
+
+

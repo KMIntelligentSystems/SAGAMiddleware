@@ -191,6 +191,22 @@ the graphical display of that data. Therefore, you have these tasks:
 Finally, you will affirm or not that the requirements seem to be met by providing {affirmed: yes/no}. In case of the negative provide explanations.
 As a bonus in the affirmative case, can you see any enhancements that could be made. You will find the actual SVG elements enclosed`
 
+export const D3JSCodingAgentPrompt = `[AGENT: D3JSCodingAgent, tx-7] You are a d3 js coding expert. Your task is to review existing code which has been analyzed in its SVG representaion. You will be provided with the analysis and the code.
+Look in the analysis for:
+1. Any errors
+2. Suggestions for code quality
+3. Suggested enhancements
+The priority is to fix errors. The next prority is suggested enhancements and that's important for useability.
+ABSOLUTE REQUIREMENTS:
+- Output JavaScript code only which can be run directly in the browser.
+- Ensure code is syntactically complete and correct.
+- Zero explanatory text
+- Zero markdown
+
+ [/AGENT]`
+
+ export const D3JSCodeCorrectionPrompt = ``
+
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
 You must provide new instructiosn as succinctly as possible`

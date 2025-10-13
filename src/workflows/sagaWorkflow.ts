@@ -4,7 +4,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
   SAGA_D3_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis, csvAnalysisRefectingAgentPrompt, 
-  SAGA_D3JS_CODING_COLLECTION, SAGA_D3_AGENT_GEN_TRANSACTIONS, SVGInterpreterPrompt } from '../types/visualizationSaga.js';
+  SAGA_D3JS_CODING_COLLECTION, SAGA_D3_AGENT_GEN_TRANSACTIONS, SVGInterpreterPrompt,D3JSCodingAgentPrompt } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -15,7 +15,8 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
   visCodeExecutorTaskDescription, graphAnalyzerResult } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
-import { CSVReader } from '../processing/csvReader.js'
+
+
 
 // Default control flow list for saga coordinator
 const CONTROL_FLOW_LIST = [
@@ -30,16 +31,23 @@ const CONTROL_FLOW_LIST = [
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent', },
   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
   { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
-  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent' },
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
-  { agent: 'GeneratingAgent', process: 'GenReflectProcess' },
+  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }, //
+ // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
 ];
 
+const VALIDATE_D3JS_CODE_FLOW_LIST = [
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
+]
+
+const GENERATE_REFLECT_FLOW_LIST = [
+  { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'ValidatingAgent'},
+  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'GeneratingAgent' },
+]
+
 const CONTROL_UPDATE_FLOW_LIST = [
-  { agent: 'D3JSCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
-  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent' },
-  //{ agent: 'D3JSCoordinatingAgent' , process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent'},
+  { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'D3JSCodingAgent'},
+  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent' },
+ // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
 ]
 
 export class SagaWorkflow {
@@ -675,12 +683,21 @@ Focus: Only array extraction
 
       if(browserRequest.operationType === 'create_code'){
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
+        let result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+       /// console.log('FINAL RESULT ', result) 
+        this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST);
+        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+        console.log('SAGA RRESU', result)
+        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
+        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+        this.coordinator.initializeControlFlow(CONTROL_UPDATE_FLOW_LIST);
+        result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_FLOW_LIST);
       }
      
-       const result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-       console.log('FINAL RESULT ', result)
+     
       // Execute SAGA through coordinator using the new executeTransactionSetCollection method
       //1.'data-loading-set': TransactionGroupingAgent result = 2 agents defined = groupingAgentResult
       //2. 'agent-generating-set': TransactionGroupingAgent  defines dynamic coder/tool caller 

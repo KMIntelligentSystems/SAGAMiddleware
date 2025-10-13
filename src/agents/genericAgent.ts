@@ -4,6 +4,7 @@ import { OpenAI } from 'openai';
 // Assuming you've already imported the GoogleGenerativeAI class
 //import { GoogleGenerativeAI } from '@google/genai';
 import { GoogleGenAI, mcpToTool, FunctionCallingConfigMode } from '@google/genai';
+import * as fs from 'fs'; 
 
 // Initialize the client
 const genAI = new GoogleGenAI({
@@ -90,7 +91,13 @@ export class GenericAgent {
      
       const prompt = this.createPrompt();//buildPrompt(contextData);
       if(this.definition.name === 'ValidatingAgent'){
-        result = await this.invokeLLM(prompt);
+        if(this.counter === 0){
+            result.result =   fs.readFileSync('data/d3JSValidation1.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
+           // await this.invokeLLM(prompt);
+            console.log('CODED RESULT', result.result)
+        }
+        this.counter++;
+        console.log('HERE D3 JS PROCESSING', this.counter)
       }
       console.log("PROMPT ",prompt)
       const llmResult = '' //await this.invokeLLM(prompt);
