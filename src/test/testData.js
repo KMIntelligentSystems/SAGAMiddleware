@@ -2501,6 +2501,12 @@ able colors. Series with missing points manifest as shortened/empty paths, produ
   timestamp: 2025-10-10T06:35:03.119Z
 }`
 
-export const D3JSValidation = ``
+
+ //validation false: d3JSValidation1.txt
+ export const d3jsValidationSuccess = `agentName: 'ValidatingAgent',
+  result: '{\n' +
+    '  "success": true,\n' +
+'}'`
+
 
 export { csvContent, agentData };

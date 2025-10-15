@@ -190,22 +190,35 @@ the graphical display of that data. Therefore, you have these tasks:
 2. You will look at the agent's report. The basis of which is the SVG representation
 Finally, you will affirm or not that the requirements seem to be met by providing {affirmed: yes/no}. In case of the negative provide explanations.
 As a bonus in the affirmative case, can you see any enhancements that could be made. You will find the actual SVG elements enclosed`
-
-export const D3JSCodingAgentPrompt = `[AGENT: D3JSCodingAgent, tx-7] You are a d3 js coding expert. Your task is to review existing code which has been analyzed in its SVG representaion. You will be provided with the analysis and the code.
+//SVG 
+export const D3JSCodingAgentPrompt = `[AGENT: D3JSCodingAgent, tx-7] You are a d3 js coding expert. Your tasks are 1. Review the analysis of the  d3 js code's runtime behavior for error free run. Look also for suggested enhancements for the code.
+Prioritize the enhancements for useability. 2. Review the code and think how best to apply the enhancements to the code. 3. Fix errors if any. 4. Enhance the provided d3 js codes as you prioritized them.
 Look in the analysis for:
 1. Any errors
 2. Suggestions for code quality
 3. Suggested enhancements
 The priority is to fix errors. The next prority is suggested enhancements and that's important for useability.
 ABSOLUTE REQUIREMENTS:
-- Output JavaScript code only which can be run directly in the browser.
+- Output d3 js code only which can be run directly in the browser.
+- You must use the exisiting code as a basis for correction and enhancements. That is use of d3 js code is a priority
+- The existing code uses d3.csv to read a spacific file. You must use this construct and the specific file in the new code.
 - Ensure code is syntactically complete and correct.
 - Zero explanatory text
 - Zero markdown
 
  [/AGENT]`
+//Follows from first Validation process
+ export const D3JSCodeCorrectionPrompt = `[AGENT: D3JSCodingAgent, tx-7] You are expert in d3 js coding. You are provided with code which has errors. You will also be provided with an analysis of the errors. Your tasks:
+ 1. Examine the analysis
+ 2. Examine the code in context of the analysis
+ 3. Correct the code
+ ABSOLUTE REQUIREMENTS:
+- Output JavaScript code only which can be run directly in the browser.
+- Ensure code is syntactically complete and correct.
+- Zero explanatory text
+- Zero markdown
+ [/AGENT]`
 
- export const D3JSCodeCorrectionPrompt = ``
 
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 

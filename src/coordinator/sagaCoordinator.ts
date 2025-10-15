@@ -30,7 +30,8 @@ import {
     dataValidatingAgentPrompt,
     d3CodeValidatingAgentPrompt,
     SVGValidationPrompt,
-    D3JSCodingAgentPrompt
+    D3JSCodingAgentPrompt,
+    D3JSCodeCorrectionPrompt
 } from '../types/visualizationSaga.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { AgentParser } from '../agents/agentParser.js';
@@ -3997,7 +3998,13 @@ Task Context: ${taskContext}
       if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
         process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, this.svgPath);
       } else if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent'){
+       //   const ctx = this.contextManager.getContext('D3JSCoordinatingAgent');
+        //  const codingAgent = this.agents.get('D3JSCodingAgent');
+        
           process = this.instantiateProcess(step.process, step.agent, d3CodeValidatingAgentPrompt, step.targetAgent);
+          //
+      }  else if (step.process === 'D3JSCodingProcess' && step.targetAgent === 'ValidatingAgent'){
+          process = this.instantiateProcess(step.process, step.agent, D3JSCodingAgentPrompt , step.targetAgent); //When error D3JSCodeCorrectionPrompt
           //
       }
       else{
@@ -4144,7 +4151,6 @@ Task Context: ${taskContext}
             const validatedResult = result as AgentResult
              validatedResultForD3JS = validatedResult.result
         }
-       
 
         if (step.process === 'GenReflectProcess') {
           const genAgent = this.agents.get('GeneratingAgent')

@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { d3CodeValidatingAgentPrompt } from '../types/visualizationSaga.js'
+import { D3JSCodeCorrectionPrompt } from '../types/visualizationSaga.js'
 
 import * as fs from 'fs'; 
 import * as path from 'path';
@@ -49,7 +49,7 @@ export class D3JSCodingProcess {
     const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
       this.agent.getName())
-
+console.log('CONVERSATION CTX', conversationContext)
     if (!conversationContext) {
       console.warn(`⚠️  No task found for ${this.agent.getName()} in user query`);
       return {
@@ -60,34 +60,53 @@ export class D3JSCodingProcess {
         error: `No [AGENT: ${this.agent.getName()}] section found in user query`
       };
     }
-
-    console.log(`📝 Extracted task for ${this.agent.getName()}`);
-   
-    const ctx = this.contextManager.getContext(this. targetAgentName) as WorkingMemory;
-    console.log('CODING PROCESS', this.targetAgentName)
-     this.agent.setTaskDescription(conversationContext);
-    // Clear previous context
-  //  this.agent.deleteContext();
-
-    // Set context with task
-    this.agent.receiveContext({ 'INFORMATION TO ASSIST YOU: ' :ctx.d3jsCodeResult });
-
-    // Note: The data analysis summary should already be in the agent's context
-    // from DataSummarizingProcess or set by SagaCoordinator
- const result: AgentResult = {
+ let result: AgentResult = {
       agentName: 'cycle_start',
       result: 'TEST',
       success: true,
       timestamp: new Date()
     };
+    console.log(`📝 Extracted task for ${this.agent.getName()}`);
+  /*
+  1. Code request -> d3jsCoordinator: original code passed use openairesult text
+  2.  ValidatingAgent → ValidationProcess -> d3jsCodingAgent : uses svg to check for errors/enhancements 
+  The SVG anallysis led to coding agent given the analysis and then outputting updated code but code turns out same as input 
+  */
+  if(this.targetAgentName === 'ValidatingAgent'){
+    const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+     this.agent.setTaskDescription(conversationContext);
+     //Add if errors in analysis
+ //    this.agent.receiveContext({ 'ANALYSIS: ' :ctx.lastTransactionResult });
+     this.agent.receiveContext({ 'CODE: ' :ctx.d3jsCodeResult });
+   //  result = await this.agent.execute({}) as AgentResult;
+     const code = this.cleanJavaScriptCode( result.result);
+   //  fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
+     const codingResult = fs.readFileSync('data/codingOpenAIAgentResult.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
+    result.result = codingResult
+   
+  } else { 
+    //  1. Code request -> d3jsCoordinator: original code passed use openairesult text  
+    const ctx = this.contextManager.getContext(this. targetAgentName) as WorkingMemory; // Step 12/12: D3JSCodingAgent → D3JSCodingProcess ->d3jsCoordinatingAgent
+    console.log('CODING PROCESS', this.targetAgentName)
+     this.agent.setTaskDescription(conversationContext);
+    this.agent.receiveContext({ 'INFORMATION TO ASSIST YOU: ' :ctx.dataGuidanceAnalysis});//Info from summarising process in d3jscoordinatingaggent context manager
+   // result = await this.agent.execute({}) as AgentResult;
+    const codingResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
+    result.result = codingResult;//this.cleanJavaScriptCode( codingResult); //
+  }
+
+
+
+    // Note: The data analysis summary should already be in the agent's context
+    // from DataSummarizingProcess or set by SagaCoordinator
+
     // Execute agent to generate D3 code
-  //   const  result = await this.agent.execute({}) as AgentResult;
+   //  result = await this.agent.execute({}) as AgentResult;
 //result.result = D3JSAfterSVGResult;
      //   const code = this.cleanJavaScriptCode( result.result);
        //fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
     //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')
-      const codingResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
-      result.result = codingResult;//this.cleanJavaScriptCode( codingResult); //
+      
     
 
     // Store D3 code result
@@ -99,6 +118,7 @@ export class D3JSCodingProcess {
 
        this.contextManager.updateContext(this.agent.getName(), {
       lastTransactionResult: result.result,
+     d3jsCodeResult: result.result, 
       transactionId: this.agent.getId(),
       timestamp: new Date()
     });
@@ -106,7 +126,7 @@ export class D3JSCodingProcess {
  //   this.agent.setTaskDescription(d3CodeValidatingAgentPrompt); 
 
     console.log(`✅ D3.js code generated`);
-    console.log(`📄 Code preview: ${result.result.substring(0, 200)}...`);
+    console.log(`📄 Code preview: ${result.result}`);
 
     return result;
   }

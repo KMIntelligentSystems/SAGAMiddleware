@@ -84,7 +84,7 @@ export class DataSummarizingProcess {
 
     // Store summary result
     this.contextManager.updateContext(this.agent.getName(), {
-      lastTransactionResult: result.result,
+      dataGuidanceAnalysis: result.result,
       transactionId: this.agent.getId(),
       timestamp: new Date()
     });

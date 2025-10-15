@@ -4,9 +4,8 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { validationFixedSyntaxResult,genReflectValidateResponse } from '../test/testData.js'
-import { d3CodeValidatingAgentPrompt } from '../types/visualizationSaga.js'
-
+import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
+import * as fs from 'fs'; 
 
 /**
  * ValidationProcess
@@ -86,19 +85,25 @@ export class ValidationProcess {
 
     this.validatingAgent.setTaskDescription(this.targetAgent.getAgentDefinition().taskDescription);
     // Set context for validation
+    //ValidatingAgent → ValidationProcess -> d3jscodingagent
   if(this.targetAgent.getName() === 'D3JSCodingAgent'){
+    console.log('HERE D3JS VA')
      this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
-    this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
     this.validatingAgent.setTaskDescription(taskDescription);
-    result =  await this.validatingAgent.execute({});
-    console.log('VALIDATION RESULT FOR D3JS',result.result)
+  //  result =  await this.validatingAgent.execute({});
+      result.result =  d3jsValidationSuccess;// fs.readFileSync('data/d3JSValidation1.txt', 'utf-8')
+     this.contextManager.updateContext(this.targetAgent.getName(), {
+      lastTransactionResult: result.result,
+      transactionId: this.validatingAgent.getId(),
+      timestamp: new Date()
+    });
   } else if(this.targetAgent.getName() === 'GeneratingAgent') {
        const previousCtx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
        this.validatingAgent.receiveContext({ 'REQUIREMENTS': previousCtx.lastTransactionResult });
        this.validatingAgent.receiveContext({ 'SVG ANALYSIS': ctx.lastTransactionResult });
        this.validatingAgent.receiveContext({'SVG': ctx.svgContent});
        result.result = genReflectValidateResponse;
-       this.contextManager.updateContext(this.targetAgent.getName(), {
+       this.contextManager.updateContext(this.targetAgent.getName(), { //ValidatingAgent
         lastTransactionResult: result.result,
         transactionId: this.targetAgent.getId(),
         timestamp: new Date()

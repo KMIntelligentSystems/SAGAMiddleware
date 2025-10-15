@@ -90,11 +90,10 @@ export class GenericAgent {
       }
      
       const prompt = this.createPrompt();//buildPrompt(contextData);
-      if(this.definition.name === 'ValidatingAgent'){
-        if(this.counter === 0){
-            result.result =   fs.readFileSync('data/d3JSValidation1.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
-           // await this.invokeLLM(prompt);
-            console.log('CODED RESULT', result.result)
+      if(this.definition.name === 'D3JSCodingAgent'){
+        if(this.counter === 1){
+        //  result = await this.invokeLLM(prompt);
+          console.log('FIXED RESULT ' , result.result)
         }
         this.counter++;
         console.log('HERE D3 JS PROCESSING', this.counter)

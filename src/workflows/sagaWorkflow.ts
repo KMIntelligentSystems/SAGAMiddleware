@@ -39,16 +39,16 @@ const VALIDATE_D3JS_CODE_FLOW_LIST = [
   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
 ]
 
-const GENERATE_REFLECT_FLOW_LIST = [
-  { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'ValidatingAgent'},
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'GeneratingAgent' },
+const CONTROL_UPDATE_CODE_FLOW_LIST = [
+  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'ValidatingAgent' }
 ]
 
-const CONTROL_UPDATE_FLOW_LIST = [
-  { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'D3JSCodingAgent'},
-  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent:'D3JSCoordinatingAgent' },
- // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
+
+const GENERATE_REFLECT_FLOW_LIST = [
+  { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'ValidatingAgent'},
+//  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
 ]
+
 
 export class SagaWorkflow {
   private coordinator: SagaCoordinator;
@@ -685,16 +685,37 @@ Focus: Only array extraction
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
         let result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
        /// console.log('FINAL RESULT ', result) 
-        this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST);
-        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-        console.log('SAGA RRESU', result)
-        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
-        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-        this.coordinator.initializeControlFlow(CONTROL_UPDATE_FLOW_LIST);
-        result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+        this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' },
 
+        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+        console.log('SAGA RRESU', result) //'ValidatingAgent = true
+        if(result.includes('"success": false')){
+            this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);//  First validation of original code: errors
+            result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+        } 
+        else {
+        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST); //Validates SVG without errors
+        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+        this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST ); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' }
+        result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+         if(result.includes('true')){
+           this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
+           result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+//Validate enhanced code of original code
+          this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST ); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' }
+           result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+//
+         if(result.includes('true')){
+            this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST); //Validates SVG without errors
+            result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+         }
+         }
+       
+
+        }
+    
       } else  if(browserRequest.operationType === 'update_code'){
-         this.coordinator.initializeControlFlow(CONTROL_UPDATE_FLOW_LIST);
+         this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);
       }
      
      
