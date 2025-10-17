@@ -77,11 +77,13 @@ console.log('CONVERSATION CTX', conversationContext)
      this.agent.setTaskDescription(conversationContext);
      //Add if errors in analysis
  //    this.agent.receiveContext({ 'ANALYSIS: ' :ctx.lastTransactionResult });
-     this.agent.receiveContext({ 'CODE: ' :ctx.d3jsCodeResult });
-   //  result = await this.agent.execute({}) as AgentResult;
+     this.agent.deleteContext();
+     this.agent.receiveContext({ 'CODE: ' :ctx.d3jsCodeResult }); 
+     this.agent.receiveContext({'REPORT OF RUNTIME BEHAVIOR: ': ctx.lastTransactionResult})
+     result = await this.agent.execute({}) as AgentResult;
      const code = this.cleanJavaScriptCode( result.result);
    //  fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
-     const codingResult = fs.readFileSync('data/codingOpenAIAgentResult.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
+     const codingResult = fs.readFileSync('data/codingAgentResultInError.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
     result.result = codingResult
    
   } else { 
@@ -89,9 +91,9 @@ console.log('CONVERSATION CTX', conversationContext)
     const ctx = this.contextManager.getContext(this. targetAgentName) as WorkingMemory; // Step 12/12: D3JSCodingAgent → D3JSCodingProcess ->d3jsCoordinatingAgent
     console.log('CODING PROCESS', this.targetAgentName)
      this.agent.setTaskDescription(conversationContext);
-    this.agent.receiveContext({ 'INFORMATION TO ASSIST YOU: ' :ctx.dataGuidanceAnalysis});//Info from summarising process in d3jscoordinatingaggent context manager
+    this.agent.receiveContext({ 'INFORMATION TO ASSIST YOU: ' :ctx.dataGuidanceAnalysis});//Info from summarising process in d3jscoordinatingaggent context manager. INFORMATION TO ASSIST YOU remains in context for second call to update code used above
    // result = await this.agent.execute({}) as AgentResult;
-    const codingResult = fs.readFileSync('data/codingAgentResult.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
+    const codingResult = fs.readFileSync('data/codingAgentResultInError.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
     result.result = codingResult;//this.cleanJavaScriptCode( codingResult); //
   }
 

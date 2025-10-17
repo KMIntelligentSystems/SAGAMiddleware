@@ -65,6 +65,8 @@ export class ValidationProcess {
       };
     }
 
+    console.log('PATH', ctx.lastVisualizationSVG)
+
     // Extract target agent's original task from user query
   /*  const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
@@ -88,10 +90,13 @@ export class ValidationProcess {
     //ValidatingAgent → ValidationProcess -> d3jscodingagent
   if(this.targetAgent.getName() === 'D3JSCodingAgent'){
     console.log('HERE D3JS VA')
+    const validateCtx = this.contextManager.getContext(this.validatingAgent.getName());
+
      this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
+     this.validatingAgent.receiveContext({'CODE ANALYSIS: ': validateCtx?.lastTransactionResult})
     this.validatingAgent.setTaskDescription(taskDescription);
-  //  result =  await this.validatingAgent.execute({});
-      result.result =  d3jsValidationSuccess;// fs.readFileSync('data/d3JSValidation1.txt', 'utf-8')
+   result =  await this.validatingAgent.execute({});
+      result.result =  genReflectValidateResponse;// fs.readFileSync('data/d3JSValidation1.txt', 'utf-8')
      this.contextManager.updateContext(this.targetAgent.getName(), {
       lastTransactionResult: result.result,
       transactionId: this.validatingAgent.getId(),

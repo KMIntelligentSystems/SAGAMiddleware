@@ -5,7 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { SVGInterpreterPrompt,  D3JSCodingAgentPrompt } from '../types/visualizationSaga.js';
-import { genReflectSVGResult } from '../test/testData.js'
+import { genReflectSVGResult, genReflectSVGResult_1 } from '../test/testData.js'
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -42,7 +42,7 @@ export class GenReflectProcess {
     this.targetAgent = targetAgent;
   }
 
-  /**
+  /** GeneratingAgent -> GenReflectProcess -> ValidatingAgent
    * Execute SVG reflection/interpretation
    * { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'ValidatingAgent'},
    * { agent: 'GeneratingAgent', process: 'GenReflectProcess', targetAgent: 'D3JSCodingAgent'},
@@ -112,20 +112,21 @@ export class GenReflectProcess {
     });
 
     console.log(`🤖 Executing ${this.agent.getName()} to interpret SVG...`);
- const result: AgentResult = {
+ const result_: AgentResult = {
       agentName: 'cycle_start',
-      result: genReflectSVGResult,
+      result: genReflectSVGResult_1,
       success: true,
       timestamp: new Date()
     };
    
     // Execute agent to analyze SVG
- //   const result = await this.agent.execute({}) as AgentResult;
+    const result = await this.agent.execute({}) as AgentResult;
+    result.result = genReflectSVGResult_1;
 console.log('GEN RESULT', result.result)
     if (result.success) {
       console.log(`✅ SVG analysis completed`);
       console.log(`📊 Analysis preview: ${String(result.result).substring(0, 200)}...`);
-
+   
       // Store analysis result in context
       this.contextManager.updateContext('ValidatingAgent', {
         lastTransactionResult: result.result,

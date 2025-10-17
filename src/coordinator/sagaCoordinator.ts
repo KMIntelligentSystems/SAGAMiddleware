@@ -4004,7 +4004,7 @@ Task Context: ${taskContext}
           process = this.instantiateProcess(step.process, step.agent, d3CodeValidatingAgentPrompt, step.targetAgent);
           //
       }  else if (step.process === 'D3JSCodingProcess' && step.targetAgent === 'ValidatingAgent'){
-          process = this.instantiateProcess(step.process, step.agent, D3JSCodingAgentPrompt , step.targetAgent); //When error D3JSCodeCorrectionPrompt
+          process = this.instantiateProcess(step.process, step.agent,userQuery  , step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
           //
       }
       else{

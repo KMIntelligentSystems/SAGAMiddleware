@@ -90,7 +90,7 @@ export class GenericAgent {
       }
      
       const prompt = this.createPrompt();//buildPrompt(contextData);
-      if(this.definition.name === 'D3JSCodingAgent'){
+      if(this.definition.name === 'GeneratingAgent'){
         if(this.counter === 1){
         //  result = await this.invokeLLM(prompt);
           console.log('FIXED RESULT ' , result.result)

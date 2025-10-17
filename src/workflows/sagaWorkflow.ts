@@ -684,36 +684,27 @@ Focus: Only array extraction
       if(browserRequest.operationType === 'create_code'){
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
         let result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-       /// console.log('FINAL RESULT ', result) 
-        this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' },
+       //1. First  cut produces code, genreflect produces svg analysis, validates makes recommendations for code
+       console.log('GENERATE_REFLECT_FLOW_LIST 1')
+        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
+         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+         console.log('VALIDATE_D3JS_CODE_FLOW_LIST 1')
+         this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' },
+         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+         console.log('CONTROL_UPDATE_CODE_FLOW_LIST 1')
+         this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
+         result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
 
-        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-        console.log('SAGA RRESU', result) //'ValidatingAgent = true
-        if(result.includes('"success": false')){
-            this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);//  First validation of original code: errors
-            result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-        } 
-        else {
-        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST); //Validates SVG without errors
-        result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-        this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST ); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' }
-        result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
-         if(result.includes('true')){
-           this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
-           result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
-//Validate enhanced code of original code
-          this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST ); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' }
-           result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
-//
-         if(result.includes('true')){
-            this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST); //Validates SVG without errors
-            result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-         }
-         }
-       
-
-        }
-    
+        console.log('GENERATE_REFLECT_FLOW_LIST 2')
+        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
+         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+         console.log('VALIDATE_D3JS_CODE_FLOW_LIST 2')
+         this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' },
+         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
+         console.log('CONTROL_UPDATE_CODE_FLOW_LIST 2')
+         this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
+         result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+         
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);
       }

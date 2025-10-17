@@ -129,8 +129,8 @@ The rules are:
 2. Are the agents clearly delimited with these tags: '[AGENT: agent name, agent Id ]' followed by the instructions then ending with '[/AGENT]' or '[ / AGENT]?
 If these rules are not met, rectify the output accordingly`;
 
-export const SVGInterpreterPrompt = `You will be provided with a set of  SVG elements. Examine closely the structure and semantics of the elements. Provide a concise and
-structured output eliciting the meaning and structure of the SVG elements.`
+export const SVGInterpreterPrompt = `You will be provided with a set of SVG elements. Examine closely the structure and semantics of the elements. Provide a concise and
+structured output eliciting the meaning and structure of the SVG elements. There may be errors recorded and this is the priority for your report`
 
 export const pythonCodeValidatingAgentPrompt = `You will validate python code. You will examine the code to determine:
 1. Are there any syntax errors
