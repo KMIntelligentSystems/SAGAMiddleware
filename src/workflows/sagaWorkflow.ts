@@ -1,10 +1,10 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
-import {SAGA_CODE_VALIDATION_COLLECTION,SetExecutionResult, SagaWorkflowRequest,SagaTransaction,TransactionSet, SagaState, HumanInLoopConfig,
-  SAGA_D3_AGENT_GEN_COLLECTION, SAGA_TRANSACTIONS, DEFAULT_SAGA_COLLECTION, TransactionSetCollection, 
-  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, SAGA_VISUALIZATION_COLLECTION, SAGA_D3JS_COLLECTION,  D3JSCoordinatingAgentAnalysis, csvAnalysisRefectingAgentPrompt, 
-  SAGA_D3JS_CODING_COLLECTION, SAGA_D3_AGENT_GEN_TRANSACTIONS, SVGInterpreterPrompt,D3JSCodingAgentPrompt } from '../types/visualizationSaga.js';
+import { SagaState, HumanInLoopConfig,
+
+  groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
+ SVGInterpreterPrompt,D3JSCodingAgentPrompt } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -192,14 +192,7 @@ export class SagaWorkflow {
   private registerDefaultTransactionSet(): void {
     console.log('📝 Registering default visualization transaction set...');
     
-    this.transactionRegistry.registerDefaultTransactionSet({
-      name: 'visualization',
-      description: 'Default visualization SAGA transaction set',
-      transactions: SAGA_TRANSACTIONS,
-    });
-    
-    // Set as active transaction set
-    this.transactionRegistry.setActiveTransactionSet('visualization');
+   
     
     console.log('✅ Default visualization transaction set registered and activated');
   }
@@ -670,16 +663,6 @@ Focus: Only array extraction
     try {
       console.log(`🧵 Executing Thread Visualization SAGA for thread: ${threadId}`);
       
-      // Get active transaction set
-      const activeTransactionSet = this.transactionRegistry.getActiveTransactionSet();
-      if (!activeTransactionSet) {
-        throw new Error('No active transaction set found');
-      }
-      console.log("COUNT TRSN ", activeTransactionSet.transactions.length)
-      // Get the active context set for this transaction set
-      const activeContextSet = this.contextRegistry.getContextSetForTransactionSet(activeTransactionSet.name);
-      // Using context set: default_visualization_context for transaction set: visualization
-      console.log(`🔄 Using context set: ${activeContextSet?.name || 'none'} for transaction set: ${activeTransactionSet.name}`);
 
       if(browserRequest.operationType === 'create_code'){
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
