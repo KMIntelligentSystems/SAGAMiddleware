@@ -4,9 +4,13 @@
  * Architecture:
  * - Main Agent: Coordinates the CSV filtering workflow
  * - Code Generation Subagent: Generates Python code to process CSV
- * - Uses execution-server (codeGen MCP server) as the tool
+ * - Uses SDK's built-in execution MCP server for code execution
  *
- * User Request → Main Agent → Delegates to Code-Gen Subagent → Subagent uses MCP Tool → Returns Python code
+ * Flow: User Request → Main Agent → Delegates to Code-Gen Subagent →
+ *       Subagent uses mcp__execution__execute_python → Returns results
+ *
+ * Note: The Anthropic SDK provides built-in mcp__execution__execute_python and
+ * mcp__execution__execute_typescript tools. No external MCP server needed.
  */
 
 import {
@@ -28,46 +32,124 @@ Use PROACTIVELY when the user needs:
 - Data filtering and transformation
 - Code for reading and manipulating files`,
 
-    // This subagent has access to the execution-server MCP tools
-    tools: undefined, // Allow all tools including MCP server tools
+    // List tools including execute_python from codeGen-mcp-server
+    tools: ['execute_python', 'Read', 'Write', 'Edit'],
 
     model: 'sonnet',
 
-    prompt: `You are a Python code generation specialist focused on data processing.
+    prompt: `You are a Python code generation and execution specialist focused on data processing.
 
-Your primary responsibility is to generate clean, efficient Python code for data processing tasks.
+YOUR TOOLS:
+You have access to the "execute_python" MCP tool which allows you to:
+- Execute Python code directly on the codeGen-mcp-server
+- The tool takes a "code" parameter containing the Python code to execute
+- Returns stdout, stderr, success status, and execution results
 
-CRITICAL REQUIREMENTS FOR CODE OUTPUT:
-- Output ONLY Python code
-- First character must be Python code (import, def, or variable)
-- Last character must be Python code
-- Zero explanatory text before or after the code
-- Zero markdown formatting (no \`\`\`python or \`\`\`)
-- Zero comments explaining what you're doing
-- The code must be complete and immediately executable
+⚠️ IMPORTANT: Use "execute_python" NOT "mcp__execution__execute_python"
+The correct tool name is simply: execute_python
 
-When you receive a data processing request:
-1. Understand the data structure and requirements
-2. Generate Python code that solves the problem
-3. Use appropriate libraries (pandas, csv, etc.)
-4. Handle edge cases and errors in the code
-5. Output ONLY the Python code with no additional text
+MANDATORY WORKFLOW:
+1. Generate clean, efficient Python code for the task
+2. IMMEDIATELY call the execute_python tool (NOT mcp__execution__execute_python)
+3. Check the execution results (stdout, stderr, success)
+4. If there are errors, analyze stderr, fix the code, and execute again
+5. Once successful, return the working code and output
 
-Code quality standards:
-- Clean, readable code
-- Efficient algorithms
-- Proper error handling within the code
+CRITICAL: You MUST call execute_python tool. Do not use Write tool - EXECUTE IT!
+
+Tool call example:
+{
+  "name": "execute_python",
+  "input": {
+    "code": "import pandas as pd\\nprint('Hello from Python')"
+  }
+}
+
+Code generation standards:
+- Complete, executable Python code
+- Use appropriate libraries (pandas, csv, etc.)
+- Handle edge cases and errors in the code
 - Follow Python best practices
-- Use type hints where appropriate
+- Self-contained and immediately runnable
 
-Remember: Your output will be executed directly. No text, no markdown, just pure Python code.`
+Execution standards:
+- ALWAYS call execute_python after generating code
+- Check stdout for success messages
+- Check stderr for errors
+- Fix and re-execute if needed
+- Report final results clearly
+
+REMEMBER: Generate code, then EXECUTE it using execute_python tool. This is mandatory!`
+};
+
+/**
+ * Define the Data Aggregation Subagent
+ * Specializes in aggregating data by time periods
+ */
+const dataAggregationSubagent: AgentDefinition = {
+    description: `Python data aggregation specialist for time-series processing.
+Use PROACTIVELY when the user needs:
+- Time-based aggregation (hourly, daily averages)
+- Grouping and summarization
+- Statistical calculations on time-series data`,
+
+    // List tools including execute_python from codeGen-mcp-server
+    tools: ['execute_python', 'Read'],
+
+    model: 'sonnet',
+
+    prompt: `You are a Python data aggregation specialist focused on time-series processing.
+
+YOUR TOOLS:
+You have access to the "execute_python" MCP tool which allows you to:
+- Execute Python code directly on the codeGen-mcp-server
+- The tool takes a "code" parameter containing the Python code to execute
+- Returns stdout, stderr, success status, and execution results
+
+⚠️ IMPORTANT: Use "execute_python" NOT "mcp__execution__execute_python"
+The correct tool name is simply: execute_python
+
+MANDATORY WORKFLOW:
+1. Generate clean, efficient Python code for the task
+2. IMMEDIATELY call the execute_python tool (NOT mcp__execution__execute_python)
+3. Check the execution results (stdout, stderr, success)
+4. If there are errors, analyze stderr, fix the code, and execute again
+5. Once successful, return the working code and output
+
+CRITICAL: You MUST call execute_python tool immediately. Do NOT use Write tool - EXECUTE IT!
+
+Tool call example:
+{
+  "name": "execute_python",
+  "input": {
+    "code": "import pandas as pd\\ndf = pd.read_csv('data.csv')\\nprint(df.head())"
+  }
+}
+
+Code generation standards:
+- Complete, executable Python code
+- Use pandas for data manipulation
+- Handle missing values (NaN) with fillna(0)
+- Round numeric results to 2 decimal places
+- Print summary statistics (row counts, sample data)
+- Follow Python best practices
+
+Execution standards:
+- ALWAYS call execute_python after generating code
+- Check stdout for success messages
+- Check stderr for errors
+- Fix and re-execute if needed
+- Report final results clearly
+
+REMEMBER: Generate code, then EXECUTE it using execute_python tool. This is mandatory!`
 };
 
 /**
  * Main Agent Configuration
  */
 const AGENTS: Record<string, AgentDefinition> = {
-    'code-generator': codeGenerationSubagent
+    'code-generator': codeGenerationSubagent,
+    'data-aggregator': dataAggregationSubagent
 };
 
 /**
@@ -78,57 +160,189 @@ export class CSVFilteringMainAgent {
     private options: Options;
 
     constructor() {
-        // Configure to use your existing execution-server (codeGen MCP server)
+        // Configure to use codeGen-mcp-server for execute_python
         this.options = {
             agents: AGENTS,
-            permissionMode: 'acceptEdits',
+            permissionMode: 'bypassPermissions', // Auto-approve all tool calls including MCP
             maxTurns: 15,
             cwd: process.cwd(),
-
-            // Use your existing MCP server configuration
+            // Configure external MCP server for Python execution
             mcpServers: {
                 'execution': {
                     type: 'stdio',
                     command: 'node',
-                    args: ['C:/repos/codeGen-mcp-server/dist/server.js', '--stdio'],
+                    args: ['C:/repos/codeGen-mcp-server/dist/server.js', '--stdio']
                 }
-            },
+            }
         };
     }
 
     /**
-     * Execute the CSV filtering task
+     * Execute Step 1: CSV filtering (normalize wide-format to long-format)
      */
-    async executeCSVFilteringTask(): Promise<void> {
+    async executeStep1_Filtering(): Promise<void> {
         console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-        console.log('║       CSV Energy Data Filtering - Main Agent Task             ║');
+        console.log('║  STEP 1: CSV Data Normalization (Wide → Long Format)          ║');
         console.log('╚═══════════════════════════════════════════════════════════════╝\n');
 
-        const mainAgentPrompt = this.buildMainAgentPrompt();
+        const step1Prompt = this.buildStep1Prompt();
 
         const q = query({
-            prompt: mainAgentPrompt,
+            prompt: step1Prompt,
             options: this.options,
         });
 
         let turnCount = 0;
 
         for await (const message of q) {
-            this.handleMessage(message, ++turnCount);
+            this.handleMessage(message, ++turnCount, 'STEP 1');
         }
     }
 
     /**
-     * Build the comprehensive prompt for the main agent
+     * Execute Step 2: Hourly aggregation
      */
-    private buildMainAgentPrompt(): string {
+    async executeStep2_Aggregation(): Promise<void> {
+        console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+        console.log('║  STEP 2: Hourly Data Aggregation (Calculate Averages)         ║');
+        console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+
+        const step2Prompt = this.buildStep2Prompt();
+
+        const q = query({
+            prompt: step2Prompt,
+            options: this.options,
+        });
+
+        let turnCount = 0;
+
+        for await (const message of q) {
+            this.handleMessage(message, ++turnCount, 'STEP 2');
+        }
+    }
+
+    /**
+     * Execute complete workflow: Filter + Aggregate in single session
+     */
+    async executeCompleteWorkflow(): Promise<void> {
+        console.log('\n╔══════════════════════════════════════════════════════════════════╗');
+        console.log('║  CSV Energy Data Processing: 2-Step Workflow                     ║');
+        console.log('║  Step 1: Normalize data (wide → long format)                     ║');
+        console.log('║  Step 2: Aggregate by hour (calculate averages)                  ║');
+        console.log('╚══════════════════════════════════════════════════════════════════╝\n');
+
+        // Build combined prompt for both steps
+        const combinedPrompt = this.buildCombinedWorkflowPrompt();
+
+        const q = query({
+            prompt: combinedPrompt,
+            options: this.options,
+        });
+
+        let turnCount = 0;
+
+        for await (const message of q) {
+            this.handleMessage(message, ++turnCount, 'WORKFLOW');
+        }
+    }
+
+    /**
+     * Build combined prompt for both steps in a single session
+     */
+    private buildCombinedWorkflowPrompt(): string {
+        return `You are the Main Coordinator Agent managing a 2-step CSV data processing workflow.
+
+Available Subagents:
+- code-generator: Python code generation and EXECUTION specialist for data processing
+  * Has access to execute_python MCP tool
+  * Will generate AND execute Python code
+  * Returns execution results
+- data-aggregator: Python data aggregation and EXECUTION specialist
+  * Has access to execute_python MCP tool
+  * Specializes in time-series aggregation
+  * Returns execution results
+
+═══════════════════════════════════════════════════════════════════════════
+WORKFLOW: Process energy data in TWO sequential steps
+═══════════════════════════════════════════════════════════════════════════
+
+## STEP 1: CSV Data Normalization (Wide → Long Format)
+
+INPUT: C:/repos/SAGAMiddleware/data/two_days.csv (wide format, multi-row header)
+OUTPUT: C:/repos/SAGAMiddleware/data/filtered_energy_data.csv (long format)
+
+Requirements: Transform wide-format data into long-format with columns:
+- date/time, installation, energy_source, MW
+
+Category mapping:
+- Solar: BARCSF1, GRIFSF1, HUGSF1, LRSF1, MLSP1, ROTALLA1
+- Wind: CAPTL_WF, CHALLHWF, CULLRGWF, DIAPURWF1, MLWF1, WAUBRAWF, WOOLNTH1, YAMBUKWF, YSWF1
+- Natural Gas: SHOAL1
+- Hydro: BUTLERSG, CLOVER, CLUNY, PALOONA, REPULSE, ROWALLAN, RUBICON
+- Diesel: ERGT01, GBO1
+- Battery: KEPBG1
+- Coal: ERGTO1, RPCG
+
+## STEP 2: Hourly Data Aggregation
+
+INPUT: C:/repos/SAGAMiddleware/data/filtered_energy_data.csv (~14,785 rows)
+OUTPUT: C:/repos/SAGAMiddleware/data/hourly_energy_data.csv (hourly averages)
+
+Requirements:
+1. Parse date/time (format: '%d/%m/%Y %H:%M')
+2. Create date_hour column: strftime('%Y-%m-%d %H:00')
+3. Group by: date_hour, installation, energy_source
+4. Calculate mean(MW) → MW_avg
+5. Handle NaN with fillna(0)
+6. Round to 2 decimals
+7. Sort and save
+
+═══════════════════════════════════════════════════════════════════════════
+YOUR COORDINATION STEPS:
+═══════════════════════════════════════════════════════════════════════════
+
+**STEP 1: CSV Normalization**
+1. Delegate to 'code-generator' subagent using Task tool
+2. Provide all Step 1 requirements
+3. CRITICAL: Subagent must use execute_python tool (NOT mcp__execution__execute_python)
+4. Wait for execution to complete
+5. Verify output file created: filtered_energy_data.csv
+
+**STEP 2: Hourly Aggregation**
+6. Once Step 1 completes, delegate to 'data-aggregator' subagent using Task tool
+7. Provide all Step 2 requirements
+8. CRITICAL: Subagent must use execute_python tool (NOT mcp__execution__execute_python)
+9. Wait for execution to complete
+10. Verify output file created: hourly_energy_data.csv
+
+**Final Report:**
+11. Confirm both files were created
+12. Report row counts for both outputs
+13. Return summary of successful completion
+
+CRITICAL REMINDERS:
+⚠️ Both subagents MUST use execute_python tool (the correct tool name)
+⚠️ Do NOT use mcp__execution__execute_python (that's a different tool)
+⚠️ Wait for each step to complete before starting the next
+⚠️ Verify files are created after each step
+
+Begin workflow execution now.`;
+    }
+
+    /**
+     * Build prompt for Step 1: CSV filtering/normalization
+     */
+    private buildStep1Prompt(): string {
         return `You are the Main Coordinator Agent managing a CSV data processing workflow.
 
 Available Subagent:
-- code-generator: Python code generation specialist for data processing
+- code-generator: Python code generation and EXECUTION specialist for data processing
+  * Has access to execute_python MCP tool
+  * Will generate AND execute Python code
+  * Returns execution results
 
 ═══════════════════════════════════════════════════════════════════════════
-TASK: Generate Python code to process energy data CSV file
+TASK: Generate AND EXECUTE Python code to process energy data CSV file
 ═══════════════════════════════════════════════════════════════════════════
 
 CSV FILE STRUCTURE:
@@ -176,12 +390,11 @@ CODE REQUIREMENTS:
 6. Save output to: C:/repos/SAGAMiddleware/data/filtered_energy_data.csv
 
 ABSOLUTE REQUIREMENTS FOR THE CODE-GENERATOR SUBAGENT:
-⚠️ CRITICAL: The subagent MUST output ONLY Python code
-⚠️ First character must be Python code (import, def, or variable)
-⚠️ Last character must be Python code
-⚠️ Zero explanatory text
-⚠️ Zero markdown (no \`\`\`python or \`\`\`)
-⚠️ The code will be executed directly
+⚠️ CRITICAL: The subagent MUST use the execute_python MCP tool
+⚠️ The subagent must generate code AND execute it
+⚠️ Do not accept just code generation - require execution
+⚠️ Check for execution results (stdout, stderr, success status)
+⚠️ If execution fails, the subagent should fix and retry
 
 ═══════════════════════════════════════════════════════════════════════════
 YOUR COORDINATION STEPS:
@@ -193,13 +406,122 @@ YOUR COORDINATION STEPS:
    - Category mapping
    - File paths
    - Output format requirements
-   - Critical code output requirements
-3. Emphasize the ABSOLUTE REQUIREMENTS multiple times
-4. When you receive the generated code, verify it:
-   - Starts with Python code (no markdown)
-   - Ends with Python code
-   - Has no explanatory text
-5. Return the clean Python code to the user
+3. EXPLICITLY instruct the subagent to:
+   - Generate Python code
+   - Call the execute_python MCP tool with the code
+   - Check execution results
+   - Fix errors if any and re-execute
+4. When you receive results:
+   - Verify the code was EXECUTED (not just generated)
+   - Check for stdout/stderr from execution
+   - Confirm the output file was created
+5. Return the execution results and working code to the user
+
+CRITICAL: The subagent MUST execute the code using execute_python tool. Insist on this!
+
+Begin delegation now.`;
+    }
+
+    /**
+     * Build prompt for Step 2: Hourly aggregation
+     */
+    private buildStep2Prompt(): string {
+        return `You are the Main Coordinator Agent managing hourly data aggregation.
+
+Available Subagent:
+- data-aggregator: Python data aggregation and EXECUTION specialist
+  * Has access to execute_python MCP tool
+  * Will generate AND execute Python code
+  * Returns execution results
+
+═══════════════════════════════════════════════════════════════════════════
+TASK: Aggregate filtered energy data by hour - GENERATE AND EXECUTE Python code
+═══════════════════════════════════════════════════════════════════════════
+
+INPUT FILE: C:/repos/SAGAMiddleware/data/filtered_energy_data.csv
+Structure: date/time, installation, energy_source, MW
+Format: Long-format CSV with ~14,785 rows
+
+OUTPUT FILE: C:/repos/SAGAMiddleware/data/hourly_energy_data.csv
+Required columns: date_hour, installation, energy_source, MW_avg
+
+AGGREGATION REQUIREMENTS:
+1. Read filtered_energy_data.csv using pandas
+2. Parse date/time column (format: '%d/%m/%Y %H:%M')
+3. Create date_hour column: extract hour and format as 'YYYY-MM-DD HH:00'
+   Example: '11/02/2023 4:15' → '2023-02-11 04:00'
+4. Group by: date_hour, installation, energy_source
+5. Calculate mean of MW column → MW_avg
+6. Handle NaN values: fillna(0)
+7. Round MW_avg to 2 decimal places
+8. Sort by: date_hour, installation, energy_source
+9. Save to output CSV
+10. Print summary:
+    - Input row count
+    - Output row count (should be much smaller after aggregation)
+    - Sample of first 10 rows
+
+PYTHON CODE EXAMPLE STRUCTURE:
+\`\`\`python
+import pandas as pd
+
+# Read input
+df = pd.read_csv('C:/repos/SAGAMiddleware/data/filtered_energy_data.csv')
+print(f"Input rows: {len(df)}")
+
+# Parse datetime
+df['datetime'] = pd.to_datetime(df['date/time'], format='%d/%m/%Y %H:%M')
+
+# Create hour column
+df['date_hour'] = df['datetime'].dt.strftime('%Y-%m-%d %H:00')
+
+# Group and aggregate
+hourly = df.groupby(['date_hour', 'installation', 'energy_source'])['MW'].mean().reset_index()
+hourly.columns = ['date_hour', 'installation', 'energy_source', 'MW_avg']
+
+# Clean data
+hourly['MW_avg'] = hourly['MW_avg'].fillna(0).round(2)
+
+# Sort
+hourly = hourly.sort_values(['date_hour', 'installation', 'energy_source'])
+
+# Save
+hourly.to_csv('C:/repos/SAGAMiddleware/data/hourly_energy_data.csv', index=False)
+print(f"Output rows: {len(hourly)}")
+print("\\nSample output:")
+print(hourly.head(10))
+\`\`\`
+
+ABSOLUTE REQUIREMENTS FOR THE DATA-AGGREGATOR SUBAGENT:
+⚠️ CRITICAL: The subagent MUST use the execute_python MCP tool
+⚠️ The subagent must generate code AND execute it
+⚠️ Do not accept just code generation - require execution
+⚠️ Check for execution results (stdout, stderr, success status)
+⚠️ If execution fails, the subagent should fix and retry
+
+═══════════════════════════════════════════════════════════════════════════
+YOUR COORDINATION STEPS:
+═══════════════════════════════════════════════════════════════════════════
+
+1. Delegate to the 'data-aggregator' subagent using the Task tool
+2. Provide the subagent with ALL the information above:
+   - Input/output file paths
+   - Date format details
+   - Aggregation requirements
+   - Expected output structure
+3. EXPLICITLY instruct the subagent to:
+   - Generate Python code
+   - Call the execute_python MCP tool with the code
+   - Check execution results
+   - Fix errors if any and re-execute
+4. When you receive results:
+   - Verify the code was EXECUTED (not just generated)
+   - Check for stdout/stderr from execution
+   - Confirm the output file was created
+   - Verify row counts (output should be much smaller than input)
+5. Return the execution results and working code to the user
+
+CRITICAL: The subagent MUST execute the code using execute_python tool. Insist on this!
 
 Begin delegation now.`;
     }
@@ -207,7 +529,7 @@ Begin delegation now.`;
     /**
      * Handle messages from the query stream
      */
-    private handleMessage(message: SDKMessage, turn: number): void {
+    private handleMessage(message: SDKMessage, turn: number, stepLabel: string = 'AGENT'): void {
         switch (message.type) {
             case 'system':
                 if (message.subtype === 'init') {
@@ -224,7 +546,7 @@ Begin delegation now.`;
 
             case 'assistant':
                 console.log(`\n${'─'.repeat(60)}`);
-                console.log(`Turn ${turn}: MAIN AGENT`);
+                console.log(`Turn ${turn}: ${stepLabel}`);
                 console.log('─'.repeat(60));
 
                 for (const content of message.message.content) {
@@ -254,6 +576,23 @@ Begin delegation now.`;
                 if (!message.isSynthetic) {
                     console.log('\n[USER MESSAGE]');
                     const content = JSON.stringify(message.message, null, 2);
+
+                    // Check if this is a tool result from execute_python
+                    if (message.message.content && Array.isArray(message.message.content)) {
+                        for (const item of message.message.content) {
+                            if (item.type === 'tool_result' && item.content) {
+                                // Try to parse MCP tool response
+                                if (Array.isArray(item.content) && item.content.length > 0) {
+                                    console.log('[TOOL RESULT]:', JSON.stringify(item.content, null, 2).substring(0, 1000));
+                                } else if (typeof item.content === 'string') {
+                                    console.log('[TOOL RESULT]:', item.content.substring(0, 1000));
+                                } else {
+                                    console.log('[TOOL RESULT]: Empty or no output');
+                                }
+                            }
+                        }
+                    }
+
                     console.log(content.substring(0, 500));
                     if (content.length > 500) {
                         console.log('[...truncated for display...]');
@@ -306,13 +645,6 @@ Begin delegation now.`;
  * Main execution function
  */
 export async function main() {
-    console.log('\n');
-    console.log('╔══════════════════════════════════════════════════════════════════╗');
-    console.log('║  CSV Energy Data Filtering: Main-Subagent Architecture Demo      ║');
-    console.log('║  Main Agent → Code-Gen Subagent → Python Code Generation         ║');
-    console.log('╚══════════════════════════════════════════════════════════════════╝');
-    console.log('\n');
-
     // Check for API key
     if (!process.env.ANTHROPIC_API_KEY) {
         console.error('❌ ERROR: ANTHROPIC_API_KEY environment variable is not set');
@@ -323,13 +655,17 @@ export async function main() {
     }
 
     try {
-        const mainAgent = new CSVFilteringMainAgent();
-        await mainAgent.executeCSVFilteringTask();
+        const workflow = new CSVFilteringMainAgent();
+        await workflow.executeCompleteWorkflow();
 
-        console.log('\n\n✓ Task completed successfully!\n');
-        console.log('The generated Python code can be saved and executed to process the CSV file.\n');
+        console.log('\n\n' + '═'.repeat(70));
+        console.log('✓ Complete workflow finished successfully!');
+        console.log('═'.repeat(70));
+        console.log('\nOutput files created:');
+        console.log('  1. data/filtered_energy_data.csv (normalized long-format)');
+        console.log('  2. data/hourly_energy_data.csv (hourly averages)\n');
     } catch (error) {
-        console.error('\n\n✗ Error running task:', error);
+        console.error('\n\n✗ Error running workflow:', error);
         if (error instanceof Error) {
             console.error('Stack trace:', error.stack);
         }
@@ -337,7 +673,6 @@ export async function main() {
     }
 }
 
-// Run if executed directly
-if (require.main === module) {
-    main().catch(console.error);
-}
+
+// Auto-run main when executed directly
+main().catch(console.error);

@@ -1,6 +1,6 @@
 {
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "^0.1.10",
+		"@anthropic-ai/claude-agent-sdk": "0.1.15",
 		"@anthropic-ai/sdk": "^0.30.1",
 		"@google/genai": "^1.16.0",
 		"@langchain/anthropic": "^0.3.15",
@@ -24,7 +24,8 @@
 		"socket.io-client": "^4.8.1",
 		"sqlite": "^5.1.1",
 		"sqlite3": "^5.1.7",
-		"ts-node": "^10.9.2"
+		"ts-node": "^10.9.2",
+		"zod": "^4.1.12"
 	},
 	"name": "main",
 	"version": "1.0.0",
