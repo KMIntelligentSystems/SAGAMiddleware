@@ -42,7 +42,7 @@ export class FlowProcess {
    * Execute flow extraction
    */
   async execute(): Promise<AgentResult> {
-    console.log(`\n🔀 FlowProcess: Extracting flow from ${this.targetAgent.getName()} output`); //FlowDefiningAgent
+    console.log(`\n🔀 FlowProcess: Extracting flow from ${this.targetAgent.getName()} output`); //FlowDefiningAgent Extracting flow from TransactionGroupingAgent output
 
     // Get target agent's last result (agent definitions)
     const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
@@ -71,7 +71,7 @@ export class FlowProcess {
     // Execute flow defining agent
    //const result = await this.flowDefiningAgent.execute({});
   // console.log('FLOW RESULT ', result.result)
-   const result: AgentResult = {
+   let result: AgentResult = {
       agentName: 'cycle_start',
       result: '',
       success: true,
@@ -79,9 +79,9 @@ export class FlowProcess {
     };
 
       if(this.targetAgent.getName() === 'TransactionGroupingAgent'){
-         //  const result = await this.agent.execute({});
-          console.log('DEFINE AGENT TRANSACTION GROUPING AGENT')
-         result.result = flowDefiningAgentResult;
+           result.result = flowDefiningAgentResult//await this.flowDefiningAgent.execute({});
+          console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', result.result)
+        // result.result = flowDefiningAgentResult;
         } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
            console.log('VISUALISATION AGENT')
          result.result = flowData;

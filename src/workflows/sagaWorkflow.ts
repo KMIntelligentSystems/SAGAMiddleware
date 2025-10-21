@@ -1,10 +1,10 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
-import { GenericAgent } from '../agents/genericAgent.js';
+import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { SagaState, HumanInLoopConfig,
 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
- SVGInterpreterPrompt,D3JSCodingAgentPrompt } from '../types/visualizationSaga.js';
+ SVGInterpreterPrompt,D3JSCodingAgentPrompt, SagaTransaction, TransactionSetCollection, TransactionSet } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -12,18 +12,19 @@ import { TransactionRegistry, TransactionRegistryConfig } from '../services/tran
 import { ContextRegistry, ContextRegistryConfig, ContextSetDefinition, DataSource, LLMPromptConfig } from '../services/contextRegistry.js';
 import { ConversationManager, ThreadMessage } from '../services/conversationManager.js';
 import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResult, codeExecutorResult, visCodeWriterTaskDescription, 
-  visCodeExecutorTaskDescription, graphAnalyzerResult } from '../test/testData.js'
+  visCodeExecutorTaskDescription, graphAnalyzerResult, agentConstructorInput } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
+import * as fs from 'fs'
 
 
 
 // Default control flow list for saga coordinator
 const CONTROL_FLOW_LIST = [
-  { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
+ // { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
+ // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' },
-  { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
+/*  { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent', },
   { agent: 'D3JSCoordinatingAgent', process:'DefineGenericAgentsProcess'},
@@ -32,7 +33,7 @@ const CONTROL_FLOW_LIST = [
   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
   { agent: 'D3JSCoordinatingAgent', process: 'DataSummarizingProcess' },
   { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }, //
- // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
+ // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },*/
 ];
 
 const VALIDATE_D3JS_CODE_FLOW_LIST = [
@@ -60,7 +61,7 @@ export class SagaWorkflow {
   private config: HumanInLoopConfig;
   private transactionRegistry: TransactionRegistry;
   private contextRegistry: ContextRegistry;
-  private conversationManager: ConversationManager;
+  //private conversationManager: ConversationManager;
   private pythonLogAnalyzer: PythonLogAnalyzer;
   
   // Global thread and message retention
@@ -121,7 +122,7 @@ export class SagaWorkflow {
     this.contextRegistry = new ContextRegistry(contextConfig);
     
     // Initialize ConversationManager
-    this.conversationManager = new ConversationManager( process.env.ASSISTANT_ID  || '');
+    //this.conversationManager = new ConversationManager( process.env.ASSISTANT_ID  || '');
   }
 
   async initialize(): Promise<void> {
@@ -629,10 +630,28 @@ Focus: Only array extraction
       this.currentThreadId = threadId;
        this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
+
+      const agentStruct: AgentStructureGenerator = new AgentStructureGenerator()
+      const res = agentConstructorInput//await agentStruct.generateAgentStructures( data.message);
+    
+    //  const res = fs.readFileSync('C:/repos/SAGAMiddleware/data/claudeAgentSpec.txt', 'utf-8');
+ /* const transactionSetCollection = AgentParser.parseAndCreateAgents(
+      res,
+      undefined,
+      this.coordinator
+    );
+       transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
+                  if(transactionSet.transactions.length > 1){
+                       transactionSet.transactions.forEach((transaction: SagaTransaction) => {
+                         console.log('TRANS NAME',transaction.agentName)
+                         console.log('TRANS ID',transaction.id)
+                  }) 
+                  }})*/
       
-      // Create browser request from thread message
+   //  console.log('RES', res)
+      // Create browser request from thread) message
       const browserRequest: BrowserGraphRequest = {
-        userQuery: data.message,
+        userQuery: res,
         operationType: opType
       };
   
@@ -663,12 +682,13 @@ Focus: Only array extraction
     try {
       console.log(`🧵 Executing Thread Visualization SAGA for thread: ${threadId}`);
       
+    
 
       if(browserRequest.operationType === 'create_code'){
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
         let result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
        //1. First  cut produces code, genreflect produces svg analysis, validates makes recommendations for code
-       console.log('GENERATE_REFLECT_FLOW_LIST 1')
+  /*     console.log('GENERATE_REFLECT_FLOW_LIST 1')
         this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
          result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
          console.log('VALIDATE_D3JS_CODE_FLOW_LIST 1')
@@ -686,7 +706,7 @@ Focus: Only array extraction
          result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
          console.log('CONTROL_UPDATE_CODE_FLOW_LIST 2')
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
-         result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
+         result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);*/
          
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);

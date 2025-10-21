@@ -464,6 +464,14 @@ sleep(ms: number) {
 
       // Instantiate process
       let process;
+       if (step.process === 'FlowProcess') {
+          //const transGrpAgentCtx = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
+             this.contextManager.updateContext('TransactionGroupingAgent', {
+             lastTransactionResult: userQuery,
+              transactionId: 'tx-2',
+              timestamp: new Date()
+          });
+      }
       if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
         process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, this.svgPath);
       } else if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent'){
@@ -493,7 +501,7 @@ sleep(ms: number) {
       
 
         if (step.process === 'FlowProcess') {
-  
+        
           const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
           const transactionSetCollection = await process?.execute() as TransactionSetCollection;
           const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,step.targetAgent,transactionSetCollection );

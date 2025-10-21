@@ -64,7 +64,7 @@ export class AgentGeneratorProcess {
     const agentDefinitionsText = flowCtx?.previousTransactionResult;
     const flowData = flowCtx?.lastTransactionResult;
 
-    console.log(`📝 Agent definitions: $agentFlowText}...`);
+    console.log(`📝 Agent definitions: $agentFlowText}...`, flowData);
     if (flowData) {
       console.log(`🔀 Flow data: ${flowData.substring(0, 150)}...`);
     } else {

@@ -2166,7 +2166,7 @@ export const validationFixedSyntaxResult = ` {
   timestamp: 2025-10-02T21:44:29.436Z
 }`
 
-export const flowDefiningAgentResult = `{
+export const flowDefiningAgentResult_ = `{
   agentName: 'FlowDefiningAgent',
   result: '<!DOCTYPE html>\n' +
     '<html>\n' +
@@ -2181,6 +2181,23 @@ export const flowDefiningAgentResult = `{
     '</html>',
   success: true,
   timestamp: 2025-10-03T04:33:30.405Z
+}`
+
+export const flowDefiningAgentResult = ` {
+  agentName: 'FlowDefiningAgent',
+  result: '<!doctype html>\n' +
+    '<html>\n' +
+    '<head>\n' +
+    '  <meta charset="utf-8">\n' +
+    '  <title>Agent Flow and Tool Users</title>\n' +
+    '</head>\n' +
+    '<body>\n' +
+    '  <flow>DATA-ANALYSIS-01 -> DATA-PROC-01 -> DATA-SUM-01 -> D3-CODE-01 -> VALID-01</flow>\n' +
+    '  {"toolUsers": ["DataProcessingAgent"]}\n' +
+    '</body>\n' +
+    '</html>',
+  success: true,
+  timestamp: 2025-10-21T04:00:16.664Z
 }`
 
 export const genReflectSVGResult = `{
@@ -2508,5 +2525,208 @@ able colors. Series with missing points manifest as shortened/empty paths, produ
     '  "success": true,\n' +
 '}'`
 
+export const agentConstructorInput = `[AGENT: PythonDataProcessingAgent, PY-CODE-01]
+You are a Python coding agent. Your task is to generate Python code that processes energy generation data from a CSV file.
+
+**CONTEXT:**
+You are processing energy generation data from Tasmania. The CSV file contains installations grouped by energy type (Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal). Data is recorded every 5 minutes with MW values.
+
+**INPUT FILE:**
+C:/repos/SAGAMiddleware/data/two_days.csv
+
+**CSV STRUCTURE:**
+- Row 1-2: Headers (energy types and installation names)
+- Column 1: date/time in format "11/02/2023 4:00"
+- Time increments: 5 minutes per row
+- Values: MW (megawatts)
+
+**CATEGORY MAPPING:**
+Solar: BARCSF1, GRIFSF1, HUGSF1, LRSF1, MLSP1, ROTALLA1
+Wind: CAPTL_WF, CHALLHWF, CULLRGWF, DIAPURWF1, MLWF1, WAUBRAWF, WOOLNTH1, YAMBUKWF, YSWF1
+Natural Gas: SHOAL1
+Hydro: BUTLERSG, CLOVER, CLUNY, PALOONA, REPULSE
+Diesel: ERGT01, GBO1
+Battery: KEPBG1
+Coal: ERGTO1, RPCG
+
+**REQUIREMENTS:**
+1. Filter data for date: 11/02/2023
+2. Filter time range: 0600 to 1800 (6 AM to 6 PM)
+3. Convert 5-minute MW readings to hourly MW/hr aggregates (sum all readings within each hour)
+4. Output format: CSV with columns: date/time,installation,energy_source,MW
+5. After successful processing, generate metadata including:
+   - installation_count (total unique installations)
+   - mw_min (minimum MW value across all data)
+   - mw_max (maximum MW value across all data)
+   - unique_installations (list of all installation names)
+   - date_ranges (date coverage in the output)
+   - chart_type: 'line'
+
+**OUTPUT FILE:**
+C:/repos/SAGAMiddleware/data/hourly_energy_data.csv
+
+**OUTPUT STRUCTURE:**
+date/time,installation,energy_source,MW
+11/02/2023,BARCSF1,Solar,0.10000000000000002
+11/02/2023,BUTLERSG,Hydro,9.399999
+
+**ABSOLUTE REQUIREMENTS:**
+- Output ONLY Python code
+- First character must be Python code (import, def, or variable)
+- Last character must be Python code
+- Zero explanatory text
+- Zero markdown
+- Include metadata generation as structured output (print as JSON)
+- Handle missing values appropriately
+[/AGENT]
+
+[AGENT: PythonExecutionAgent, PY-EXEC-01]
+You are a tool-calling agent responsible for executing Python code using an MCP server.
+
+**YOUR TASK:**
+Execute the Python code that has been placed in your context by calling the execute_python MCP tool.
+
+**TOOL CALL FORMAT:**
+You MUST call the MCP server with exactly this structure:
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "execute_python",
+    "arguments": {
+      "code": "<INSERT_PYTHON_CODE_HERE>"
+    }
+  }
+}
+
+**INSTRUCTIONS:**
+1. Take the Python code provided in your context
+2. Insert it into the "code" field of the arguments object
+3. Make the tool call to execute_python
+4. Capture and pass forward the complete output including:
+   - The generated CSV file confirmation
+   - The metadata JSON output
+   - Any error messages or warnings
+
+**IMPORTANT:**
+- You are a tool-calling agent, not a code generator
+- The code is already generated and provided to you
+- Your only job is to execute it via the MCP tool call
+- Pass all output forward without modification
+[/AGENT]
+
+[AGENT: DataAnalysisAgent, ANALYZE-01]
+You are an analyzing agent responsible for validating the output from the Python execution and preparing instructions for the D3.js visualization agent.
+
+**CONTEXT:**
+You will receive structured output from the Python execution agent. This output includes:
+- CSV file generation confirmation (C:/repos/SAGAMiddleware/data/hourly_energy_data.csv)
+- Metadata JSON containing:
+  - installation_count: Number of unique installations
+  - mw_min: Minimum MW value
+  - mw_max: Maximum MW value
+  - unique_installations: List of all installation names
+  - date_ranges: Date coverage
+  - chart_type: 'line'
+
+**CSV DATA STRUCTURE:**
+date/time,installation,energy_source,MW
+11/02/2023,BARCSF1,Solar,0.10000000000000002
+11/02/2023,BUTLERSG,Hydro,9.399999
+
+**YOUR TASKS:**
+1. Verify the Python execution completed successfully
+2. Validate that metadata contains all required fields
+3. Assess if there is sufficient structural and semantic information for the D3.js coding agent
+4. Determine data characteristics:
+   - Energy types present: Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal
+   - Time range: 0600 to 1800 on 11/02/2023
+   - Data granularity: Hourly MW values
+   - Multiple installations per energy type
+
+5. Generate CLEAR INSTRUCTIONS for the D3.js coding agent including:
+   - Chart requirements: Line graph with time on X-axis, MW on Y-axis
+   - Multiple lines: One per energy type (aggregate across installations)
+   - Interactive legend: Toggle energy types on/off
+   - Data file location: 'hourly_energy_data.csv'
+   - Data structure: date/time, installation, energy_source, MW columns
+   - Y-axis range: Use mw_min to mw_max from metadata
+   - X-axis: Hourly time points from 06:00 to 18:00
+
+**OUTPUT:**
+Produce a comprehensive instruction set for the D3.js coding agent that includes:
+- Data structure description
+- Chart type and visual requirements
+- Interactive features needed
+- Axis configurations
+- Color coding recommendations for energy types
+- Legend functionality specifications
+
+**NOTE:**
+The D3.js agent will NOT have access to the CSV file content directly (Context Window constraints). Your instructions must be sufficiently detailed to enable the agent to write correct d3.csv() data parsing code.
+[/AGENT]
+
+[AGENT: D3VisualizationAgent, D3-CODE-01]
+You are a D3.js coding agent. Your task is to generate a complete HTML/JavaScript visualization using D3.js v7.
+
+**YOU WILL RECEIVE:**
+1. Clear and concise requirements from the analyzing agent
+2. The structure and semantics of the data to be visualized
+3. Metadata about data ranges, installations, and energy types
+
+**DATA FILE:**
+Use d3.csv() to load: 'hourly_energy_data.csv'
+
+**DATA STRUCTURE:**
+CSV columns: date/time, installation, energy_source, MW
+- date/time: Date string (e.g., "11/02/2023")
+- installation: Installation name (e.g., "BARCSF1")
+- energy_source: Energy type (Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal)
+- MW: Numeric megawatt-hour value
+
+**VISUALIZATION REQUIREMENTS:**
+1. **Chart Type:** Line graph
+2. **X-Axis:** Time (hourly intervals from 0600 to 1800)
+3. **Y-Axis:** MW/hr (megawatt-hours)
+4. **Multiple Lines:** One line per energy type (aggregate all installations within each energy type)
+5. **Interactive Legend:**
+   - Display all energy types
+   - Click to toggle visibility of each energy type line
+   - Visual indication of active/inactive states
+6. **Styling:**
+   - Distinct colors for each energy type
+   - Responsive design
+   - Clear axis labels
+   - Grid lines for readability
+   - Tooltips showing exact values on hover
+
+**D3.js LIBRARY:**
+Include: <script src="https://d3js.org/d3.v7.min.js"></script>
+
+**DATA PROCESSING IN CODE:**
+1. Load CSV with d3.csv('hourly_energy_data.csv')
+2. Parse MW values as numbers
+3. Group by energy_source and time
+4. Aggregate MW values across installations for each energy type
+5. Create line data for each energy type
+
+**ABSOLUTE REQUIREMENTS:**
+- Output ONLY a complete HTML file with embedded JavaScript
+- First character must be: <
+- Last character must be: >
+- Use D3.js v7 library
+- Zero explanatory text outside HTML
+- Zero markdown formatting
+- Complete, executable HTML document
+- All D3.js code must be functional and tested patterns
+
+**OUTPUT FILE LOCATION:**
+The generated HTML should reference: 'hourly_energy_data.csv' (relative path)
+[/AGENT]
+
+<flow>PythonDataProcessingAgent -> PythonExecutionAgent -> DataAnalysisAgent -> D3VisualizationAgent</flow>
+
+{"toolUsers": ["PythonExecutionAgent"]}`
 
 export { csvContent, agentData };

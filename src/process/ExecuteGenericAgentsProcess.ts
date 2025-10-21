@@ -146,7 +146,8 @@ codeExecutorResult,pythonLogCodeResult
              
           if(firstAgent ===  linearTx.agentName ){
               //TEST START
-          //    result = await agent?.execute({}) as AgentResult;
+              result = await agent?.execute({}) as AgentResult;
+              console.log('TEST', result.result)
           //END
             prevResult = result.result = visCodeWriterResult //result from PandasDailyAveragingCoder  D3JSCoordinatingAgentFinalResult
             cleanCode = this.cleanPythonCode(result.result || '')
