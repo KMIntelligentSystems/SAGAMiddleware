@@ -69,8 +69,8 @@ export class FlowProcess {
     this.flowDefiningAgent.setTaskDescription(agentDefinitionPrompt);
 
     // Execute flow defining agent
-   //const result = await this.flowDefiningAgent.execute({});
-  // console.log('FLOW RESULT ', result.result)
+//   const result = await this.flowDefiningAgent.execute({});
+  
    let result: AgentResult = {
       agentName: 'cycle_start',
       result: '',
@@ -79,9 +79,9 @@ export class FlowProcess {
     };
 
       if(this.targetAgent.getName() === 'TransactionGroupingAgent'){
-           result.result = flowDefiningAgentResult//await this.flowDefiningAgent.execute({});
+        //   result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
           console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', result.result)
-        // result.result = flowDefiningAgentResult;
+         result.result = flowDefiningAgentResult;
         } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
            console.log('VISUALISATION AGENT')
          result.result = flowData;

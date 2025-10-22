@@ -2183,21 +2183,21 @@ export const flowDefiningAgentResult_ = `{
   timestamp: 2025-10-03T04:33:30.405Z
 }`
 
-export const flowDefiningAgentResult = ` {
+export const flowDefiningAgentResult = `{
   agentName: 'FlowDefiningAgent',
-  result: '<!doctype html>\n' +
+  result: '<!DOCTYPE html>\n' +
     '<html>\n' +
     '<head>\n' +
-    '  <meta charset="utf-8">\n' +
-    '  <title>Agent Flow and Tool Users</title>\n' +
+    '<meta charset="utf-8">\n' +
+    '<title>Agent Flow and Tool Users</title>\n' +
     '</head>\n' +
     '<body>\n' +
-    '  <flow>DATA-ANALYSIS-01 -> DATA-PROC-01 -> DATA-SUM-01 -> D3-CODE-01 -> VALID-01</flow>\n' +
-    '  {"toolUsers": ["DataProcessingAgent"]}\n' +
+    '<flow>PY-CODE-01 -> PY-EXEC-01 -> ANALYZE-01 -> D3-CODE-01</flow>\n' +
+    '{"toolUsers": ["PythonExecutionAgent"]}\n' +
     '</body>\n' +
     '</html>',
   success: true,
-  timestamp: 2025-10-21T04:00:16.664Z
+  timestamp: 2025-10-22T04:08:56.955Z
 }`
 
 export const genReflectSVGResult = `{
@@ -2728,5 +2728,79 @@ The generated HTML should reference: 'hourly_energy_data.csv' (relative path)
 <flow>PythonDataProcessingAgent -> PythonExecutionAgent -> DataAnalysisAgent -> D3VisualizationAgent</flow>
 
 {"toolUsers": ["PythonExecutionAgent"]}`
+
+export const agentConstructorPythonOutput = ` {
+  agentName: 'PythonDataProcessingAgent',
+  result: 'import pandas as pd\n' +
+    'import json\n' +
+    'import numpy as np\n' +
+    '\n' +
+    '# Category mapping\n' +
+    'category_mapping = {\n' +
+    "    'Solar': ['BARCSF1', 'GRIFSF1', 'HUGSF1', 'LRSF1', 'MLSP1', 'ROTALLA1'],\n" +
+    "    'Wind': ['CAPTL_WF', 'CHALLHWF', 'CULLRGWF', 'DIAPURWF1', 'MLWF1', 'WAUBRAWF', 'WOOLNTH1', 'YAMBUKWF', 'YSWF1'],\n" +
+    "    'Natural Gas': ['SHOAL1'],\n" +
+    "    'Hydro': ['BUTLERSG', 'CLOVER', 'CLUNY', 'PALOONA', 'REPULSE'],\n" +
+    "    'Diesel': ['ERGT01', 'GBO1'],\n" +
+    "    'Battery': ['KEPBG1'],\n" +
+    "    'Coal': ['ERGTO1', 'RPCG']\n" +
+    '}\n' +
+    '\n' +
+    '# Load data from CSV file\n' +
+    "data = pd.read_csv('C:/repos/SAGAMiddleware/data/two_days.csv', header=[0,1])\n" +
+    '\n' +
+    '# Filter for the given date and time range\n' +
+    "date_mask = (data['date/time'].dt.date == pd.to_datetime('11/02/2023').date())\n" +
+    "hour_mask = data['date/time'].dt.hour.between(6, 18)\n" +
+    'filtered_data = data[date_mask & hour_mask]\n' +
+    '\n' +
+    '# Group by hour and sum MW values\n' +
+    "grouped_data = filtered_data.groupby([pd.Grouper(key='date/time', freq='H'),\n" +
+    "                                      filtered_data.columns.drop('date/time').get_level_values(1)]).sum()\n" +
+    '\n' +
+    '# Unstack to get installations as columns, reset the index, then melt back to long format\n' +
+    "melted_data = grouped_data.unstack().reset_index().melt(id_vars='date/time')\n" +
+    '\n' +
+    '# Create a mapping of installation to energy source\n' +
+    'installation_to_source = {inst: source for source, inst_list in category_mapping.items() for inst in inst_list}\n' +
+    '\n' +
+    '# Add energy source column\n' +
+    "melted_data['energy_source'] = melted_data['installation'].map(installation_to_source)\n" +
+    '\n' +
+    '# Handle missing values\n' +
+    "melted_data['MW'] = melted_data['MW'].replace(np.nan, 0)\n" +
+    '\n' +
+    '# Reorder columns as per the output structure\n' +
+    "final_data = melted_data[['date/time','installation','energy_source','MW']]\n" +
+    '\n' +
+    '# Save to CSV file\n' +
+    "final_data.to_csv('C:/repos/SAGAMiddleware/data/hourly_energy_data.csv', index=False)\n" +
+    '\n' +
+    '# Generate metadata\n' +
+    'metadata = {\n' +
+    "    'installation_count': final_data['installation'].nunique(),\n" +
+    "    'mw_min': final_data['MW'].min(),\n" +
+    "    'mw_max': final_data['MW'].max(),\n" +
+    "    'unique_installations': final_data['installation'].unique().tolist(),\n" +
+    "    'date_ranges': [str(final_data['date/time'].min()), str(final_data['date/time'].max())],\n" +
+    "    'chart_type': 'line'\n" +
+    '}\n' +
+    '\n' +
+    '# Print metadata as JSON\n' +
+    'print(json.dumps(metadata, indent=4))',
+  success: true,
+  timestamp: 2025-10-22T01:35:23.329Z
+}`
+
+export const agentConstructorPythonExecutionError = `{
+  agentName: 'PythonExecutionAgent',
+  result: {"content":[],"success":false,"stdout":"","stderr":"File \\"C:\\\\repos\\\\codeGen-mcp-server\\\\workspace\\\\script_1761109959675.py\\", line 12\\r\\n       
+  'Solar': ['BARCSF1', 'GRIFSF1', 'HUGSF1', 'LRSF1', 'MLSP1', 'ROTALLA1'],\\r\\n
+  ^\\r\\nSyntaxError: unterminated string literal (detected at line 12)",
+  "error":"Command failed: py \\"C:\\\\repos\\\\codeGen-mcp-server\\\\workspace\\\\script_1761109959675.py\\"\\n  File \\"C:\\\\repos\\\\codeGen-mcp-server\\\\workspace\\\\script_1761109959675.py\\", line 12\\r\\n    '    
+  'Solar': ['BARCSF1', 'GRIFSF1', 'HUGSF1', 'LRSF1', 'MLSP1', 'ROTALLA1'],\\r\\n^\\r\\nSyntaxError: unterminated string literal (detected at line 12)\\r\\n","filename":"script_1761109959675.py",
+  success: true,
+  timestamp: 2025-10-22T05:12:39.879Z
+}`
 
 export { csvContent, agentData };

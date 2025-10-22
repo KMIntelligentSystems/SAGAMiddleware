@@ -66,7 +66,7 @@ export class AgentGeneratorProcess {
 
     console.log(`📝 Agent definitions: $agentFlowText}...`, flowData);
     if (flowData) {
-      console.log(`🔀 Flow data: ${flowData.substring(0, 150)}...`);
+      console.log(`🔀 Flow data: ${JSON.stringify(flowData.substring(0, 150))}...`);
     } else {
       console.log(`🔀 No flow data (singleton agent)`);
     }

@@ -635,20 +635,7 @@ Focus: Only array extraction
       const res = agentConstructorInput//await agentStruct.generateAgentStructures( data.message);
     
     //  const res = fs.readFileSync('C:/repos/SAGAMiddleware/data/claudeAgentSpec.txt', 'utf-8');
- /* const transactionSetCollection = AgentParser.parseAndCreateAgents(
-      res,
-      undefined,
-      this.coordinator
-    );
-       transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
-                  if(transactionSet.transactions.length > 1){
-                       transactionSet.transactions.forEach((transaction: SagaTransaction) => {
-                         console.log('TRANS NAME',transaction.agentName)
-                         console.log('TRANS ID',transaction.id)
-                  }) 
-                  }})*/
-      
-   //  console.log('RES', res)
+
       // Create browser request from thread) message
       const browserRequest: BrowserGraphRequest = {
         userQuery: res,

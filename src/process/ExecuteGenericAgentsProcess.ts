@@ -6,14 +6,14 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../types/visualizationSaga.js';
-import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult } from '../test/testData.js'
+import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError} from '../test/testData.js'
 
-/**
+/**,agentConstructorPythonExecutionError
  * ExecuteGenericAgentsProcess
  *
  * Executes generic agents that have been dynamically created
  *
- * Pattern:
+ * Pattern:,
  * 1. Get agent context
  * 2. Clear agent context if needed
  * 3. Set context with task data
@@ -132,30 +132,25 @@ console.log('target agent 1',this.targetAgent)
              let agent = this.coordinator.agents.get(linearTx.agentName);
              console.log('LINEAR AGENT NAME', agent?.getName())//PandasDailyAveragingCoder-> MCPExecutePythonCaller
               console.log('LINEAR AGENT TASK ', agent?.getAgentDefinition().taskDescription) //task set
-              /*
-              PandasDailyAveragingCoder
-Your task: Write complete, runnable Python code that:
-- Reads the input CSV at C:/repos/SAGAMiddleware/data/Output_one_hour_normalized.csv
-MCPExecutePythonCaller
-LINEAR AGENT TASK  You are a tool calling agent. Take the Python code produced by the coding agent and execute it by making a single JSON-RPC request to the MCP server to call the exe
-cute_python tool.
-
-codeExecutorResult,pythonLogCodeResult
-              */
+              console.log('LINEAR AGENT Type ', linearTx.agentType)
+           
              console.log('LINEAR AGENT ', agent?.getContext())//nothing in context []
              
           if(firstAgent ===  linearTx.agentName ){
               //TEST START
-              result = await agent?.execute({}) as AgentResult;
-              console.log('TEST', result.result)
+            //  result = await agent?.execute({}) as AgentResult;
           //END
-            prevResult = result.result = visCodeWriterResult //result from PandasDailyAveragingCoder  D3JSCoordinatingAgentFinalResult
-            cleanCode = this.cleanPythonCode(result.result || '')
+            result.result = agentConstructorPythonOutput //result from PandasDailyAveragingCoder  D3JSCoordinatingAgentFinalResult
+            prevResult = cleanCode = this.cleanPythonCode(result.result || '')
           } else{
-                // result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
-                 result.result =  pythonLogCodeResult //codeExecutorResult error result
+            if(linearTx.agentName === `PythonExecutionAgent`){
+              console.log('PYTHON EXEC ')
+                  result.result = agentConstructorPythonExecutionError// = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult; //   result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+            }
+             
+              //   result.result =  pythonLogCodeResult //codeExecutorResult error result
                  this.coordinator.contextManager.updateContext(linearTx.agentName, {
-                  lastTransactionResult: pythonLogCodeResult,
+                  lastTransactionResult: result.result,//pythonLogCodeResult,
                   previousTransactionResult:  prevResult,
                   transactionId: this.agent.getId(),
                   timestamp: new Date()
