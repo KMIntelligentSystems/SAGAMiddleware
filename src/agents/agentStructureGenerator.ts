@@ -124,28 +124,7 @@ FORMAT RULES:
 
 3. **Closing Tag**: [/AGENT]
 
-4. **Flow Definition**: After all agents, add execution flow:
-   <flow>AgentName1 -> AgentName2 -> AgentName3</flow>
 
-5. **Tool Users**: After flow, list which agents use MCP tools:
-   {"toolUsers": ["AgentName1", "AgentName2"]}
-
-═══════════════════════════════════════════════════════════════════════════
-AGENT TYPES:
-═══════════════════════════════════════════════════════════════════════════
-
-**Tool Agents** (use MCP tools like execute_python):
-- Include complete Python code in instructions
-- Specify: "Use the execute_python MCP tool to run this code"
-- Include error handling in the code
-- List in toolUsers array
-
-**Processing Agents** (analysis, planning, validation):
-- Focus on reasoning and decision-making
-- No MCP tools needed
-- Analyze data, validate results, provide recommendations
-**IMPORTANT**
---Do not provide, only provide instructions for the coding agents and tools
 `;
     }
 

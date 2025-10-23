@@ -1,6 +1,7 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
+import { DataProfiler } from '../agents/dataProfiler.js';
 import { SagaState, HumanInLoopConfig,
 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
@@ -631,19 +632,27 @@ Focus: Only array extraction
        this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
-      const agentStruct: AgentStructureGenerator = new AgentStructureGenerator()
-      const res = agentConstructorInput//await agentStruct.generateAgentStructures( data.message);
-    
+      const dataProfiler: DataProfiler = new DataProfiler();
+      const profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(data.message,'C:/repos/SAGAMiddleware/data/two_days.csv')
+
+      console.log('✅ Data profiling complete, sending to user for review...\n');
+
+      // Send profiled prompt to user for review
+      this.sendDataProfileToUser(profiledPrompt, threadId, data.workflowId, data.correlationId);
+
+    //  const agentStruct: AgentStructureGenerator = new AgentStructureGenerator()
+     // const res = agentConstructorInput//await agentStruct.generadteAgentStructures( data.message);
+
     //  const res = fs.readFileSync('C:/repos/SAGAMiddleware/data/claudeAgentSpec.txt', 'utf-8');
 
       // Create browser request from thread) message
-      const browserRequest: BrowserGraphRequest = {
-        userQuery: res,
-        operationType: opType
-      };
-  
-      // Execute SAGA with thread context
-      await this.executeThreadVisualizationSAGA(browserRequest, threadId);
+      // const browserRequest: BrowserGraphRequest = {
+      //   userQuery: profiledPrompt,
+      //   operationType: opType
+      // };
+
+      // Execute SAGA with thread context (wait for user approval)
+  //    await this.executeThreadVisualizationSAGA(browserRequest, threadId);
       
     } catch (error) {
       console.error('❌ Error handling OpenAI thread request:', error);
@@ -659,6 +668,40 @@ Focus: Only array extraction
           console.error('❌ Failed to send error response to thread:', responseError);
         }
       }
+    }
+  }
+
+  /**
+   * Send data profile to user for review
+   */
+  private sendDataProfileToUser(profiledPrompt: string, threadId: string, workflowId?: string, correlationId?: string): void {
+    console.log('📤 Sending data profile to user for review...');
+
+    const socket = this.eventBusClient['socket'];
+
+    if (socket && socket.connected) {
+      const message = {
+        type: 'data_profile_review',
+        source: 'saga-middleware',
+        target: 'react-app',
+        data: {
+          profiledPrompt,
+          threadId,
+          workflowId,
+          correlationId,
+          timestamp: new Date()
+        },
+        messageId: `profile_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        timestamp: new Date(),
+        threadId,
+        workflowId,
+        correlationId
+      };
+
+      socket.emit('publish_event', message);
+      console.log('✅ Data profile sent to user for review');
+    } else {
+      console.error('❌ Event Bus not connected, cannot send data profile');
     }
   }
 

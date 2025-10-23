@@ -2183,21 +2183,22 @@ export const flowDefiningAgentResult_ = `{
   timestamp: 2025-10-03T04:33:30.405Z
 }`
 
-export const flowDefiningAgentResult = `{
+export const flowDefiningAgentResult = `
+ {
   agentName: 'FlowDefiningAgent',
   result: '<!DOCTYPE html>\n' +
-    '<html>\n' +
+    '<html lang="en">\n' +
     '<head>\n' +
     '<meta charset="utf-8">\n' +
     '<title>Agent Flow and Tool Users</title>\n' +
     '</head>\n' +
     '<body>\n' +
-    '<flow>PY-CODE-01 -> PY-EXEC-01 -> ANALYZE-01 -> D3-CODE-01</flow>\n' +
+    '<flow>DATA-PROC-01 -> TOOL-EXEC-01 -> DATA-ANALYZE-01 -> D3-VIZ-01</flow>\n' +
     '{"toolUsers": ["PythonExecutionAgent"]}\n' +
     '</body>\n' +
     '</html>',
   success: true,
-  timestamp: 2025-10-22T04:08:56.955Z
+  timestamp: 2025-10-23T05:30:14.787Z
 }`
 
 export const genReflectSVGResult = `{
@@ -2525,69 +2526,188 @@ able colors. Series with missing points manifest as shortened/empty paths, produ
     '  "success": true,\n' +
 '}'`
 
-export const agentConstructorInput = `[AGENT: PythonDataProcessingAgent, PY-CODE-01]
-You are a Python coding agent. Your task is to generate Python code that processes energy generation data from a CSV file.
+export const agentConstructorInput = `[AGENT: PythonDataProcessingAgent, DATA-PROC-01]
+You are a Python coding agent specialized in CSV data processing. Your task is to generate executable Python code that processes energy generation data.
 
-**CONTEXT:**
-You are processing energy generation data from Tasmania. The CSV file contains installations grouped by energy type (Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal). Data is recorded every 5 minutes with MW values.
+**CONTEXT**:
+You will process a CSV file containing 5-minute interval energy generation data from multiple installations across different energy types (Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal). You must filter by date and time, aggregate to hourly data, transform from wide to long format, and output both CSV and JSON metadata.
 
-**INPUT FILE:**
-C:/repos/SAGAMiddleware/data/two_days.csv
+**CRITICAL TECHNICAL SPECIFICATIONS**:
 
-**CSV STRUCTURE:**
-- Row 1-2: Headers (energy types and installation names)
-- Column 1: date/time in format "11/02/2023 4:00"
-- Time increments: 5 minutes per row
-- Values: MW (megawatts)
+1. **File Encoding**:
+   - Input file has UTF-8 BOM encoding
+   - MUST use: encoding='utf-8-sig'
+   - Failure to do so will cause parsing errors
 
-**CATEGORY MAPPING:**
-Solar: BARCSF1, GRIFSF1, HUGSF1, LRSF1, MLSP1, ROTALLA1
-Wind: CAPTL_WF, CHALLHWF, CULLRGWF, DIAPURWF1, MLWF1, WAUBRAWF, WOOLNTH1, YAMBUKWF, YSWF1
-Natural Gas: SHOAL1
-Hydro: BUTLERSG, CLOVER, CLUNY, PALOONA, REPULSE
-Diesel: ERGT01, GBO1
-Battery: KEPBG1
-Coal: ERGTO1, RPCG
+2. **CSV Structure**:
+   - File has 2 header rows creating pandas MultiIndex
+   - MUST use: header=[0,1]
+   - This creates tuple columns like ('Solar', 'BARCSF1') and ('', 'date/time')
 
-**REQUIREMENTS:**
-1. Filter data for date: 11/02/2023
-2. Filter time range: 0600 to 1800 (6 AM to 6 PM)
-3. Convert 5-minute MW readings to hourly MW/hr aggregates (sum all readings within each hour)
-4. Output format: CSV with columns: date/time,installation,energy_source,MW
-5. After successful processing, generate metadata including:
-   - installation_count (total unique installations)
-   - mw_min (minimum MW value across all data)
-   - mw_max (maximum MW value across all data)
-   - unique_installations (list of all installation names)
-   - date_ranges (date coverage in the output)
-   - chart_type: 'line'
+3. **Column Flattening** (CRITICAL - prevents KeyError):
+   - MultiIndex columns are tuples: (energy_type, installation_name)
+   - For date/time column: tuple is ('', 'date/time')
+   - For installations: tuple is (energy_type, installation_name)
+   - **MUST extract only the second element of each tuple**: col[1]
+   - Result must be: ['date/time', 'BARCSF1', 'GRIFSF1', 'CAPTL_WF', ...]
+   - DO NOT use '_'.join() or any string concatenation
+   - Example code: df.columns = [col[1] for col in df.columns]
 
-**OUTPUT FILE:**
-C:/repos/SAGAMiddleware/data/hourly_energy_data.csv
+4. **Date Format** (CRITICAL - American format):
+   - Format in CSV: MM/DD/YYYY H:MM (e.g., 11/02/2023 6:00)
+   - Pandas format string: '%m/%d/%Y %H:%M'
+   - Month comes FIRST, then day (NOT day/month/year)
+   - Failure to use correct format causes parsing failures
 
-**OUTPUT STRUCTURE:**
-date/time,installation,energy_source,MW
-11/02/2023,BARCSF1,Solar,0.10000000000000002
-11/02/2023,BUTLERSG,Hydro,9.399999
+5. **Data Cleaning**:
+   - Convert empty cells to 0
+   - Preserve negative values (do not convert to 0)
+   - Use: pd.to_numeric(errors='coerce').fillna(0)
 
-**ABSOLUTE REQUIREMENTS:**
-- Output ONLY Python code
-- First character must be Python code (import, def, or variable)
-- Last character must be Python code
-- Zero explanatory text
-- Zero markdown
-- Include metadata generation as structured output (print as JSON)
-- Handle missing values appropriately
+**INPUT DATA**:
+- File path: C:/repos/SAGAMiddleware/data/two_days.csv
+- Date format: MM/DD/YYYY H:MM
+- Interval: 5 minutes (12 readings per hour)
+
+**ENERGY SOURCE MAPPING** (ONLY include these installations):
+python
+energy_mapping = {
+    'BARCSF1': 'Solar', 'GRIFSF1': 'Solar', 'HUGSF1': 'Solar',
+    'LRSF1': 'Solar', 'MLSP1': 'Solar', 'ROTALLA1': 'Solar',
+    'CAPTL_WF': 'Wind', 'CHALLHWF': 'Wind', 'CULLRGWF': 'Wind',
+    'DIAPURWF1': 'Wind', 'MLWF1': 'Wind', 'WAUBRAWF': 'Wind',
+    'WOOLNTH1': 'Wind', 'YAMBUKWF': 'Wind', 'YSWF1': 'Wind',
+    'SHOAL1': 'Natural Gas',
+    'BUTLERSG': 'Hydro', 'CLOVER': 'Hydro', 'CLUNY': 'Hydro',
+    'PALOONA': 'Hydro', 'REPULSE': 'Hydro',
+    'ERGT01': 'Diesel', 'GBO1': 'Diesel',
+    'KEPBG1': 'Battery',
+    'ERGTO1': 'Coal', 'RPCG': 'Coal'
+}
+
+Note: ROWALLAN and RUBICON exist in CSV but MUST be excluded (not in mapping).
+
+**REQUIRED TRANSFORMATIONS**:
+
+1. **Filter Data**:
+   - Date: 11/02/2023 only
+   - Time: 06:00 to 18:00 (inclusive)
+   - Multi-line boolean conditions MUST use parentheses or backslash continuation
+   - Example: df = df[(df['date/time'].dt.date == target_date) & \
+                      (df['date/time'].dt.hour >= 6) & \
+                      (df['date/time'].dt.hour <= 18)]
+
+2. **Hourly Aggregation** (CRITICAL - must group correctly):
+   - MUST group by BOTH (hour, installation) - NOT by hour alone
+   - Each installation must be aggregated separately
+   - Method: SUM all 5-minute readings within each hour
+   - Result: Each installation has 13 hourly values (hours 6-18 inclusive)
+   - Steps:
+     a. Extract hour from datetime
+     b. Transform wide to long format first (datetime, installation, MW)
+     c. Group by (datetime.floor('H'), installation) and SUM
+     d. This ensures each installation's readings are summed per hour
+
+3. **Wide to Long Transformation**:
+   - Use pd.melt() to transform
+   - id_vars: ['date/time']
+   - value_vars: All installation columns (those in energy_mapping.keys())
+   - var_name: 'installation' (NOT 'variable')
+   - value_name: 'MW'
+   - Filter: Keep only installations in energy_mapping
+   - Add column 'energy_source' by mapping installation names
+
+4. **Output CSV**:
+   - Path: C:/repos/SAGAMiddleware/data/hourly_energy_data.csv
+   - Columns (exact order): date/time,installation,energy_source,MW
+   - Date format in output: MM/DD/YYYY HH:MM (e.g., '11/02/2023 06:00')
+   - Sort by: date/time first, then installation
+   - Include index=False in to_csv()
+
+5. **Output JSON Metadata**:
+   - Print to console (will be captured by tool)
+   - Structure:
+  python
+   {
+       "installation_count": <number of unique installations>,
+       "mw_min": <minimum MW value>,
+       "mw_max": <maximum MW value>,
+       "unique_installations": <list of installation names>,
+       "date_ranges": {"start": "MM/DD/YYYY HH:MM", "end": "MM/DD/YYYY HH:MM"},
+       "chart_type": "line",
+       "energy_sources": <list of unique energy sources>
+   }
+   
+
+**STRICT CODE OUTPUT RULES**:
+1. Output ONLY executable Python code
+2. First character must be 'i' from 'import'
+3. Last character must be ')' from final print() statement
+4. Zero markdown formatting (NO python, NO backticks, NO code fences)
+5. Zero explanatory text before, during, or after code
+6. Zero comments in code
+7. Multi-line boolean expressions MUST wrap in parentheses or use backslash
+8. Operations that don't modify in-place MUST reassign (e.g., df = df.sort_values())
+
+**COMMON ERRORS TO PREVENT**:
+❌ Using '%d/%m/%Y' instead of '%m/%d/%Y' (wrong date format)
+❌ Using '_'.join() for column flattening (creates 'Solar_BARCSF1')
+❌ Grouping by hour only instead of (hour, installation)
+❌ Multi-line boolean with & at line end without parentheses
+❌ Using sort_values() without reassignment (df = df.sort_values(...))
+❌ Using 'variable' instead of 'installation' as column name
+❌ Not filtering out ROWALLAN and RUBICON
+❌ Wrong time range (must be 6-18 inclusive, which is 13 hours)
+
+**VALIDATION CHECKLIST**:
+✓ Column flattening uses col[1] to extract installation names
+✓ Date parsing uses '%m/%d/%Y %H:%M' format string
+✓ Filtering keeps hours 6 through 18 (13 hours total)
+✓ Grouping by (hourly_datetime, installation) for aggregation
+✓ Output columns are: date/time, installation, energy_source, MW
+✓ JSON metadata includes all required fields
+✓ Code has no syntax errors and runs without KeyError
+
+**CODE STRUCTURE** (implement this exactly):
+import pandas as pd
+import json
+from datetime import datetime
+
+# Read CSV with correct encoding and headers
+# Flatten columns to get installation names
+# Parse date/time column with correct format
+# Filter by date (11/02/2023) and time (6-18)
+# Keep only columns in energy_mapping
+# Transform wide to long format
+# Add energy_source column using mapping
+# Extract hour and group by (hour, installation) to sum
+# Sort by date/time and installation
+# Write to CSV with exact column order
+# Generate metadata dictionary
+# Print metadata as JSON
+
+
+Generate the complete Python code now.
 [/AGENT]
 
-[AGENT: PythonExecutionAgent, PY-EXEC-01]
+[AGENT: PythonExecutionAgent, EXEC-01]
 You are a tool-calling agent responsible for executing Python code using an MCP server.
 
-**YOUR TASK:**
-Execute the Python code that has been placed in your context by calling the execute_python MCP tool.
+**YOUR ROLE**:
+You will receive Python code in your context. Your task is to execute this code using the execute_python MCP tool.
 
-**TOOL CALL FORMAT:**
-You MUST call the MCP server with exactly this structure:
+**CONTEXT**:
+The Python code you receive has been generated by the PythonDataProcessingAgent. It processes energy generation CSV data, filters by date and time, aggregates to hourly intervals, and outputs:
+1. A CSV file at: C:/repos/SAGAMiddleware/data/hourly_energy_data.csv
+2. JSON metadata printed to console
+
+**YOUR TASK**:
+1. Take the Python code provided in your context
+2. Call the MCP server's execute_python tool
+3. Pass the code exactly as provided
+
+**MCP TOOL CALL SPECIFICATION**:
+json
 {
   "jsonrpc": "2.0",
   "id": 3,
@@ -2595,202 +2715,311 @@ You MUST call the MCP server with exactly this structure:
   "params": {
     "name": "execute_python",
     "arguments": {
-      "code": "<INSERT_PYTHON_CODE_HERE>"
+      "code": "<PLACE_THE_PYTHON_CODE_HERE>"
     }
   }
 }
 
-**INSTRUCTIONS:**
-1. Take the Python code provided in your context
-2. Insert it into the "code" field of the arguments object
-3. Make the tool call to execute_python
-4. Capture and pass forward the complete output including:
-   - The generated CSV file confirmation
-   - The metadata JSON output
-   - Any error messages or warnings
 
-**IMPORTANT:**
-- You are a tool-calling agent, not a code generator
-- The code is already generated and provided to you
-- Your only job is to execute it via the MCP tool call
-- Pass all output forward without modification
+**IMPORTANT**:
+- The placeholder '{code}' in the tool call must be replaced with the actual Python code from your context
+- Do not modify the code
+- Do not add explanations
+- Execute the tool call and capture the output
+- The output will include:
+  - Any print statements (JSON metadata)
+  - Confirmation that the CSV file was written
+  - Any errors that occurred
+
+**OUTPUT**:
+Pass the complete output from the MCP tool call to the next agent. This should include:
+- The JSON metadata printed by the Python script
+- Any status messages or errors
+- Confirmation of file creation
+
+Execute the tool call now.
 [/AGENT]
 
-[AGENT: DataAnalysisAgent, ANALYZE-01]
-You are an analyzing agent responsible for validating the output from the Python execution and preparing instructions for the D3.js visualization agent.
+[AGENT: DataAnalysisAgent, ANALYSIS-01]
+You are a data analysis agent responsible for interpreting the output from the Python execution and preparing instructions for the D3.js visualization agent.
 
-**CONTEXT:**
-You will receive structured output from the Python execution agent. This output includes:
-- CSV file generation confirmation (C:/repos/SAGAMiddleware/data/hourly_energy_data.csv)
-- Metadata JSON containing:
-  - installation_count: Number of unique installations
-  - mw_min: Minimum MW value
-  - mw_max: Maximum MW value
-  - unique_installations: List of all installation names
-  - date_ranges: Date coverage
-  - chart_type: 'line'
+**CONTEXT**:
+You will receive structured output from the PythonExecutionAgent, which executed a Python script that:
+1. Processed energy generation CSV data
+2. Filtered data for date 11/02/2023, times 06:00-18:00
+3. Aggregated 5-minute intervals to hourly data
+4. Transformed from wide to long format
+5. Output a CSV file: C:/repos/SAGAMiddleware/data/hourly_energy_data.csv
+6. Generated JSON metadata about the processed data
 
-**CSV DATA STRUCTURE:**
-date/time,installation,energy_source,MW
-11/02/2023,BARCSF1,Solar,0.10000000000000002
-11/02/2023,BUTLERSG,Hydro,9.399999
+**YOUR TASK**:
+Analyze the JSON metadata output and determine if there is sufficient structural and semantic information for the D3.js coding agent to create a line graph visualization WITHOUT direct access to the CSV file (due to context window constraints).
 
-**YOUR TASKS:**
-1. Verify the Python execution completed successfully
-2. Validate that metadata contains all required fields
-3. Assess if there is sufficient structural and semantic information for the D3.js coding agent
-4. Determine data characteristics:
-   - Energy types present: Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal
-   - Time range: 0600 to 1800 on 11/02/2023
-   - Data granularity: Hourly MW values
-   - Multiple installations per energy type
+**WHAT TO ANALYZE**:
+1. **Data Structure**:
+   - CSV columns: date/time, installation, energy_source, MW
+   - Number of unique installations
+   - List of unique installations
+   - Energy source types present
+   - Date/time range covered
 
-5. Generate CLEAR INSTRUCTIONS for the D3.js coding agent including:
-   - Chart requirements: Line graph with time on X-axis, MW on Y-axis
-   - Multiple lines: One per energy type (aggregate across installations)
-   - Interactive legend: Toggle energy types on/off
-   - Data file location: 'hourly_energy_data.csv'
-   - Data structure: date/time, installation, energy_source, MW columns
-   - Y-axis range: Use mw_min to mw_max from metadata
-   - X-axis: Hourly time points from 06:00 to 18:00
+2. **Data Semantics**:
+   - MW values represent megawatt-hours of energy generation
+   - Time series data with hourly intervals
+   - Multiple installations grouped by energy source type
+   - Date format: MM/DD/YYYY HH:MM
 
-**OUTPUT:**
-Produce a comprehensive instruction set for the D3.js coding agent that includes:
-- Data structure description
-- Chart type and visual requirements
-- Interactive features needed
-- Axis configurations
-- Color coding recommendations for energy types
-- Legend functionality specifications
+3. **Chart Requirements**:
+   - Chart type: Line graph
+   - X-axis: Time (hourly intervals from 06:00 to 18:00)
+   - Y-axis: MW (megawatt-hours)
+   - Multiple lines: One per energy type (NOT per installation)
+   - Data needs to be aggregated by energy source
+   - Interactive legend required
 
-**NOTE:**
-The D3.js agent will NOT have access to the CSV file content directly (Context Window constraints). Your instructions must be sufficiently detailed to enable the agent to write correct d3.csv() data parsing code.
-[/AGENT]
+4. **Data Ranges**:
+   - Minimum MW value (for Y-axis scaling)
+   - Maximum MW value (for Y-axis scaling)
+   - Time range (for X-axis)
 
-[AGENT: D3VisualizationAgent, D3-CODE-01]
-You are a D3.js coding agent. Your task is to generate a complete HTML/JavaScript visualization using D3.js v7.
+**YOUR OUTPUT**:
+Generate clear, structured instructions for the D3.js coding agent that includes:
 
-**YOU WILL RECEIVE:**
-1. Clear and concise requirements from the analyzing agent
-2. The structure and semantics of the data to be visualized
-3. Metadata about data ranges, installations, and energy types
+1. **Data Structure Specification**:
+   - CSV format and column names
+   - Expected data types
+   - How to group installations by energy_source
 
-**DATA FILE:**
-Use d3.csv() to load: 'hourly_energy_data.csv'
+2. **Aggregation Requirements**:
+   - Data must be aggregated: Sum MW values by (datetime, energy_source)
+   - This groups all installations of the same energy type together
+   - Example: All Solar installations (BARCSF1, GRIFSF1, etc.) summed for each hour
 
-**DATA STRUCTURE:**
-CSV columns: date/time, installation, energy_source, MW
-- date/time: Date string (e.g., "11/02/2023")
-- installation: Installation name (e.g., "BARCSF1")
-- energy_source: Energy type (Solar, Wind, Natural Gas, Hydro, Diesel, Battery, Coal)
-- MW: Numeric megawatt-hour value
-
-**VISUALIZATION REQUIREMENTS:**
-1. **Chart Type:** Line graph
-2. **X-Axis:** Time (hourly intervals from 0600 to 1800)
-3. **Y-Axis:** MW/hr (megawatt-hours)
-4. **Multiple Lines:** One line per energy type (aggregate all installations within each energy type)
-5. **Interactive Legend:**
-   - Display all energy types
-   - Click to toggle visibility of each energy type line
-   - Visual indication of active/inactive states
-6. **Styling:**
-   - Distinct colors for each energy type
-   - Responsive design
-   - Clear axis labels
-   - Grid lines for readability
+3. **Visualization Specifications**:
+   - Line chart with time on X-axis
+   - MW on Y-axis
+   - One line per energy source (Solar, Wind, Hydro, Natural Gas, Coal, Battery, Diesel)
+   - Different colors for each energy source
+   - Interactive legend (click to show/hide lines)
    - Tooltips showing exact values on hover
+   - Axis labels and title
 
-**D3.js LIBRARY:**
-Include: <script src="https://d3js.org/d3.v7.min.js"></script>
+4. **Technical Details**:
+   - File to load: 'hourly_energy_data.csv' (use d3.csv())
+   - Date parsing format needed
+   - Scale types (time scale for X, linear for Y)
+   - Suggested dimensions and margins
 
-**DATA PROCESSING IN CODE:**
-1. Load CSV with d3.csv('hourly_energy_data.csv')
-2. Parse MW values as numbers
-3. Group by energy_source and time
-4. Aggregate MW values across installations for each energy type
-5. Create line data for each energy type
+5. **Data Availability Confirmation**:
+   - Confirm that the metadata provides enough information about:
+     - Column structure
+     - Data ranges for axis scaling
+     - Energy source types for legend
+     - Time range for X-axis domain
 
-**ABSOLUTE REQUIREMENTS:**
-- Output ONLY a complete HTML file with embedded JavaScript
-- First character must be: <
-- Last character must be: >
-- Use D3.js v7 library
-- Zero explanatory text outside HTML
-- Zero markdown formatting
-- Complete, executable HTML document
-- All D3.js code must be functional and tested patterns
+Based on the metadata, provide complete instructions that will enable the D3.js agent to create the visualization without needing to see the raw CSV data.
 
-**OUTPUT FILE LOCATION:**
-The generated HTML should reference: 'hourly_energy_data.csv' (relative path)
+**OUTPUT FORMAT**:
+Structure your output as clear, numbered instructions covering all aspects above. Be explicit about data transformations, aggregations, and visual encodings.
+[/AGENT]
+
+[AGENT: D3VisualizationAgent, VIZ-01]
+You are a D3.js coding agent specialized in creating interactive data visualizations.
+
+**CONTEXT**:
+You will receive detailed instructions from the DataAnalysisAgent that includes:
+1. Clear requirements for a line graph visualization
+2. Structure and semantics of the energy generation data
+3. Aggregation and transformation specifications
+
+**YOUR TASK**:
+Generate a complete, self-contained HTML file with embedded JavaScript that creates an interactive line graph showing energy generation by energy type over time (06:00-18:00 on 11/02/2023).
+
+**DATA SOURCE**:
+- Use d3.csv() to load: 'hourly_energy_data.csv'
+- CSV columns: date/time, installation, energy_source, MW
+- You must aggregate the data: Group by (date/time, energy_source) and SUM the MW values
+- This combines all installations of each energy type into a single line
+
+**VISUALIZATION REQUIREMENTS**:
+
+1. **Chart Type**: Line graph
+2. **X-Axis**: Time (hourly from 06:00 to 18:00)
+3. **Y-Axis**: MW (megawatt-hours)
+4. **Lines**: One line per energy_source (Solar, Wind, Hydro, Natural Gas, Coal, Battery, Diesel)
+5. **Colors**: Distinct color for each energy source
+6. **Interactive Legend**:
+   - Show all energy sources
+   - Click to toggle visibility of lines
+   - Visual indication of active/inactive state
+7. **Tooltips**: Show energy_source, time, and exact MW value on hover
+8. **Labels**: Clear axis labels and chart title
+
+**D3.JS IMPLEMENTATION REQUIREMENTS**:
+
+1. **Library**:
+   - Use: <script src="https://d3js.org/d3.v7.min.js"></script>
+   - Must be D3.js version 7
+
+2. **Data Loading & Processing**:
+   javascript
+   d3.csv('hourly_energy_data.csv').then(function(data) {
+     // Parse dates
+     // Convert MW to numbers
+     // Aggregate by energy_source and datetime
+     // Group data for line generator
+   });
+   
+
+3. **Scales**:
+   - X-axis: d3.scaleTime() for temporal data
+   - Y-axis: d3.scaleLinear() for MW values
+   - Color: d3.scaleOrdinal() for energy sources
+
+4. **Line Generator**:
+   - Use d3.line() to create path data
+   - Map x to datetime and y to aggregated MW
+
+5. **Interactivity**:
+   - Legend items clickable
+   - Lines fade in/out on legend click
+   - Hover tooltips with data details
+
+**ABSOLUTE REQUIREMENTS**:
+1. Output ONLY a complete HTML document
+2. First character must be: <
+3. Last character must be: >
+4. Zero explanatory text before or after the HTML
+5. Zero markdown formatting (NO html, NO javascript, NO backticks)
+6. All JavaScript must be embedded in <script> tags within the HTML
+7. All CSS must be embedded in <style> tags within the HTML
+8. The HTML must be fully self-contained and executable
+
+**CODE STRUCTURE** (implement this exactly):
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Energy Generation Line Graph</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Styling for chart, axes, legend, tooltips */
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+    <script>
+        // Set dimensions and margins
+        // Create SVG
+        // Load CSV data with d3.csv('hourly_energy_data.csv')
+        // Parse dates and convert MW to numbers
+        // Aggregate data by (datetime, energy_source) using d3.rollup
+        // Prepare nested data structure for lines
+        // Create scales (time, linear, ordinal)
+        // Create axes
+        // Create line generator
+        // Draw lines with distinct colors
+        // Create interactive legend
+        // Add tooltips on hover
+        // Add axis labels and title
+    </script>
+</body>
+</html>
+
+
+**CHART SPECIFICATIONS**:
+- Dimensions: 900px wide × 600px tall (adjust margins for axes and legend)
+- Margins: {top: 40, right: 200, bottom: 60, left: 80}
+- Title: "Energy Generation by Type - February 11, 2023 (06:00-18:00)"
+- X-axis label: "Time"
+- Y-axis label: "Energy Generation (MW)"
+- Legend position: Right side of chart
+
+**DATA AGGREGATION EXAMPLE**:
+javascript
+// Use d3.rollup to aggregate
+const aggregated = d3.rollup(
+  data,
+  v => d3.sum(v, d => d.MW),  // Sum MW values
+  d => d['date/time'],         // Group by datetime
+  d => d.energy_source         // Then by energy_source
+);
+
+
+Generate the complete HTML file now with embedded D3.js visualization code.
 [/AGENT]
 
 <flow>PythonDataProcessingAgent -> PythonExecutionAgent -> DataAnalysisAgent -> D3VisualizationAgent</flow>
 
 {"toolUsers": ["PythonExecutionAgent"]}`
 
-export const agentConstructorPythonOutput = ` {
-  agentName: 'PythonDataProcessingAgent',
-  result: 'import pandas as pd\n' +
-    'import json\n' +
-    'import numpy as np\n' +
-    '\n' +
-    '# Category mapping\n' +
-    'category_mapping = {\n' +
-    "    'Solar': ['BARCSF1', 'GRIFSF1', 'HUGSF1', 'LRSF1', 'MLSP1', 'ROTALLA1'],\n" +
-    "    'Wind': ['CAPTL_WF', 'CHALLHWF', 'CULLRGWF', 'DIAPURWF1', 'MLWF1', 'WAUBRAWF', 'WOOLNTH1', 'YAMBUKWF', 'YSWF1'],\n" +
-    "    'Natural Gas': ['SHOAL1'],\n" +
-    "    'Hydro': ['BUTLERSG', 'CLOVER', 'CLUNY', 'PALOONA', 'REPULSE'],\n" +
-    "    'Diesel': ['ERGT01', 'GBO1'],\n" +
-    "    'Battery': ['KEPBG1'],\n" +
-    "    'Coal': ['ERGTO1', 'RPCG']\n" +
-    '}\n' +
-    '\n' +
-    '# Load data from CSV file\n' +
-    "data = pd.read_csv('C:/repos/SAGAMiddleware/data/two_days.csv', header=[0,1])\n" +
-    '\n' +
-    '# Filter for the given date and time range\n' +
-    "date_mask = (data['date/time'].dt.date == pd.to_datetime('11/02/2023').date())\n" +
-    "hour_mask = data['date/time'].dt.hour.between(6, 18)\n" +
-    'filtered_data = data[date_mask & hour_mask]\n' +
-    '\n' +
-    '# Group by hour and sum MW values\n' +
-    "grouped_data = filtered_data.groupby([pd.Grouper(key='date/time', freq='H'),\n" +
-    "                                      filtered_data.columns.drop('date/time').get_level_values(1)]).sum()\n" +
-    '\n' +
-    '# Unstack to get installations as columns, reset the index, then melt back to long format\n' +
-    "melted_data = grouped_data.unstack().reset_index().melt(id_vars='date/time')\n" +
-    '\n' +
-    '# Create a mapping of installation to energy source\n' +
-    'installation_to_source = {inst: source for source, inst_list in category_mapping.items() for inst in inst_list}\n' +
-    '\n' +
-    '# Add energy source column\n' +
-    "melted_data['energy_source'] = melted_data['installation'].map(installation_to_source)\n" +
-    '\n' +
-    '# Handle missing values\n' +
-    "melted_data['MW'] = melted_data['MW'].replace(np.nan, 0)\n" +
-    '\n' +
-    '# Reorder columns as per the output structure\n' +
-    "final_data = melted_data[['date/time','installation','energy_source','MW']]\n" +
-    '\n' +
-    '# Save to CSV file\n' +
-    "final_data.to_csv('C:/repos/SAGAMiddleware/data/hourly_energy_data.csv', index=False)\n" +
-    '\n' +
-    '# Generate metadata\n' +
-    'metadata = {\n' +
-    "    'installation_count': final_data['installation'].nunique(),\n" +
-    "    'mw_min': final_data['MW'].min(),\n" +
-    "    'mw_max': final_data['MW'].max(),\n" +
-    "    'unique_installations': final_data['installation'].unique().tolist(),\n" +
-    "    'date_ranges': [str(final_data['date/time'].min()), str(final_data['date/time'].max())],\n" +
-    "    'chart_type': 'line'\n" +
-    '}\n' +
-    '\n' +
-    '# Print metadata as JSON\n' +
-    'print(json.dumps(metadata, indent=4))',
-  success: true,
-  timestamp: 2025-10-22T01:35:23.329Z
-}`
+export const agentConstructorPythonOutput = `  import pandas as pd
+import json
+from datetime import datetime
+
+# Read CSV with correct encoding and headers
+df = pd.read_csv('C:/repos/SAGAMiddleware/data/two_days.csv', encoding='utf-8-sig', header=[0,1])
+
+# Flatten columns to get installation names
+df.columns = [col[1] for col in df.columns]
+
+# Parse date/time column with correct format
+df['date/time'] = pd.to_datetime(df['date/time'], format='%m/%d/%Y %H:%M')
+
+# Filter by date (11/02/2023) and time (6-18)
+df = df[(df['date/time'].dt.date == datetime.strptime('11/02/2023', '%m/%d/%Y').date()) &
+        (df['date/time'].dt.hour >= 6) &
+        (df['date/time'].dt.hour <= 18)]
+
+# Keep only columns in energy_mapping
+energy_mapping = {
+    'BARCSF1': 'Solar', 'GRIFSF1': 'Solar', 'HUGSF1': 'Solar',
+    'LRSF1': 'Solar', 'MLSP1': 'Solar', 'ROTALLA1': 'Solar',
+    'CAPTL_WF': 'Wind', 'CHALLHWF': 'Wind', 'CULLRGWF': 'Wind',
+    'DIAPURWF1': 'Wind', 'MLWF1': 'Wind', 'WAUBRAWF': 'Wind',
+    'WOOLNTH1': 'Wind', 'YAMBUKWF': 'Wind', 'YSWF1': 'Wind',
+    'SHOAL1': 'Natural Gas',
+    'BUTLERSG': 'Hydro', 'CLOVER': 'Hydro', 'CLUNY': 'Hydro',
+    'PALOONA': 'Hydro', 'REPULSE': 'Hydro',
+    'ERGT01': 'Diesel', 'GBO1': 'Diesel',
+    'KEPBG1': 'Battery',
+    'ERGTO1': 'Coal', 'RPCG': 'Coal'
+}
+df = df[['date/time'] + [col for col in df.columns if col in energy_mapping.keys()]]
+
+# Transform wide to long format
+df_melted = pd.melt(df, id_vars=['date/time'], value_vars=energy_mapping.keys(),
+                    var_name='installation', value_name='MW')
+
+# Add energy_source column using mapping
+df_melted['energy_source'] = df_melted['installation'].map(energy_mapping)
+
+# Extract hour and group by (hour, installation) to sum
+df_melted['date/time'] = df_melted['date/time'].dt.floor('H')
+df_grouped = df_melted.groupby(['date/time', 'installation', 'energy_source']).sum().reset_index()
+
+# Sort by date/time and installation
+df_sorted = df_grouped.sort_values(['date/time', 'installation'])
+
+# Write to CSV with exact column order
+df_sorted.to_csv('C:/repos/SAGAMiddleware/data/hourly_energy_data.csv', index=False,
+                 columns=['date/time', 'installation', 'energy_source', 'MW'], date_format='%m/%d/%Y %H:%M')
+
+# Generate metadata dictionary
+metadata = {
+    "installation_count": df_sorted['installation'].nunique(),
+    "mw_min": df_sorted['MW'].min(),
+    "mw_max": df_sorted['MW'].max(),
+    "unique_installations": df_sorted['installation'].unique().tolist(),
+    "date_ranges": {"start": df_sorted['date/time'].min().strftime('%m/%d/%Y %H:%M'),
+                    "end": df_sorted['date/time'].max().strftime('%m/%d/%Y %H:%M')},
+    "chart_type": "line",
+    "energy_sources": df_sorted['energy_source'].unique().tolist()
+}
+
+# Print metadata as JSON
+print(json.dumps(metadata, indent=4))`
 
 export const agentConstructorPythonExecutionError = `{
   agentName: 'PythonExecutionAgent',
@@ -2802,5 +3031,62 @@ export const agentConstructorPythonExecutionError = `{
   success: true,
   timestamp: 2025-10-22T05:12:39.879Z
 }`
+
+export const agentConstructorPythonExecutionOK = ` {
+  content: [],
+  success: true,
+  stdout: '{\r\n' +
+    '    "installation_count": 26,\r\n' +
+    '    "mw_min": -43.2,\r\n' +
+    '    "mw_max": 1309.72297,\r\n' +
+    '    "unique_installations": [\r\n' +
+    '        "BARCSF1",\r\n' +
+    '        "BUTLERSG",\r\n' +
+    '        "CAPTL_WF",\r\n' +
+    '        "CHALLHWF",\r\n' +
+    '        "CLOVER",\r\n' +
+    '        "CLUNY",\r\n' +
+    '        "CULLRGWF",\r\n' +
+    '        "DIAPURWF1",\r\n' +
+    '        "ERGT01",\r\n' +
+    '        "ERGTO1",\r\n' +
+    '        "GBO1",\r\n' +
+    '        "GRIFSF1",\r\n' +
+    '        "HUGSF1",\r\n' +
+    '        "KEPBG1",\r\n' +
+    '        "LRSF1",\r\n' +
+    '        "MLSP1",\r\n' +
+    '        "MLWF1",\r\n' +
+    '        "PALOONA",\r\n' +
+    '        "REPULSE",\r\n' +
+    '        "ROTALLA1",\r\n' +
+    '        "RPCG",\r\n' +
+    '        "SHOAL1",\r\n' +
+    '        "WAUBRAWF",\r\n' +
+    '        "WOOLNTH1",\r\n' +
+    '        "YAMBUKWF",\r\n' +
+    '        "YSWF1"\r\n' +
+    '    ],\r\n' +
+    '    "date_ranges": {\r\n' +
+    '        "start": "11/02/2023 06:00",\r\n' +
+    '        "end": "11/02/2023 18:00"\r\n' +
+    '    },\r\n' +
+    '    "chart_type": "line",\r\n' +
+    '    "energy_sources": [\r\n' +
+    '        "Solar",\r\n' +
+    '        "Hydro",\r\n' +
+    '        "Wind",\r\n' +
+    '        "Diesel",\r\n' +
+    '        "Coal",\r\n' +
+    '        "Battery",\r\n' +
+    '        "Natural Gas"\r\n' +
+    '    ]\r\n' +
+    '}',
+  stderr: "C:\\repos\\codeGen-mcp-server\\workspace\\script_1761203100992.py:43: FutureWarning: 'H' is deprecated and will be removed in a future version, please use 'h' instead.\r\n" +
+    "  df_melted['date/time'] = df_melted['date/time'].dt.floor('H')",
+  filename: 'script_1761203100992.py'
+}`
+
+export const dataProfilerResponse = ``
 
 export { csvContent, agentData };

@@ -144,11 +144,11 @@ console.log('target agent 1',this.targetAgent)
             prevResult = cleanCode = this.cleanPythonCode(result.result || '')
           } else{
             if(linearTx.agentName === `PythonExecutionAgent`){
-              console.log('PYTHON EXEC ')
-                  result.result = agentConstructorPythonExecutionError// = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult; //   result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+              console.log('PYTHON EXEC ', prevResult)
+                  result  = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult; //   agentConstructorPythonExecutionError//result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
             }
              
-              //   result.result =  pythonLogCodeResult //codeExecutorResult error result
+                 result.result =  pythonLogCodeResult //codeExecutorResult error result
                  this.coordinator.contextManager.updateContext(linearTx.agentName, {
                   lastTransactionResult: result.result,//pythonLogCodeResult,
                   previousTransactionResult:  prevResult,
@@ -198,20 +198,58 @@ console.log('target agent 1',this.targetAgent)
     
   
     private cleanPythonCode(rawCode: string): string {
-      // Handle JavaScript-style concatenated strings with + operators
-      let cleaned = rawCode
-        // Remove string concatenation operators and newlines
-        .replace(/'\s*\+\s*$/gm, '')
-        .replace(/'\s*\+\s*'/g, '')
-        .replace(/`/g, "'")  // Fix backticks to quotes
-        // Remove leading/trailing quotes and handle escape sequences
-        .replace(/^'/, '')
-        .replace(/'$/, '')
-        .replace(/\\n/g, '\n')
-        .replace(/\\'/g, "'")
-        .replace(/\\"/g, '"');
-      
-      return cleaned.trim();
+      let cleaned = rawCode.trim();
+
+      // Step 0: Check if the input is an object string (contains agentName, result, etc.)
+      // If so, extract just the result field value
+      if (cleaned.includes('agentName:') && cleaned.includes('result:')) {
+        // Find the result field - it's typically: result: 'code...' + 'more code' +
+        const resultMatch = cleaned.match(/result:\s*(['"])([\s\S]*?)(?=,\s*(?:success|timestamp|\}))/);
+        if (resultMatch) {
+          // Extract just the concatenated string value (group 2)
+          cleaned = resultMatch[2];
+          // Add back the opening quote that was captured in group 1
+          cleaned = resultMatch[1] + cleaned;
+        }
+      }
+
+      // Step 1: Convert escaped newlines to actual newlines FIRST
+      // This converts the JavaScript string format to multiline text
+      cleaned = cleaned.replace(/\\n/g, '\n');
+
+      // Step 2: Remove string concatenation operators
+      // Pattern: 'text' +
+      //          'more text'
+      // Remove the trailing ' + and leading ' on continuation
+      cleaned = cleaned.replace(/'\s*\+\s*\n\s*'/gm, '\n');
+      cleaned = cleaned.replace(/"\s*\+\s*\n\s*"/gm, '\n');
+
+      // Remove any remaining + patterns at end of lines (with or without quotes)
+      cleaned = cleaned.replace(/\s*\+\s*$/gm, '');
+
+      // Step 3: Remove the very first and last quotes from the entire string
+      cleaned = cleaned.trim();
+      cleaned = cleaned.replace(/^['"]/, '');
+      cleaned = cleaned.replace(/['"]$/, '');
+
+      // Step 4: Handle escaped quotes
+      cleaned = cleaned.replace(/\\'/g, "'");
+      cleaned = cleaned.replace(/\\"/g, '"');
+
+      // Step 5: Convert backticks to single quotes (if any)
+      cleaned = cleaned.replace(/`/g, "'");
+
+      // Step 6: Clean up each line while preserving Python indentation
+      const lines = cleaned.split('\n');
+      const trimmedLines = lines.map(line => {
+        // Remove trailing whitespace but preserve leading indentation
+        return line.replace(/\s+$/, '');
+      });
+
+      // Rejoin and trim overall leading/trailing blank lines
+      cleaned = trimmedLines.join('\n').trim();
+
+      return cleaned;
     }
   
     private cleanJavaScriptCode(rawCode: any): string {
