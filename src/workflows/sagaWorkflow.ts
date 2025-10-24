@@ -587,7 +587,7 @@ Focus: Only array extraction
     
     socket.on('event_received', async (message: any) => {
       console.log('MESSAGE TYPE', message.type)
-       if ((message.type === 'create_code' ||  message.type === 'update_code') && message.source === 'react-app') {
+       if ((message.type === 'create_code' ||  message.type === 'update_code' || message.type === 'profile_approved') && message.source === 'react-app') {
         console.log(`🧵 Received create_code from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'update_code' && message.source === 'react-app') {
@@ -633,17 +633,17 @@ Focus: Only array extraction
       this.lastThreadMessage = data.message;
 
       const dataProfiler: DataProfiler = new DataProfiler();
-      const profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(data.message,'C:/repos/SAGAMiddleware/data/two_days.csv')
+     // let profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(data.message,'C:/repos/SAGAMiddleware/data/two_days.csv')
 
       console.log('✅ Data profiling complete, sending to user for review...\n');
-
+      const profiledPrompt =  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');
       // Send profiled prompt to user for review
-      this.sendDataProfileToUser(profiledPrompt, threadId, data.workflowId, data.correlationId);
-
+     await this.sendDataProfileToUser(profiledPrompt, threadId, data.workflowId, data.correlationId);
+if(opType === 'profile_approved'){
+  console.log('PROFILE RECEIVED ', message.data)
+}
     //  const agentStruct: AgentStructureGenerator = new AgentStructureGenerator()
      // const res = agentConstructorInput//await agentStruct.generadteAgentStructures( data.message);
-
-    //  const res = fs.readFileSync('C:/repos/SAGAMiddleware/data/claudeAgentSpec.txt', 'utf-8');
 
       // Create browser request from thread) message
       // const browserRequest: BrowserGraphRequest = {

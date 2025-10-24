@@ -68,6 +68,10 @@ export class SAGAEventBusClient {
 
     this.socket.on('reconnect', (attemptNumber: any) => {
       console.log(`🔄 SAGA Middleware reconnected to Event Bus (attempt ${attemptNumber})`);
+      this.isConnected = true;
+
+      // Process any messages that were queued during disconnection
+      this.processMessageQueue();
     });
 
     this.socket.on('reconnect_error', (error: any) => {
@@ -79,6 +83,19 @@ export class SAGAEventBusClient {
     this.socket.on('event_received', (message: EventMessage) => {
       console.log(`📥 Received event: ${message.type} from ${message.source}`);
       this.handleIncomingEvent(message);
+    });
+
+    // Listen for console output requests from browser/client
+    this.socket.on('request_console_output', () => {
+      this.publishEvent('console_output', {
+        message: 'SAGA Middleware is connected and ready',
+        timestamp: new Date(),
+        connectionState: {
+          isConnected: this.isConnected,
+          socketConnected: this.socket?.connected || false,
+          queueSize: this.messageQueue.length
+        }
+      }, 'react-app');
     });
   }
 
@@ -220,7 +237,7 @@ export class SAGAEventBusClient {
       source: 'saga-middleware',
       target: target as any,
       data,
-      messageId: `saga_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      messageId: `saga_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       timestamp: new Date(),
       threadId: data.threadId,
       workflowId: data.workflowId,
@@ -230,9 +247,12 @@ export class SAGAEventBusClient {
     // Check actual socket connection state instead of relying on isConnected flag
     if (this.socket && this.socket.connected) {
       console.log(`📤 Publishing event: ${type} to ${target || 'broadcast'}`);
+      console.log(`   Connection state - isConnected: ${this.isConnected}, socket.connected: ${this.socket.connected}`);
       this.socket.emit('publish_event', message);
     } else {
       console.log(`📦 Queueing event: ${type} (Event Bus not connected)`);
+      console.log(`   Connection state - isConnected: ${this.isConnected}, socket.connected: ${this.socket?.connected || false}`);
+      console.log(`   Queue size: ${this.messageQueue.length + 1} messages`);
       this.messageQueue.push(message);
     }
   }
@@ -272,6 +292,32 @@ export class SAGAEventBusClient {
 
   public getQueuedMessageCount(): number {
     return this.messageQueue.length;
+  }
+
+  /**
+   * Broadcast a console log message to connected clients (for browser visibility)
+   */
+  public broadcastConsoleLog(level: 'log' | 'error' | 'warn' | 'info', message: string, data?: any): void {
+    this.publishEvent('console_log', {
+      level,
+      message,
+      data,
+      timestamp: new Date()
+    }, 'broadcast');
+  }
+
+  /**
+   * Get diagnostic information about the connection state
+   */
+  public getDiagnostics(): any {
+    return {
+      isConnected: this.isConnected,
+      socketConnected: this.socket?.connected || false,
+      socketId: this.socket?.id || null,
+      queuedMessages: this.messageQueue.length,
+      eventBusUrl: this.eventBusUrl,
+      timestamp: new Date()
+    };
   }
 
 }
