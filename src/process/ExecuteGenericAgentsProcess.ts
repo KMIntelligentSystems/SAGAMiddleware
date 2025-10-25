@@ -25,6 +25,7 @@ export class ExecuteGenericAgentsProcess {
   private transactionSetCollection: TransactionSetCollection;
   private coordinator: SagaCoordinator;
   private targetAgent: string;
+
   constructor(
     agent: GenericAgent,
     coordinator: SagaCoordinator,
@@ -35,6 +36,7 @@ export class ExecuteGenericAgentsProcess {
     this.coordinator = coordinator;
     this.transactionSetCollection = transactionSetCollection;
     this.targetAgent = targetAgent;
+   
   }
 
   /**
@@ -128,6 +130,8 @@ console.log('target agent 1',this.targetAgent)
       timestamp: new Date()
     };
       let cleanCode = '';
+      const validatingAgent =  this.coordinator.agents.get('ValidatingAgent') as GenericAgent;
+      const toolCallingAgent = this.coordinator.agents.get('ToolCallingAgent') as GenericAgent;
       for (const linearTx of linearTransactions) {
              let agent = this.coordinator.agents.get(linearTx.agentName);
              console.log('LINEAR AGENT NAME', agent?.getName())//PandasDailyAveragingCoder-> MCPExecutePythonCaller
@@ -137,6 +141,13 @@ console.log('target agent 1',this.targetAgent)
              console.log('LINEAR AGENT ', agent?.getContext())//nothing in context []
              
           if(firstAgent ===  linearTx.agentName ){
+            if ( linearTx.agentType === 'tool'){
+                result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription});
+                cleanCode = this.cleanPythonCode(result.result || '')
+                console.log('VALIDATION PYTHON',cleanCode)
+                result = await toolCallingAgent.execute({'CODE:': result.result})
+                  console.log('RUN PYTHON',cleanCode)
+            }
               //TEST START
             //  result = await agent?.execute({}) as AgentResult;
           //END

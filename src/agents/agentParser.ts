@@ -154,7 +154,8 @@ export class AgentParser {
       }
     }
     
-    const agentPattern = /\[AGENT:\s*([^,]+),\s*([^\]]+)\](.*?)\[\/AGENT\]/gs;
+    // Updated pattern to handle both [/AGENT] and [/AGENT: name, id] closing tags
+    const agentPattern = /\[AGENT:\s*([^,]+),\s*([^\]]+)\](.*?)\[\/AGENT(?::\s*[^\]]+)?\]/gs;
     const  agentMap = new Map<string, { name: string; content: string; agentType: 'tool' | 'processing' }>();
     
     console.log(`AgentParser: DEBUG - Looking for agent patterns in cleaned text`);

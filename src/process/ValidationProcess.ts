@@ -230,13 +230,18 @@ export class ValidationProcess {
       let resultText = '';
       if (typeof conversationResult === 'string') {
         resultText = conversationResult;
+      } else if (conversationResult.message) {
+        // Handle JSON object with message property (e.g., { threadId, message })
+        resultText = conversationResult.message;
       } else if (conversationResult.result) {
         resultText = conversationResult.result;
       } else {
         return '';
       }
 
-      const startTagPattern = new RegExp(`\\[AGENT:\\s*${agentName}(?:,\\s*[^\\]]+)?\\]`);
+      // Updated regex to handle both formats:
+      // [AGENT: agentName id] or [AGENT:agentName id] (with or without space after colon)
+      const startTagPattern = new RegExp(`\\[AGENT:\\s*${agentName}(?:[,\\s]+[^\\]]+)?\\]`, 'i');
       const endTag = `[/AGENT]`;
 
       const startTagMatch = resultText.match(startTagPattern);

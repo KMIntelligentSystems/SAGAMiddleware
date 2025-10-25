@@ -100,7 +100,7 @@ export class GenericAgent {
       }
       console.log("PROMPT ",prompt)
     result = await this.invokeLLM(prompt);
-      console.log('GENERIC RESULT ',result.result)
+    console.log('GENERIC RESULT ',result.result)
 
       
       return {

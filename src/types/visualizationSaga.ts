@@ -223,6 +223,9 @@ ABSOLUTE REQUIREMENTS:
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
 You must provide new instructiosn as succinctly as possible`
+
+export const toolValidationPrompt = `You will recieve 1. Requirements and directives for python code; 2. The python code. Your tasks are: 1. Ensure that the code is error free; 2. Validate that the code meets the requirements. 
+If there are issues with the code, then address the issues. You must only return the python code without comment so that it can be run on an MCP server immediately`
 /*
 FORBIDDEN ACTIONS:
 ❌ Do NOT summarize the input you receive  

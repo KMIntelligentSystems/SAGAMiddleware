@@ -6,6 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
 import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult } from '../test/testData.js'
 import { dataValidatingAgentPrompt } from '../types/visualizationSaga.js'
+import * as fs from 'fs'
 
 /**
  * DefineGenericAgentsProcess
@@ -51,9 +52,7 @@ export class DefineGenericAgentsProcess {
   and the output from thinking through the task to provide meaningful instructions for other agents to 
   enable them to execute their tasks`;
 
-   if(this.targetAgent && this.targetAgent === this.agent.getName()){
-
-   }
+console.log('DEFINE ', this.userQuery)
     // Parse user query to extract this agent's task
     const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
@@ -74,7 +73,7 @@ export class DefineGenericAgentsProcess {
     console.log(`📝 Extracted task for ${this.agent.getName()} (${conversationContext.length} chars)`);
 
     // Clear previous context
-    this.agent.deleteContext();
+  //  this.agent.deleteContext();
     this.agent.setTaskDescription(taskDescription);
     // Set new context
     this.agent.receiveContext({ 'YOUR TASK': conversationContext });
@@ -88,11 +87,13 @@ console.log('CONVERSATION ',conversationContext )
       success: true,
       timestamp: new Date()
     };
-
+ 
     if(this.agent.getName() === 'TransactionGroupingAgent'){
-     //  const result = await this.agent.execute({});
-     // console.log('DEFINE AGENT ', result.result)
-     result.result = groupingAgentResult
+    //   const result = await this.agent.execute({});
+   //   console.log('DEFINE AGENT ', result.result)
+      result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');
+      console.log('PROFILE RESULT', result.result)
+    // result.result = groupingAgentResult //
     } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
      result.result = visualizationGroupingAgentsResult;
       this.agent.setTaskDescription(dataValidatingAgentPrompt);
@@ -126,14 +127,21 @@ console.log('CONVERSATION ',conversationContext )
       let resultText = '';
       if (typeof conversationResult === 'string') {
         resultText = conversationResult;
+      } else if (conversationResult.message) {
+        // Handle JSON object with message property (e.g., { threadId, message })
+        resultText = conversationResult.message;
       } else if (conversationResult.result) {
         resultText = conversationResult.result;
       } else {
+        console.log(`⚠️  Conversation result format not recognized:`, conversationResult);
         return '';
       }
 
       // Extract content between bracket tags for this agent
-      const startTagPattern = new RegExp(`\\[AGENT:\\s*${agentName}(?:,\\s*[^\\]]+)?\\]`);
+      // Updated regex to handle both formats:
+      // [AGENT: agentName id] or [AGENT:agentName id] (with or without space after colon)
+      // Also allows comma or space separation: [AGENT: agentName, id] or [AGENT:agentName id]
+      const startTagPattern = new RegExp(`\\[AGENT:\\s*${agentName}(?:[,\\s]+[^\\]]+)?\\]`, 'i');
       const endTag = `[/AGENT]`;
 
       const startTagMatch = resultText.match(startTagPattern);
@@ -143,17 +151,25 @@ console.log('CONVERSATION ',conversationContext )
       if (startTagMatch) {
         startIndex = startTagMatch.index!;
         startTagLength = startTagMatch[0].length;
+        console.log(`✅ Found opening tag: "${startTagMatch[0]}" at index ${startIndex}`);
       } else {
-        console.log(`🔍 No [AGENT: ${agentName}] tag found`);
+        console.log(`🔍 No [AGENT: ${agentName}] tag found in text:`);
+        console.log(`   Text preview: ${resultText.substring(0, 200)}...`);
+        console.log(`   Pattern used: ${startTagPattern}`);
         return '';
       }
 
       const endIndex = resultText.indexOf(endTag, startIndex);
 
       if (startIndex !== -1 && endIndex !== -1) {
+        console.log(`✅ Found closing tag at index ${endIndex}`);
         let content = resultText.substring(startIndex + startTagLength, endIndex).trim();
+        console.log(`📝 Extracted content (${content.length} chars): ${content.substring(0, 100)}...`);
         content = content.replace(/^\d+\.\s*/, '').replace(/^\./, '').trim();
         return content;
+      } else {
+        console.log(`❌ Closing tag [/AGENT] not found after index ${startIndex}`);
+        console.log(`   Remaining text: ${resultText.substring(startIndex, startIndex + 300)}...`);
       }
 
       return '';

@@ -58,7 +58,7 @@ export class FlowProcess {
       };
     }
 
-    console.log(`📝 Agent definitions: ${ctx.lastTransactionResult.substring(0, 150)}...`);
+    console.log(`📝 Agent definitions: ${JSON.stringify(ctx.lastTransactionResult).substring(0, 150)}...`);
 
     // Clear flow defining agent context
     this.flowDefiningAgent.deleteContext();
@@ -79,7 +79,7 @@ export class FlowProcess {
     };
 
       if(this.targetAgent.getName() === 'TransactionGroupingAgent'){
-           result.result  = flowDefiningAgentResult//await this.flowDefiningAgent.execute({}); // 
+           result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
           console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', result.result)
          //result.result = flowDefiningAgentResult;
         } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
