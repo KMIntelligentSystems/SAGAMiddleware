@@ -6,7 +6,7 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../types/visualizationSaga.js';
-import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError} from '../test/testData.js'
+import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError, dataLoaderPython} from '../test/testData.js'
 
 /**,agentConstructorPythonExecutionError
  * ExecuteGenericAgentsProcess
@@ -142,11 +142,11 @@ console.log('target agent 1',this.targetAgent)
              
           if(firstAgent ===  linearTx.agentName ){
             if ( linearTx.agentType === 'tool'){
-                result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription});
-                cleanCode = this.cleanPythonCode(result.result || '')
+             //   result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription});
+                cleanCode = dataLoaderPython.trim();//this.cleanPythonCode(JSON.stringify(result.result) || '')
                 console.log('VALIDATION PYTHON',cleanCode)
-                result = await toolCallingAgent.execute({'CODE:': result.result})
-                  console.log('RUN PYTHON',cleanCode)
+                result = await toolCallingAgent.execute({'CODE:': cleanCode})
+                  console.log('RUN PYTHON',result.result)
             }
               //TEST START
             //  result = await agent?.execute({}) as AgentResult;

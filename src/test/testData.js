@@ -3087,6 +3087,70 @@ export const agentConstructorPythonExecutionOK = ` {
   filename: 'script_1761203100992.py'
 }`
 
-export const dataProfilerResponse = ``
+export const dataLoaderPython = ` import os
+from datetime import date
+import pandas as pd
+
+FILE_PATH = r"C:/repos/SAGAMiddleware/data/two_days.csv"
+
+EXPECTED_TOTAL_LINES = 530
+EXPECTED_DATA_ROWS = 528
+DATE_COL = "date/time"
+DATETIME_FORMAT = "%m/%d/%Y %H:%M"
+
+ALL_COLUMNS_EXPECTED = [
+    "date/time","BARCSF1","GRIFSF1","HUGSF1","LRSF1","MLSP1","ROTALLA1",
+    "CAPTL_WF","CHALLHWF","CULLRGWF","DIAPURWF1","MLWF1","WAUBRAWF","WOOLNTH1","YAMBUKWF","YSWF1",
+    "SHOAL1",
+    "BUTLERSG","CLOVER","CLUNY","PALOONA","REPULSE","ROWALLAN","RUBICON",
+    "ERGT01","GBO1",
+    "KEPBG1",
+    "ERGTO1","RPCG"
+]
+
+def load_data(file_path: str = FILE_PATH) -> pd.DataFrame:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found at: {file_path}")
+
+    with open(file_path, "rb") as f:
+        total_lines = sum(1 for _ in f)
+    if total_lines != EXPECTED_TOTAL_LINES:
+        raise ValueError(f"Unexpected total line count: {total_lines}. Expected {EXPECTED_TOTAL_LINES}.")
+
+    try:
+        df = pd.read_csv(file_path, encoding="utf-8-sig", header=1)
+    except UnicodeDecodeError as e:
+        raise ValueError("Failed to read CSV with utf-8-sig encoding.") from e
+
+    if df.shape[0] != EXPECTED_DATA_ROWS:
+        raise ValueError(f"Unexpected number of data rows: {df.shape[0]}. Expected {EXPECTED_DATA_ROWS}.")
+
+    if DATE_COL not in df.columns:
+        bom_col = next((c for c in df.columns if c.endswith(DATE_COL)), None)
+        if bom_col:
+            df.rename(columns={bom_col: DATE_COL}, inplace=True)
+        else:
+            raise KeyError(f"Missing required column '{DATE_COL}' in CSV header.")
+
+    missing = [c for c in ALL_COLUMNS_EXPECTED if c not in df.columns]
+    if missing:
+        raise KeyError(f"CSV is missing expected columns: {missing}")
+
+    try:
+        df["datetime"] = pd.to_datetime(df[DATE_COL], format=DATETIME_FORMAT, errors="raise")
+    except Exception as e:
+        raise ValueError("Datetime parsing failed. Ensure format is '%m/%d/%Y %H:%M' (e.g., 11/02/2023 6:00).") from e
+
+    min_dt, max_dt = df["datetime"].min(), df["datetime"].max()
+    if not (min_dt.date() <= date(2023, 11, 2) and max_dt.date() >= date(2023, 11, 3)):
+        raise ValueError(f"Unexpected datetime span: {min_dt} to {max_dt}. Expected coverage across 2023-11-02 to 2023-11-03.")
+
+    diffs = df["datetime"].sort_values().diff().dropna().dt.total_seconds().unique().tolist()
+    if 300.0 not in diffs:
+        raise ValueError(f"5-minute interval (300s) not detected. Found unique diffs (s): {diffs}")
+
+    return df`
+
+    export const dataLoadPythonResult = ``
 
 export { csvContent, agentData };
