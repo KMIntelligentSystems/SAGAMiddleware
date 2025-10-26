@@ -79,9 +79,9 @@ export class FlowProcess {
     };
 
       if(this.targetAgent.getName() === 'TransactionGroupingAgent'){
-           result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
-          console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', result.result)
-         //result.result = flowDefiningAgentResult;
+       //    result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
+       //   console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', result.result)
+         result.result = flowDefiningAgentResult;
         } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
            console.log('VISUALISATION AGENT')
          result.result = flowData;

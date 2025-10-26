@@ -224,7 +224,9 @@ export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 
 You must provide new instructiosn as succinctly as possible`
 
-export const toolValidationPrompt = `You will recieve 1. Requirements and directives for python code; 2. The python code. Your tasks are: 1. Ensure that the code is error free; 2. Validate that the code meets the requirements. 
+export const toolValidationPrompt = `You will recieve 1. Requirements and directives for python code; 2. The python code. You may receive a data frame input from a previous agent in the pipeline. Your tasks are: 1. Ensure that the code is error free; 
+2. Validate that the code meets the requirements. 
+3. Apply the data frame if there is one to the input of the code.
 If there are issues with the code, then address the issues. You must only return the python code without comment so that it can be run on an MCP server immediately`
 /*
 FORBIDDEN ACTIONS:

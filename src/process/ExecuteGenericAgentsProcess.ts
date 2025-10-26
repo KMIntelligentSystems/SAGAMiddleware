@@ -7,6 +7,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../types/visualizationSaga.js';
 import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError, dataLoaderPython} from '../test/testData.js'
+import * as fs from 'fs'
 
 /**,agentConstructorPythonExecutionError
  * ExecuteGenericAgentsProcess
@@ -133,7 +134,7 @@ console.log('target agent 1',this.targetAgent)
       const validatingAgent =  this.coordinator.agents.get('ValidatingAgent') as GenericAgent;
       const toolCallingAgent = this.coordinator.agents.get('ToolCallingAgent') as GenericAgent;
       for (const linearTx of linearTransactions) {
-             let agent = this.coordinator.agents.get(linearTx.agentName);
+             let agent = this.coordinator.agents.get(linearTx.agentName) as GenericAgent;
              console.log('LINEAR AGENT NAME', agent?.getName())//PandasDailyAveragingCoder-> MCPExecutePythonCaller
               console.log('LINEAR AGENT TASK ', agent?.getAgentDefinition().taskDescription) //task set
               console.log('LINEAR AGENT Type ', linearTx.agentType)
@@ -142,21 +143,21 @@ console.log('target agent 1',this.targetAgent)
              
           if(firstAgent ===  linearTx.agentName ){
             if ( linearTx.agentType === 'tool'){
-             //   result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription});
+             //   result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
                 cleanCode = dataLoaderPython.trim();//this.cleanPythonCode(JSON.stringify(result.result) || '')
                 console.log('VALIDATION PYTHON',cleanCode)
-                result = await toolCallingAgent.execute({'CODE:': cleanCode})
-                  console.log('RUN PYTHON',result.result)
+                prevResult = result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataLoadPythonResult.txt', 'utf-8');//await toolCallingAgent.execute({'CODE:': cleanCode})
             }
-              //TEST START
-            //  result = await agent?.execute({}) as AgentResult;
-          //END
-            result.result = agentConstructorPythonOutput //result from PandasDailyAveragingCoder  D3JSCoordinatingAgentFinalResult
-            prevResult = cleanCode = this.cleanPythonCode(result.result || '')
+          
           } else{
-            if(linearTx.agentName === `PythonExecutionAgent`){
+            if(linearTx.agentName === `Data Filter` && linearTx.agentType === 'tool'){
               console.log('PYTHON EXEC ', prevResult)
-                  result  = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult; //   agentConstructorPythonExecutionError//result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
+ 
+                 validatingAgent.receiveContext({'DATA FRAME INPUT: ': prevResult})
+                 result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
+                 cleanCode = JSON.stringify(result.result).trim();
+                 console.log('DATA FILTER CODE ', cleanCode)
+              //    result  = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult; //   agentConstructorPythonExecutionError//result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
             }
              
                  result.result =  pythonLogCodeResult //codeExecutorResult error result

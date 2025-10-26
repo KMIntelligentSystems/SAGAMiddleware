@@ -2184,22 +2184,23 @@ export const flowDefiningAgentResult_ = `{
 }`
 
 export const flowDefiningAgentResult = `
- {
+{
   agentName: 'FlowDefiningAgent',
   result: '<!DOCTYPE html>\n' +
-    '<html lang="en">\n' +
-    '<head>\n' +
-    '<meta charset="utf-8">\n' +
-    '<title>Agent Flow and Tool Users</title>\n' +
-    '</head>\n' +
-    '<body>\n' +
-    '<flow>DATA-PROC-01 -> TOOL-EXEC-01 -> DATA-ANALYZE-01 -> D3-VIZ-01</flow>\n' +
-    '{"toolUsers": ["PythonExecutionAgent"]}\n' +
-    '</body>\n' +
+    '<html>\n' +
+    '  <head>\n' +
+    '    <meta charset="UTF-8" />\n' +
+    '    <title>Agent Flow and Tool Users</title>\n' +
+    '  </head>\n' +
+    '  <body>\n' +
+    '    <div><flow>agent_001 -> agent_002 -> agent_003 -> agent_004 -- agent_005</flow></div>\n' +
+    '    <div>{"toolUsers": ["Data Loader", "Data Filter", "Data Transformer", "Data Aggregator", "Data Exporter"]}</div>\n' +
+    '  </body>\n' +
     '</html>',
   success: true,
-  timestamp: 2025-10-23T05:30:14.787Z
-}`
+  timestamp: 2025-10-26T04:14:06.736Z
+}
+`
 
 export const genReflectSVGResult = `{
   agentName: 'GeneratingAgent',

@@ -92,8 +92,8 @@ console.log('CONVERSATION ',conversationContext )
     //   const result = await this.agent.execute({});
    //   console.log('DEFINE AGENT ', result.result)
       result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');
-      console.log('PROFILE RESULT', result.result)
-    // result.result = groupingAgentResult //
+    console.log('PROFILE RESULT', result.result)
+
     } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
      result.result = visualizationGroupingAgentsResult;
       this.agent.setTaskDescription(dataValidatingAgentPrompt);
