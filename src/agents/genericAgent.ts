@@ -99,8 +99,8 @@ export class GenericAgent {
         console.log('HERE D3 JS PROCESSING', this.counter)
       }
       console.log("PROMPT ",prompt)
- //   result = await this.invokeLLM(prompt);
-  //  console.log('GENERIC RESULT ',result.result)
+    result = await this.invokeLLM(prompt);
+    console.log('GENERIC RESULT ',result.result)
 
       
       return {

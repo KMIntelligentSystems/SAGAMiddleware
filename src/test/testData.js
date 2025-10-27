@@ -3152,6 +3152,147 @@ def load_data(file_path: str = FILE_PATH) -> pd.DataFrame:
 
     return df`
 
-    export const dataLoadPythonResult = ``
+    export const dataFilterPython= `import pandas as pd
 
+INSTALLATIONS_INCLUDED = [
+    "BARCSF1","GRIFSF1","HUGSF1","LRSF1","MLSP1","ROTALLA1",
+    "CAPTL_WF","CHALLHWF","CULLRGWF","DIAPURWF1","MLWF1","WAUBRAWF","WOOLNTH1","YAMBUKWF","YSWF1",
+    "SHOAL1",
+    "BUTLERSG","CLOVER","CLUNY","PALOONA","REPULSE",
+    "ERGT01","GBO1",
+    "KEPBG1",
+    "ERGTO1","RPCG"
+]
+
+START = pd.Timestamp("2023-11-02 06:00")
+END = pd.Timestamp("2023-11-02 18:55")
+EXPECTED_ROWS = 13 * 12
+
+def filter_data(df: pd.DataFrame) -> pd.DataFrame:
+    if "datetime" not in df.columns:
+        raise KeyError("Input DataFrame missing 'datetime' column from loader.")
+    df = df.copy()
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    if df["datetime"].isna().any():
+        raise ValueError("Found non-parsable datetimes after coercion.")
+    mask = (df["datetime"] >= START) & (df["datetime"] <= END)
+    df_f = df.loc[mask].copy()
+    if df_f.shape[0] != EXPECTED_ROWS:
+        raise ValueError(f"Filtered rows {df_f.shape[0]} != expected {EXPECTED_ROWS} for 06:00-18:55.")
+    if df_f["datetime"].dt.date.nunique() != 1 or df_f["datetime"].dt.date.iloc[0].isoformat() != "2023-11-02":
+        raise ValueError("Filtered data contains dates outside 2023-11-02.")
+    missing = [c for c in INSTALLATIONS_INCLUDED if c not in df_f.columns]
+    if missing:
+        raise KeyError(f"Missing expected installation columns: {missing}")
+    cols_to_keep = ["datetime"] + INSTALLATIONS_INCLUDED
+    df_f = df_f[cols_to_keep].sort_values("datetime").reset_index(drop=True)
+    if df_f.shape[0] != EXPECTED_ROWS:
+        raise ValueError("Unexpected change in row count after column selection.")
+    if list(df_f.columns) != cols_to_keep:
+        raise ValueError("Column set/order mismatch after selection of 26 installations.")
+    return df_f
+
+if "df" in globals() and isinstance(df, pd.DataFrame):
+    filtered_df = filter_data(df)`
+
+    export const dataTransformerPython = `import pandas as pd
+
+INSTALLATIONS_INCLUDED = [
+    "BARCSF1","GRIFSF1","HUGSF1","LRSF1","MLSP1","ROTALLA1",
+    "CAPTL_WF","CHALLHWF","CULLRGWF","DIAPURWF1","MLWF1","WAUBRAWF","WOOLNTH1","YAMBUKWF","YSWF1",
+    "SHOAL1",
+    "BUTLERSG","CLOVER","CLUNY","PALOONA","REPULSE",
+    "ERGT01","GBO1",
+    "KEPBG1",
+    "ERGTO1","RPCG"
+]
+
+INSTALLATION_TO_TYPE = {
+    "BARCSF1":"Solar","GRIFSF1":"Solar","HUGSF1":"Solar","LRSF1":"Solar","MLSP1":"Solar","ROTALLA1":"Solar",
+    "CAPTL_WF":"Wind","CHALLHWF":"Wind","CULLRGWF":"Wind","DIAPURWF1":"Wind","MLWF1":"Wind","WAUBRAWF":"Wind","WOOLNTH1":"Wind","YAMBUKWF":"Wind","YSWF1":"Wind",
+    "SHOAL1":"Natural Gas",
+    "BUTLERSG":"Hydro","CLOVER":"Hydro","CLUNY":"Hydro","PALOONA":"Hydro","REPULSE":"Hydro",
+    "ERGT01":"Diesel","GBO1":"Diesel",
+    "KEPBG1":"Battery",
+    "ERGTO1":"Coal","RPCG":"Coal"
+}
+
+EXPECTED_ROWS_LONG = 156 * 26
+
+def transform_data(df_f: pd.DataFrame) -> pd.DataFrame:
+    if "datetime" not in df_f.columns:
+        raise KeyError("Input DataFrame missing 'datetime' column.")
+    df_f = df_f.copy()
+    df_f["datetime"] = pd.to_datetime(df_f["datetime"], errors="coerce")
+    if df_f["datetime"].isna().any():
+        raise ValueError("Invalid 'datetime' values after parsing.")
+    df_f["hour"] = df_f["datetime"].dt.hour.astype(int)
+    df_long = df_f.melt(
+        id_vars=["datetime", "hour"],
+        value_vars=INSTALLATIONS_INCLUDED,
+        var_name="installation",
+        value_name="power"
+    )
+    df_long["power"] = pd.to_numeric(df_long["power"], errors="coerce").fillna(0.0)
+    df_long["energy_type"] = df_long["installation"].map(INSTALLATION_TO_TYPE)
+    if df_long.shape[0] != EXPECTED_ROWS_LONG:
+        raise ValueError(f"Unexpected long format row count: {df_long.shape[0]} != {EXPECTED_ROWS_LONG}")
+    if df_long["energy_type"].isna().any():
+        missing_installations = df_long.loc[df_long["energy_type"].isna(), "installation"].unique().tolist()
+        raise KeyError(f"Missing energy_type mapping for installations: {missing_installations}")
+    hours_set = set(df_long["hour"].unique().tolist())
+    expected_hours = set(range(6, 19))
+    if hours_set != expected_hours:
+        raise ValueError(f"Hour values mismatch. Found {sorted(hours_set)}, expected 6..18.")
+    return df_long
+DATA TRANS CODE  {"agentName":"ValidatingAgent","result":"import pandas as pd
+
+INSTALLATIONS_INCLUDED = [
+    "BARCSF1","GRIFSF1","HUGSF1","LRSF1","MLSP1","ROTALLA1",
+    "CAPTL_WF","CHALLHWF","CULLRGWF","DIAPURWF1","MLWF1","WAUBRAWF","WOOLNTH1","YAMBUKWF","YSWF1",
+    "SHOAL1",
+    "BUTLERSG","CLOVER","CLUNY","PALOONA","REPULSE",
+    "ERGT01","GBO1",
+    "KEPBG1",
+    "ERGTO1","RPCG"
+]
+
+INSTALLATION_TO_TYPE = {
+    "BARCSF1":"Solar","GRIFSF1":"Solar","HUGSF1":"Solar","LRSF1":"Solar","MLSP1":"Solar","ROTALLA1":"Solar",
+    "CAPTL_WF":"Wind","CHALLHWF":"Wind","CULLRGWF":"Wind","DIAPURWF1":"Wind","MLWF1":"Wind","WAUBRAWF":"Wind","WOOLNTH1":"Wind","YAMBUKWF":"Wind","YSWF1":"Wind",
+    "SHOAL1":"Natural Gas",
+    "BUTLERSG":"Hydro","CLOVER":"Hydro","CLUNY":"Hydro","PALOONA":"Hydro","REPULSE":"Hydro",
+    "ERGT01":"Diesel","GBO1":"Diesel",
+    "KEPBG1":"Battery",
+    "ERGTO1":"Coal","RPCG":"Coal"
+}
+
+EXPECTED_ROWS_LONG = 156 * 26
+
+def transform_data(df_f: pd.DataFrame) -> pd.DataFrame:
+    if "datetime" not in df_f.columns:
+        raise KeyError("Input DataFrame missing 'datetime' column.")
+    df_f = df_f.copy()
+    df_f["datetime"] = pd.to_datetime(df_f["datetime"], errors="coerce")
+    if df_f["datetime"].isna().any():
+        raise ValueError("Invalid 'datetime' values after parsing.")
+    df_f["hour"] = df_f["datetime"].dt.hour.astype(int)
+    df_long = df_f.melt(
+        id_vars=["datetime", "hour"],
+        value_vars=INSTALLATIONS_INCLUDED,
+        var_name="installation",
+        value_name="power"
+    )
+    df_long["power"] = pd.to_numeric(df_long["power"], errors="coerce").fillna(0.0)
+    df_long["energy_type"] = df_long["installation"].map(INSTALLATION_TO_TYPE)
+    if df_long.shape[0] != EXPECTED_ROWS_LONG:
+        raise ValueError(f"Unexpected long format row count: {df_long.shape[0]} != {EXPECTED_ROWS_LONG}")
+    if df_long["energy_type"].isna().any():
+        missing_installations = df_long.loc[df_long["energy_type"].isna(), "installation"].unique().tolist()
+        raise KeyError(f"Missing energy_type mapping for installations: {missing_installations}")
+    hours_set = set(df_long["hour"].unique().tolist())
+    expected_hours = set(range(6, 19))
+    if hours_set != expected_hours:
+        raise ValueError(f"Hour values mismatch. Found {sorted(hours_set)}, expected 6..18.")
+    return df_long"`
 export { csvContent, agentData };
