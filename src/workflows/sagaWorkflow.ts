@@ -2,6 +2,7 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { DataProfiler } from '../agents/dataProfiler.js';
+import { D3JSCodeProfiler } from '../agents/d3jsCodeProfiler.js'
 import { SagaState, HumanInLoopConfig,
 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
@@ -636,8 +637,10 @@ Focus: Only array extraction
        this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
+      const initialPrompt = this.coordinator.parseConversationResultForAgent(data.message, 'TransactionGroupingAgent')
+console.log('INITIAL PROMPT', initialPrompt)
       const dataProfiler: DataProfiler = new DataProfiler();
-     // let profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(data.message,'C:/repos/SAGAMiddleware/data/two_days.csv')
+     // let profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(initialPrompt,'C:/repos/SAGAMiddleware/data/two_days.csv')
 
       console.log('✅ Data profiling complete, sending to user for review...\n');
       const profiledPrompt =  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');
@@ -722,26 +725,14 @@ if(opType === 'profile_approved'){
       if(browserRequest.operationType === 'create_code'){
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
         let result = await this.coordinator.executeControlFlow(browserRequest.userQuery, profiledPrompt);
-       //1. First  cut produces code, genreflect produces svg analysis, validates makes recommendations for code
-  /*     console.log('GENERATE_REFLECT_FLOW_LIST 1')
-        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
-         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-         console.log('VALIDATE_D3JS_CODE_FLOW_LIST 1')
-         this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' },
-         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-         console.log('CONTROL_UPDATE_CODE_FLOW_LIST 1')
-         this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
-         result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);
-
-        console.log('GENERATE_REFLECT_FLOW_LIST 2')
-        this.coordinator.initializeControlFlow(GENERATE_REFLECT_FLOW_LIST);
-         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-         console.log('VALIDATE_D3JS_CODE_FLOW_LIST 2')
-         this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST); //ValidatingAgent' ->ValidationProcess' -> 'D3JSCodingAgent' },
-         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);
-         console.log('CONTROL_UPDATE_CODE_FLOW_LIST 2')
-         this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST );//Original code enhanced
-         result = await this.coordinator.executeControlFlow(D3JSCodingAgentPrompt);*/
+        //result is result from the last Data Exporter - provides the csv file location 
+        console.log('USER QUERY ', browserRequest.userQuery)
+        let graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(browserRequest.userQuery), 'D3JSCoordinatingAgent');
+        
+          const dataProfiler:D3JSCodeProfiler = new D3JSCodeProfiler();
+         const nxtProfiledPrompt = await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
+       //  const nxtProfiledPrompt = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
+         console.log('D3JS COORDINATOR', nxtProfiledPrompt)
          
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);

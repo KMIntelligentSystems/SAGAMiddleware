@@ -3295,4 +3295,102 @@ def transform_data(df_f: pd.DataFrame) -> pd.DataFrame:
     if hours_set != expected_hours:
         raise ValueError(f"Hour values mismatch. Found {sorted(hours_set)}, expected 6..18.")
     return df_long"`
+
+    export const dataAggregatorPython = `import pandas as pd
+
+EXPECTED_HOURS = list(range(6, 19))  # 6..18 inclusive
+EXPECTED_INSTALLATIONS = 26
+EXPECTED_ROWS = len(EXPECTED_HOURS) * EXPECTED_INSTALLATIONS  # 338
+EXPECTED_READINGS_PER_HOUR = 12  # 5-min intervals
+
+def aggregate_hourly(df_long: pd.DataFrame) -> pd.DataFrame:
+    required_cols = {"datetime", "hour", "installation", "power", "energy_type"}
+    if not required_cols.issubset(df_long.columns):
+        missing = list(required_cols - set(df_long.columns))
+        raise KeyError(f"Input missing required columns: {missing}")
+
+    counts = df_long.groupby(["hour", "installation"]).size().reset_index(name="n")
+    if counts.empty:
+        raise ValueError("No readings provided.")
+    if (counts["n"] != EXPECTED_READINGS_PER_HOUR).any():
+        rng = (counts["n"].min(), counts["n"].max())
+        raise ValueError(
+            f"Each [hour, installation] must have exactly {EXPECTED_READINGS_PER_HOUR} readings. Found range: {rng[0]}..{rng[1]}"
+        )
+
+    et_nunique = (
+        df_long.groupby(["hour", "installation"])["energy_type"]
+        .nunique(dropna=True)
+        .reset_index(name="k")
+    )
+    if (et_nunique["k"] != 1).any():
+        raise ValueError("Each [hour, installation] must have a single unique energy_type.")
+
+    df_hourly = (
+        df_long.groupby(["hour", "installation"], as_index=False)
+        .agg(total_power=("power", "sum"), energy_type=("energy_type", "first"))
+    )
+    df_hourly = df_hourly[["hour", "installation", "energy_type", "total_power"]]
+
+    if df_hourly.shape[0] != EXPECTED_ROWS:
+        raise ValueError(
+            f"Aggregated row count {df_hourly.shape[0]} != expected {EXPECTED_ROWS} (13 hours × 26 installations)."
+        )
+
+    hours = sorted(df_hourly["hour"].unique().tolist())
+    if hours != EXPECTED_HOURS:
+        raise ValueError(f"Hour set mismatch. Found {hours}, expected {EXPECTED_HOURS}.")
+
+    per_hour_counts = df_hourly.groupby("hour").size()
+    if not (per_hour_counts == EXPECTED_INSTALLATIONS).all():
+        raise ValueError(
+            "Each hour must contain exactly 26 installations after aggregation."
+        )
+
+    unique_installations = df_hourly["installation"].nunique()
+    if unique_installations != EXPECTED_INSTALLATIONS:
+        raise ValueError(
+            f"Unique installations {unique_installations} != expected {EXPECTED_INSTALLATIONS}."
+        )
+
+    if df_hourly["total_power"].isna().any():
+        raise ValueError("NaN detected in 'total_power' after aggregation.")
+
+    return df_hourly`
+
+    export const dataExporterPython = `  import os
+import pandas as pd
+
+OUTPUT_PATH = r"C:/repos/SAGAMiddleware/data/processed_hourly.csv"
+
+def export_csv(df_hourly: pd.DataFrame, output_path: str = OUTPUT_PATH) -> str:
+    required_cols = ["hour", "installation", "energy_type", "total_power"]
+    missing = [c for c in required_cols if c not in df_hourly.columns]
+    if missing:
+        raise KeyError(f"Hourly DataFrame missing required columns: {missing}")
+    df = df_hourly.copy()
+    hour_numeric = pd.to_numeric(df["hour"], errors="coerce")
+    if hour_numeric.isna().any():
+        raise TypeError("Column 'hour' must be convertible to integer.")
+    df["hour"] = hour_numeric.astype(int)
+    df_sorted = df.sort_values(by=["hour", "installation"]).reset_index(drop=True)
+    df_out = df_sorted[required_cols]
+    out_dir = os.path.dirname(output_path)
+    if out_dir and not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+    df_out.to_csv(output_path, index=False, encoding="utf-8")
+    if not os.path.exists(output_path):
+        raise IOError(f"Failed to write output CSV to {output_path}")
+    test_df = pd.read_csv(output_path)
+    if test_df.shape[0] != df_out.shape[0]:
+        raise ValueError(f"Row count mismatch after write: {test_df.shape[0]} vs {df_out.shape[0]}")
+    return output_path`
+
+export const dataExporterPythonresult = ` {
+  agentName: 'ToolCallingAgent',
+  result: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\\r\\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
+  success: true,
+  timestamp: 2025-10-27T22:17:59.250Z
+}`
+
 export { csvContent, agentData };

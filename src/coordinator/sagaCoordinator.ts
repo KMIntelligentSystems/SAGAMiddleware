@@ -176,92 +176,70 @@ if(definition.agentType === 'tool'){
     return selectedServers;
   }
 
-  private cleanPythonCode(rawCode: string): string {
-    // Handle JavaScript-style concatenated strings with + operators
-    let cleaned = rawCode
-      // Remove string concatenation operators and newlines
-      .replace(/'\s*\+\s*$/gm, '')
-      .replace(/'\s*\+\s*'/g, '')
-      .replace(/`/g, "'")  // Fix backticks to quotes
-      // Remove leading/trailing quotes and handle escape sequences
-      .replace(/^'/, '')
-      .replace(/'$/, '')
-      .replace(/\\n/g, '\n')
-      .replace(/\\'/g, "'")
-      .replace(/\\"/g, '"');
-    
-    return cleaned.trim();
-  }
-
-  private cleanJavaScriptCode(rawCode: any): string {
-    let codeToClean = rawCode;
-
-    // If it's a string that looks like JavaScript object literal, try to evaluate it
-    if (typeof rawCode === 'string' && rawCode.trim().startsWith('{')) {
-      try {
-        // Safely evaluate the JavaScript object literal
-        const evaluated = eval('(' + rawCode + ')');
-        if (evaluated && typeof evaluated === 'object' && 'result' in evaluated) {
-          codeToClean = evaluated.result;
-        }
-      } catch (e) {
-        console.warn('Could not evaluate JavaScript object literal, treating as raw string');
-        codeToClean = rawCode;
+  /**
+   * Parse conversation result to extract content for a specific agent
+   * Extracts content between [AGENT: agentName, id]...[/AGENT] tags
+   */
+  parseConversationResultForAgent(conversationResult: any, agentName: string): string {
+    try {
+      let resultText = '';
+      if (typeof conversationResult === 'string') {
+        resultText = conversationResult;
+      } else if (conversationResult.message) {
+        // Handle JSON object with message property (e.g., { threadId, message })
+        resultText = conversationResult.message;
+      } else if (conversationResult.result) {
+        resultText = conversationResult.result;
+      } else {
+        console.log(`⚠️  Conversation result format not recognized:`, conversationResult);
+        return '';
       }
+
+      // Escape special regex characters in agentName to prevent regex syntax errors
+      const escapedAgentName = agentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // Extract content between bracket tags for this agent
+      // Updated regex to handle both formats:
+      // [AGENT: agentName id] or [AGENT:agentName id] (with or without space after colon)
+      // Also allows comma or space separation: [AGENT: agentName, id] or [AGENT:agentName id]
+      const startTagPattern = new RegExp(`\\[AGENT:\\s*${escapedAgentName}(?:[,\\s]+[^\\]]+)?\\]`, 'i');
+      const endTag = `[/AGENT]`;
+
+      const startTagMatch = resultText.match(startTagPattern);
+      let startIndex = -1;
+      let startTagLength = 0;
+
+      if (startTagMatch) {
+        startIndex = startTagMatch.index!;
+        startTagLength = startTagMatch[0].length;
+        console.log(`✅ Found opening tag: "${startTagMatch[0]}" at index ${startIndex}`);
+      } else {
+        console.log(`🔍 No [AGENT: ${agentName}] tag found in text:`);
+        console.log(`   Text preview: ${resultText.substring(0, 200)}...`);
+        console.log(`   Pattern used: ${startTagPattern}`);
+        return '';
+      }
+
+      const endIndex = resultText.indexOf(endTag, startIndex);
+
+      if (startIndex !== -1 && endIndex !== -1) {
+        console.log(`✅ Found closing tag at index ${endIndex}`);
+        let content = resultText.substring(startIndex + startTagLength, endIndex).trim();
+        console.log(`📝 Extracted content (${content.length} chars): ${content.substring(0, 100)}...`);
+        content = content.replace(/^\d+\.\s*/, '').replace(/^\./, '').trim();
+        return content;
+      } else {
+        console.log(`❌ Closing tag [/AGENT] not found after index ${startIndex}`);
+        console.log(`   Remaining text: ${resultText.substring(startIndex, startIndex + 300)}...`);
+      }
+
+      return '';
+    } catch (error) {
+      console.warn(`Failed to parse for agent ${agentName}:`, error);
+      return '';
     }
-    // Handle object with result property (like d3jsCodeResult structure)
-    else if (typeof rawCode === 'object' && rawCode !== null && 'result' in rawCode) {
-      codeToClean = rawCode.result;
-    }
-
-    // Type safety check
-    if (!codeToClean || typeof codeToClean !== 'string') {
-      console.warn('cleanJavaScriptCode received non-string input:', typeof codeToClean, codeToClean);
-      return typeof codeToClean === 'object' ? JSON.stringify(codeToClean) : String(codeToClean || '');
-    }
-
-    // Handle JavaScript-style concatenated strings with + operators
-    let cleaned = codeToClean
-      // Remove string concatenation operators and newlines
-      .replace(/'\s*\+\s*$/gm, '')
-      .replace(/'\s*\+\s*'/g, '')
-      .replace(/"\s*\+\s*$/gm, '')
-      .replace(/"\s*\+\s*"/g, '')
-      .replace(/`/g, "'")  // Fix backticks to quotes
-      // Remove leading/trailing quotes and handle escape sequences
-      .replace(/^['"]/, '')
-      .replace(/['"]$/, '')
-      .replace(/\\n/g, '\n')
-      .replace(/\\'/g, "'")
-      .replace(/\\"/g, '"');
-
-    // Replace hardcoded file paths with relative paths for browser compatibility
-    cleaned = cleaned.replace(
-      /const CSV_PATH = ['"'][^'"]*\/([^\/'"]+\.csv)['"];/g,
-      "const CSV_PATH = './$1';"
-    );
-
-    // Replace d3.csv absolute paths with relative paths
-    cleaned = cleaned.replace(
-      /d3\.csv\(['"][^'"]*\/([^\/'"]+\.csv)['"]/g,
-      "d3.csv('./$1'"
-    );
-
-    // Add error handling for missing CSV files
-    if (cleaned.includes("d3.csv")) {
-      cleaned = cleaned.replace(
-        /(d3\.csv\([^)]+\))/g,
-        "$1.catch(err => { console.error('CSV file not found:', err); return []; })"
-      );
-    }
-
-    // Restore template literal placeholders that were escaped for text storage
-    // Convert ${/variable} back to ${variable}
-  //  cleaned = cleaned.replace(/\$\/\{([^}]+)\}/g, '${$1}');
-    
-    return cleaned.trim();
   }
- 
+
   // ========================================
   // SAGA METHODS
   // ========================================
@@ -442,11 +420,7 @@ sleep(ms: number) {
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
 
-    const clientReq = userQuery;
-    const validationAgentSyntaxReq =  dataValidatingAgentPrompt;
-    const validationPythonReq = pythonCodeValidatingAgentPrompt;
-    const validationD3JSReq = d3CodeValidatingAgentPrompt;
-    let validatedResultForD3JS = '';
+    let validatedResult = '';
 
     let lastDynamicAgentName = '';
     for (let i = 0; i < this.controlFlowList.length; i++) {
@@ -508,8 +482,15 @@ sleep(ms: number) {
           const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
           const transactionSetCollection = await process?.execute() as TransactionSetCollection;
           const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,step.targetAgent,transactionSetCollection );
-          await executionProcess?.execute();
-          transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
+          const response =  await executionProcess?.execute() as AgentResult;
+          console.log('VALIDATING EXEC', response.result)
+          validatedResult = JSON.stringify(response.result);
+          this.contextManager.updateContext('D3JSCoordinatingAgent', {
+                  lastTransactionResult: response.result,//pythonLogCodeResult,
+                  transactionId: 'tx-5',
+                  timestamp: new Date()
+                });
+        /*  transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
             if(transactionSet.transactions.length > 1){
                  transactionSet.transactions.forEach((transaction: SagaTransaction) => {
                 lastDynamicAgentName = transaction.agentName
@@ -521,8 +502,8 @@ sleep(ms: number) {
           });
           console.log('LASTE', lastDynamicAgentName)
            const validatingProcess = this.instantiateProcess('ValidationProcess', 'ValidatingAgent',validationPythonReq, lastDynamicAgentName );
-           const validatingResult = await  validatingProcess?.execute();
-          // console.log('VALIDATING EXEC', validatingResult)
+           const validatingResult = await  validatingProcess?.execute();*/
+          // 
            
         }
 
@@ -580,7 +561,7 @@ sleep(ms: number) {
 
         if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent') {
             const validatedResult = result as AgentResult
-             validatedResultForD3JS = validatedResult.result
+           //  validatedResultForD3JS = validatedResult.result
         }
 
         if (step.process === 'GenReflectProcess') {
@@ -598,7 +579,7 @@ sleep(ms: number) {
       }
          console.log('\n🎉 Control flow execution completed')             
     }
-      return validatedResultForD3JS;
+      return validatedResult;
   }
 
   /**

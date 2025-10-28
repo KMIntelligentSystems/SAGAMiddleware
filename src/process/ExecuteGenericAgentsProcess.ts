@@ -7,7 +7,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../types/visualizationSaga.js';
 import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError, dataLoaderPython,
-   dataFilterPython, dataTransformerPython
+   dataFilterPython, dataTransformerPython, dataAggregatorPython, dataExporterPython, dataExporterPythonresult
 } from '../test/testData.js'
 import * as fs from 'fs'
 
@@ -153,8 +153,8 @@ console.log('target agent 1',this.targetAgent)
                  cleanCode =  dataLoaderPython.trim();//this.cleanPythonCode(JSON.stringify(result.result)).trim();
                  console.log('DATA TRANS CODE 1', cleanCode)
                  toolCallingAgent.deleteContext();
-                 result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-                 console.log('TOOL CALL 1', result.result)
+              //   result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
+             //    console.log('TOOL CALL 1', result.result)
             }
           
           } else{
@@ -163,21 +163,36 @@ console.log('target agent 1',this.targetAgent)
                //   result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
                  cleanCode =  dataFilterPython.trim()//this.cleanPythonCode(JSON.stringify(result.result) || '').trim();
                  console.log('DATA FILTER CODE 2', cleanCode)
-                 toolCallingAgent.deleteContext();
-                 result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-
-                 console.log('TOOL CALL 2', result.result)
+               //  toolCallingAgent.deleteContext();
+               //  result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
+               //  console.log('TOOL CALL 2', result.result)
             } else  if(linearTx.agentName === `Data Transformer` && linearTx.agentType === 'tool'){
                  // validatingAgent.deleteContext();
                 //  result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
                  cleanCode = dataTransformerPython;//this.cleanPythonCode(JSON.stringify(result.result)).trim();
                  console.log('DATA TRANS CODE 3', cleanCode)
-                 toolCallingAgent.deleteContext();
-                 result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
+               //  toolCallingAgent.deleteContext();
+              //   result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
                  console.log('TOOL CALL  3', result.result)
+            } else if(linearTx.agentName === `Data Aggregator` && linearTx.agentType === 'tool'){
+                //  validatingAgent.deleteContext();
+                //  result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
+                 cleanCode = dataAggregatorPython;//this.cleanPythonCode(JSON.stringify(result.result)).trim();
+                 console.log('DATA TRANS CODE 4', cleanCode)
+               //  toolCallingAgent.deleteContext();
+               //  result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
+               //  console.log('TOOL CALL  4', result.result)
+            } else if(linearTx.agentName === `Data Exporter` && linearTx.agentType === 'tool'){
+               //   validatingAgent.deleteContext();
+                 // result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
+                 cleanCode = dataExporterPython;//this.cleanPythonCode(JSON.stringify(result.result)).trim();
+                 console.log('DATA TRANS CODE 5', cleanCode)
+                // toolCallingAgent.deleteContext();
+                 result.result  = dataExporterPythonresult;//await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
+                 console.log('TOOL CALL  5', result.result)
             }
              
-                 result.result =  pythonLogCodeResult //codeExecutorResult error result
+                 result.result =  dataExporterPythonresult;//pythonLogCodeResult //codeExecutorResult error result
                  this.coordinator.contextManager.updateContext(linearTx.agentName, {
                   lastTransactionResult: result.result,//pythonLogCodeResult,
                   previousTransactionResult:  prevResult,
