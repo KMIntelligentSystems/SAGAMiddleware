@@ -39,7 +39,7 @@ const CONTROL_FLOW_LIST = [
 ];
 
 const VALIDATE_D3JS_CODE_FLOW_LIST = [
-  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent' },
+  { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' },
 ]
 
 const CONTROL_UPDATE_CODE_FLOW_LIST = [
@@ -296,9 +296,15 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-7',
         backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'Your role is d3 js coder using csv data files. You will code graphs given a sample of the csv file and details about the data for a graph such as min-max ranges, date ranges and the number of items to be plotted',
-      //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide html code without explanation so the code can be run in the browser.'
+        taskDescription: `You are a d3 js coding expert especially in graphical representation of data using csv file format. You will receive a set of user requirements and
+         d3 js code implementing the d3 js code as per the requirements. Your tasks are:
+         1. Check the code for errors. Your priority is to fix the errors
+         2. Ensure the code aligns with the requirements. Where possible implement the desideratum
+         If there are no errors and the requirments are implemented then output the code as is.
+       `,
+        taskExpectedOutput: `  Your output must be of this form:
+         {'CODE REPORT': [Your analysis of the code],
+          'CODE': [code ready to run in a browser]`
       },
        {
         agentName: 'FlowDefiningAgent',
@@ -730,10 +736,16 @@ if(opType === 'profile_approved'){
         let graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(browserRequest.userQuery), 'D3JSCoordinatingAgent');
         
           const dataProfiler:D3JSCodeProfiler = new D3JSCodeProfiler();
-         const nxtProfiledPrompt = await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
-       //  const nxtProfiledPrompt = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
+       //  const nxtProfiledPrompt = await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
+         const nxtProfiledPrompt = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
          console.log('D3JS COORDINATOR', nxtProfiledPrompt)
+         this.coordinator.contextManager.updateContext('D3JSCoordinatingAgent',{
+             d3jsCodeResult:nxtProfiledPrompt
+         }
          
+         )
+         this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST);
+         result = await this.coordinator.executeControlFlow(browserRequest.userQuery, nxtProfiledPrompt);
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);
       }

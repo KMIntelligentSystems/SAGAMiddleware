@@ -6,6 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { D3JSCodeCorrectionPrompt } from '../types/visualizationSaga.js'
 
+
 import * as fs from 'fs'; 
 import * as path from 'path';
 /**
@@ -48,7 +49,7 @@ export class D3JSCodingProcess {
     // Parse user query to extract D3JSCodingAgent's task
     const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
-      this.agent.getName())
+      this.targetAgentName)
 console.log('CONVERSATION CTX', conversationContext)
     if (!conversationContext) {
       console.warn(`⚠️  No task found for ${this.agent.getName()} in user query`);
@@ -67,68 +68,43 @@ console.log('CONVERSATION CTX', conversationContext)
       timestamp: new Date()
     };
     console.log(`📝 Extracted task for ${this.agent.getName()}`);
-  /*
-  1. Code request -> d3jsCoordinator: original code passed use openairesult text
-  2.  ValidatingAgent → ValidationProcess -> d3jsCodingAgent : uses svg to check for errors/enhancements 
-  The SVG anallysis led to coding agent given the analysis and then outputting updated code but code turns out same as input 
-  */
-  if(this.targetAgentName === 'ValidatingAgent'){
-    const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-     this.agent.setTaskDescription(conversationContext);
-     //Add if errors in analysis
- //    this.agent.receiveContext({ 'ANALYSIS: ' :ctx.lastTransactionResult });
+
      this.agent.deleteContext();
+     const ctx = this.contextManager.getContext( this.targetAgentName)as WorkingMemory;
+     this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
+
      this.agent.receiveContext({ 'CODE: ' :ctx.d3jsCodeResult }); 
-     this.agent.receiveContext({'REPORT OF RUNTIME BEHAVIOR: ': ctx.lastTransactionResult})
+   //  this.agent.receiveContext({'REPORT OF RUNTIME BEHAVIOR: ': ctx.lastTransactionResult})
      result = await this.agent.execute({}) as AgentResult;
-     const code = this.cleanJavaScriptCode( result.result);
-   //  fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
-     const codingResult = fs.readFileSync('data/codingAgentResultInError.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
-    result.result = codingResult
-   
-  } else { 
-    //  1. Code request -> d3jsCoordinator: original code passed use openairesult text  
-    const ctx = this.contextManager.getContext(this. targetAgentName) as WorkingMemory; // Step 12/12: D3JSCodingAgent → D3JSCodingProcess ->d3jsCoordinatingAgent
-    console.log('CODING PROCESS', this.targetAgentName)
-     this.agent.setTaskDescription(conversationContext);
-    this.agent.receiveContext({ 'INFORMATION TO ASSIST YOU: ' :ctx.dataGuidanceAnalysis});//Info from summarising process in d3jscoordinatingaggent context manager. INFORMATION TO ASSIST YOU remains in context for second call to update code used above
-   // result = await this.agent.execute({}) as AgentResult;
-    const codingResult = fs.readFileSync('data/codingAgentResultInError.txt', 'utf-8');//data/codingOpenAIAgentResult.txt
-    result.result = codingResult;//this.cleanJavaScriptCode( codingResult); //
-  }
-
-
-
-    // Note: The data analysis summary should already be in the agent's context
-    // from DataSummarizingProcess or set by SagaCoordinator
-
-    // Execute agent to generate D3 code
-   //  result = await this.agent.execute({}) as AgentResult;
-//result.result = D3JSAfterSVGResult;
-     //   const code = this.cleanJavaScriptCode( result.result);
-       //fs.writeFileSync('data/codingAgentResult.txt', code, 'utf8');
-    //test codingAgentValidatedResult  codingAgentResult d3.csv('./Output_one_hour_normalized_daily_avg.csv')
-      
-    
+     result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/codeAnalysisReport.txt', 'utf-8');
+    // Extract code and report from agent result
+    const extracted = this.extractCodeAndReport(result.result);
 
     // Store D3 code result
-    this.contextManager.updateContext(this.targetAgentName, {
-      d3jsCodeResult: result.result,
-      transactionId: this.agent.getId(),
-      timestamp: new Date()
-    });
-
-       this.contextManager.updateContext(this.agent.getName(), {
-      lastTransactionResult: result.result,
-     d3jsCodeResult: result.result, 
-      transactionId: this.agent.getId(),
-      timestamp: new Date()
-    });
+  /*  if (extracted) {
+      console.log('EXTRACTED CODE ',extracted.code)
+      this.contextManager.updateContext(this.targetAgentName, {
+        d3jsCodeResult: extracted.code,
+        d3jsAnalysis: extracted.report,
+        transactionId: this.agent.getId(),
+        timestamp: new Date()
+      });
+    } else {
+      // Fallback to storing raw result if extraction fails
+      this.contextManager.updateContext(this.targetAgentName, {
+        d3jsCodeResult: JSON.stringify(result.result),
+        d3jsAnalysis: '',
+        transactionId: this.agent.getId(),
+        timestamp: new Date()
+      });
+    }
+*/
+     
 
  //   this.agent.setTaskDescription(d3CodeValidatingAgentPrompt); 
 
     console.log(`✅ D3.js code generated`);
-    console.log(`📄 Code preview: ${result.result}`);
+    console.log(`📄 Code preview: ${JSON.stringify(result.result)}`);
 
     return result;
   }
@@ -229,10 +205,11 @@ console.log('CONVERSATION CTX', conversationContext)
       "const CSV_PATH = './$1';"
     );
 
-    // Replace d3.csv absolute paths with relative paths
+    // Replace d3.csv absolute paths with just the filename
+    // Handles both Unix (/path/to/file.csv) and Windows (C:/path/to/file.csv) paths
     cleaned = cleaned.replace(
-      /d3\.csv\(['"][^'"]*\/([^\/'"]+\.csv)['"]/g,
-      "d3.csv('./$1'"
+      /d3\.csv\(['"](?:[A-Z]:)?[\/\\]?[^'"]*[\/\\]([^\/\\'"]+\.csv)['"]/gi,
+      "d3.csv('$1'"
     );
 
     // Add error handling for missing CSV files
@@ -248,6 +225,99 @@ console.log('CONVERSATION CTX', conversationContext)
   //  cleaned = cleaned.replace(/\$\/\{([^}]+)\}/g, '${$1}');
     
     return cleaned.trim();
+  }
+
+  /**
+   * Extract code and report from agent result
+   * @param agentResult - Result from D3 coding agent containing JSON with 'CODE REPORT' and 'CODE'
+   * @returns Object with cleaned code and report, or null if parsing fails
+   */
+  private extractCodeAndReport(agentResult: any): { code: string; report: string } | null {
+    try {
+      let resultData = agentResult;
+
+      console.log('📊 Extracting code and report from agent result...');
+      console.log('Type:', typeof agentResult);
+
+      // If result is a string, try to parse it
+      if (typeof agentResult === 'string') {
+        console.log('String preview:', agentResult.substring(0, 200));
+
+        // Try JSON.parse first (proper JSON format)
+        try {
+          resultData = JSON.parse(agentResult);
+          console.log('✓ Parsed with JSON.parse');
+        } catch (e1) {
+          // Try to extract using string parsing for Python-style dict with nested content
+          try {
+            // Find the positions of the keys
+            const reportKeyIndex = agentResult.indexOf("'CODE REPORT'");
+            const codeKeyIndex = agentResult.indexOf("'CODE'", reportKeyIndex + 1);
+
+            if (reportKeyIndex === -1 || codeKeyIndex === -1) {
+              throw new Error('Could not find CODE REPORT or CODE keys');
+            }
+
+            // Extract CODE REPORT value (between first ':' after key and comma before 'CODE')
+            const reportStart = agentResult.indexOf("'", reportKeyIndex + "'CODE REPORT'".length + 1) + 1;
+            const reportEnd = agentResult.lastIndexOf("'", codeKeyIndex - 2);
+            const report = agentResult.substring(reportStart, reportEnd);
+
+            // Extract CODE value (between first ':' after key and closing '}')
+            const codeStart = agentResult.indexOf("'", codeKeyIndex + "'CODE'".length + 1) + 1;
+            const codeEnd = agentResult.lastIndexOf("'");
+            const code = agentResult.substring(codeStart, codeEnd);
+
+            resultData = {
+              'CODE REPORT': report,
+              'CODE': code
+            };
+            console.log('✓ Parsed with string extraction');
+          } catch (e2) {
+            // Try eval as last resort
+            try {
+              resultData = eval('(' + agentResult + ')');
+              console.log('✓ Parsed with eval');
+            } catch (e3) {
+              console.warn('Could not parse agent result as object');
+              console.error('Parse errors:', {
+                json: e1 instanceof Error ? e1.message : String(e1),
+                regex: e2 instanceof Error ? e2.message : String(e2),
+                eval: e3 instanceof Error ? e3.message : String(e3)
+              });
+              return null;
+            }
+          }
+        }
+      }
+
+      console.log('Parsed resultData keys:', Object.keys(resultData));
+
+      // Extract CODE REPORT and CODE from the result (try multiple key variations)
+      const report = resultData['CODE REPORT'] || resultData['CODE_REPORT'] || resultData['code_report'] || resultData.report || '';
+      const rawCode = resultData['CODE'] || resultData['code'] || '';
+
+      console.log('Found report:', report ? `Yes (${report.length} chars)` : 'No');
+      console.log('Found code:', rawCode ? `Yes (${rawCode.length} chars)` : 'No');
+
+      if (!rawCode) {
+        console.warn('❌ No code found in agent result');
+        console.log('Available keys:', Object.keys(resultData));
+        return null;
+      }
+
+      // Clean the code using existing cleanJavaScriptCode method
+      const cleanedCode = this.cleanJavaScriptCode(rawCode);
+
+      console.log('✅ Successfully extracted code and report');
+      return {
+        code: cleanedCode,
+        report: report
+      };
+    } catch (error) {
+      console.error('Failed to extract code and report:', error);
+      return null;
+    }
   }
 
   /**

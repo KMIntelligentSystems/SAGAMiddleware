@@ -361,6 +361,7 @@ sleep(ms: number) {
       }
 
       case 'D3JSCodingProcess':
+      
         return new D3JSCodingProcess(
           agent,
           this.contextManager,
@@ -452,7 +453,8 @@ sleep(ms: number) {
         
           process = this.instantiateProcess(step.process, step.agent, d3CodeValidatingAgentPrompt, step.targetAgent);
           //
-      }  else if (step.process === 'D3JSCodingProcess' && step.targetAgent === 'ValidatingAgent'){
+      }  else if (step.process === 'D3JSCodingProcess'){
+        console.log('aaaaaaaaaaaaaa ',  step.agent)
           process = this.instantiateProcess(step.process, step.agent,userQuery  , step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
           //
       }else if (step.process === 'DefineGenericAgentsProcess' && step.agent === 'TransactionGroupingAgent'){
@@ -511,16 +513,31 @@ sleep(ms: number) {
         if (step.process === 'D3JSCodingProcess') {
           const agentResult = result as AgentResult;
 
+          const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
+
+
           if (agentResult.success) {
             console.log('\n🎨 Auto-rendering D3 visualization...');
 
             // Get the D3 code from the result
-            const d3Code = agentResult.result;
+            let d3Code = ctx.d3jsCodeResult;
+            console.log('D3 JS COORD CODE CTX', d3Code)
 
             if (d3Code && typeof d3Code === 'string') {
               // Extract CSV filename from the HTML code
-              const csvMatch = d3Code.match(/d3\.csv\(['"]\.?\/?([^'"]+\.csv)['"]/);
+              // Handles: d3.csv('C:/repos/sagaMiddleware/data/processed_hourly.csv')
+              const csvMatch = d3Code.match(/d3\.csv\(['"](?:[A-Z]:\/)?(?:[^'"]*\/)?([^\/'"]+\.csv)['"]/i);
               const csvFilename = csvMatch ? csvMatch[1] : null;
+
+              // Replace any absolute paths (C:/path/to/file.csv) in d3.csv() with just the filename
+              if (csvFilename) {
+                console.log(`📊 Extracted CSV filename: ${csvFilename}`);
+                d3Code = d3Code.replace(
+                  /d3\.csv\(['"][A-Z]:\/[^'"]+\/([^\/'"]+\.csv)['"]/gi,
+                  `d3.csv('$1'`
+                );
+                console.log(`🔧 Replaced d3.csv() path with just filename`);
+              }
 
               let csvData: string | undefined;
 

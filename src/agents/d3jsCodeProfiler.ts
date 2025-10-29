@@ -44,8 +44,15 @@ Generate complete D3.js code based on the user requirements. You must:
 1. Extract the CSV file path from the context data
 2. Read and inspect the CSV file to understand its structure (columns, data types, etc.)
 3. Use d3.csv() method to load the file in the generated code
-4. Create the visualization as specified in the requirements
-5. Output complete HTML code ready to run in a browser
+4. CRITICAL: Convert the file path to file:// URL format for browser access
+   - Windows path: C:/repos/SAGAMiddleware/data/file.csv → file:///C:/repos/SAGAMiddleware/data/file.csv
+   - Unix path: /home/user/data/file.csv → file:///home/user/data/file.csv
+   - Note the THREE slashes after file: for absolute paths
+5. Create the visualization as specified in the requirements
+6. Output complete HTML code ready to run in a browser
+
+**WHY file:// PROTOCOL:**
+The HTML will be rendered in Playwright which can access local files via file:// protocol but cannot use relative paths or HTTP URLs.
 
 **IMPORTANT**
 - Provide only code
@@ -58,7 +65,7 @@ Generate complete D3.js code based on the user requirements. You must:
         let result = '';
         let turnCount = 0;
 
-     /*   for await (const message of q) {
+        for await (const message of q) {
             turnCount++;
 
             if (message.type === 'result' && message.subtype === 'success') {
@@ -71,7 +78,7 @@ Generate complete D3.js code based on the user requirements. You must:
 
         if (!result) {
             throw new Error('Failed to generate D3.js code');
-        }*/
+        }
 
         console.log('✅ D3JSCodeProfiler complete\n', prompt);
         return result;
