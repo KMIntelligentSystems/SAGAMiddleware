@@ -560,7 +560,7 @@ sleep(ms: number) {
               //Add the 
 
               // Render the visualization
-              const renderResult = await this.renderD3Visualization(
+           /*   const renderResult = await this.renderD3Visualization(
                 d3Code,
                 step.agent,
                 `${step.agent}-output`,
@@ -568,7 +568,7 @@ sleep(ms: number) {
                 csvFilename || undefined
               );
 
-              this.svgPath = renderResult.svgPath as string;
+              this.svgPath = renderResult.svgPath as string;*/
          
             } else {
               console.warn('⚠️  No D3 code found in result, skipping auto-render');

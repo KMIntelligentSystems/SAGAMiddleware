@@ -2,7 +2,8 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { DataProfiler } from '../agents/dataProfiler.js';
-import { D3JSCodeProfiler } from '../agents/d3jsCodeProfiler.js'
+import { D3JSCodeProfiler } from '../agents/d3jsCodeProfiler.js';
+import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { SagaState, HumanInLoopConfig,
 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
@@ -746,6 +747,11 @@ if(opType === 'profile_approved'){
          )
          this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST);
          result = await this.coordinator.executeControlFlow(browserRequest.userQuery, nxtProfiledPrompt);
+         const validatedD3JSCodeResult =  new  D3JSCodeValidator();
+        const request = this.coordinator.parseConversationResultForAgent(browserRequest.userQuery, 'D3JSCoordinatingAgent');
+  
+        result = await validatedD3JSCodeResult.validateD3Code(request);
+        console.log('RESULT ', result)
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);
       }
