@@ -1,5 +1,5 @@
 // D3JSCodingProcess - Executes D3JSCodingAgent to generate D3.js visualization code
-// Similar to DefineGenericAgentsProcess but specific to D3 coding
+// Similar to DefineUserRequirementsProcess but specific to D3 coding
 
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';

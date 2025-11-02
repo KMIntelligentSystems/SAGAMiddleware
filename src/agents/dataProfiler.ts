@@ -15,44 +15,66 @@
  * - Technical specifications for code generation
  */
 
-import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
+import * as fs from 'fs'
 
-export class DataProfiler {
-    private options: Options;
+export interface DataProfileInput {
+    filepath: string;
+    userRequirements: string;
+}
 
+export class DataProfiler extends BaseSDKAgent {
     constructor() {
-        this.options = {
-            permissionMode: 'bypassPermissions',
-            maxTurns: 15,
-            cwd: process.cwd(),
-            model: 'sonnet'
-        };
+        super('DataProfiler', 15);
     }
 
     /**
-     * Analyze file and generate prompt for agent generation
-     *
-     * @param filepath - Path to CSV file to analyze
-     * @param userRequirements - Plain text description of what to do with the data
-     * @returns Comprehensive prompt for AgentStructureGenerator
+     * Execute data profiling
      */
-    async analyzeAndGeneratePrompt(filepath: string, userRequirements: string): Promise<string> {
-        console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-        console.log('║                    DataProfiler - Analyzing                    ║');
-        console.log('╚═══════════════════════════════════════════════════════════════╝\n');
-        console.log(`File: ${filepath}`);
-        console.log(`Requirements: ${userRequirements.substring(0, 100)}...\n`);
+    async execute(input: DataProfileInput): Promise<SDKAgentResult> {
+        if (!this.validateInput(input)) {
+            return {
+                success: false,
+                output: '',
+                error: 'Invalid input: filepath and userRequirements are required'
+            };
+        }
 
-        const prompt = `You are analyzing a data processing task to generate specifications for agent creation.
+        try {
+            const prompt = this.buildPrompt(input);
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');//await this.executeQuery(prompt);
 
-FILE TO ANALYZE: ${filepath}
+            return {
+                success: true,
+                output,
+                metadata: {
+                    filepath: input.filepath,
+                    requirementsLength: input.userRequirements.length
+                }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                output: '',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
+     * Build prompt for data profiling
+     */
+    protected buildPrompt(input: DataProfileInput): string {
+        return `You are analyzing a data processing task to generate specifications for agent creation.
+
+FILE TO ANALYZE: ${input.filepath}
 
 USER REQUIREMENTS:
-${userRequirements}
+${input.userRequirements}
 
 YOUR TASK:
 
-1. **Read and analyze the file** at ${filepath}:
+1. **Read and analyze the file** at ${input.filepath}:
    - Detect encoding (check for BOM character at start)
    - Understand structure (header rows, columns, MultiIndex)
    - Identify datetime columns and infer their exact format strings
@@ -78,32 +100,30 @@ The agent structure generator will use your prompt to create detailed instructio
 Be specific about technical details you discovered - don't make the next agent guess.
 
 Output the complete prompt now.`;
+    }
 
-        const q = query({ prompt, options: this.options });
+    /**
+     * Validate input for data profiling
+     */
+    protected validateInput(input: any): boolean {
+        return (
+            input &&
+            typeof input.filepath === 'string' &&
+            typeof input.userRequirements === 'string' &&
+            input.filepath.length > 0 &&
+            input.userRequirements.length > 0
+        );
+    }
 
-        let result = '';
-        let turnCount = 0;
-
-        for await (const message of q) {
-            turnCount++;
-
-            if (message.type === 'result' && message.subtype === 'success') {
-                result = message.result;
-                console.log(`[RESULT] Prompt generated (${result.length} chars)\n`);
-            } else if (message.type === 'assistant') {
-                console.log(`[TURN ${turnCount}] Analyzing...`);
-            }
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use execute() instead
+     */
+    async analyzeAndGeneratePrompt(filepath: string, userRequirements: string): Promise<string> {
+        const result = await this.execute({ filepath, userRequirements });
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to generate prompt from file analysis');
         }
-
-        if (!result) {
-            throw new Error('Failed to generate prompt from file analysis');
-        }
-
-        console.log('═'.repeat(67));
-        console.log('✅ DataProfiler complete');
-        console.log('═'.repeat(67));
-        console.log('\nNext step: Pass this prompt to AgentStructureGenerator\n');
-
-        return result;
+        return result.output;
     }
 }

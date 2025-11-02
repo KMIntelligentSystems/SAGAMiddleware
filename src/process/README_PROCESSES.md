@@ -6,7 +6,7 @@ Process templates are lightweight, reusable classes that execute specific workfl
 
 ## Implemented Processes
 
-### 1. DefineGenericAgentsProcess
+### 1. DefineUserRequirementsProcess
 **Purpose**: Execute a default agent to create agent definitions
 
 **Parameters**:
@@ -143,7 +143,7 @@ Process templates are lightweight, reusable classes that execute specific workfl
 ```typescript
 // Control flow list
 const controlFlow = [
-  { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
+  { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess' },
   { agent: 'ValidatingAgent', process: 'ValidationProcess' },
   { agent: 'TransactionGroupingAgent', process: 'FlowProcess' },
   { agent: 'TransactionGroupingAgent', process: 'AgentGeneratorProcess' }
@@ -154,8 +154,8 @@ for (const item of controlFlow) {
   const agent = this.agents.get(item.agent);
 
   switch (item.process) {
-    case 'DefineGenericAgentsProcess':
-      const defineProcess = new DefineGenericAgentsProcess(
+    case 'DefineUserRequirementsProcess':
+      const defineProcess = new DefineUserRequirementsProcess(
         agent,
         this.contextManager,
         request.userQuery

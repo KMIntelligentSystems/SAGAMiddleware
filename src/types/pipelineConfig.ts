@@ -1,0 +1,146 @@
+/**
+ * Pipeline Configuration for Claude SDK Agents
+ *
+ * Defines the flow: DataProfiler -> AgentStructureGenerator -> D3JSCodeProfiler -> D3JSCodeValidator
+ * Each SDK agent output feeds into a SAGA process that creates/executes GenericAgents
+ */
+
+export interface SDKAgentStep {
+    agentType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeProfiler' | 'D3JSCodeValidator';
+    name: string;
+    description: string;
+    inputFrom?: string; // Previous step's output
+    outputKey: string; // Key to store result in context
+    process?: string; // SAGA process to execute after this step
+    processConfig: {
+        controlFlow: ProcessFlowStep[];
+        renderVisualization?: boolean;
+        testWithPlaywright?: boolean;
+    };
+}
+
+export interface ProcessFlowStep {
+    agent: string;
+    process: string;
+    targetAgent?: string;
+}
+
+export interface PipelineConfig {
+    name: string;
+    description: string;
+    steps: SDKAgentStep[];
+    onComplete?: string; // Action to take when pipeline completes
+}
+
+
+/**
+ * Data Profiling and Agent Generation Pipeline
+ */
+export const DATA_PROFILING_PIPELINE: PipelineConfig = {
+    name: 'DataProfilingPipeline',
+    description: 'Pipeline from data profiling to agent structure generation',
+    steps: [
+        {
+            agentType: 'DataProfiler',
+            name: 'DataProfilingStep',
+            description: 'Analyze CSV data and generate technical specifications',
+            outputKey: 'profiledPrompt',
+            process: 'FlowProcess',
+            processConfig: {
+                controlFlow: [
+                    { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess' },
+                  
+                ]
+            }
+        },
+        {
+            agentType: 'AgentStructureGenerator',
+            name: 'AgentGenerationStep',
+            description: 'Generate agent structures in [AGENT:...] format',
+            inputFrom: 'profiledPrompt',
+            outputKey: 'agentStructures',
+            process: 'AgentGeneratorProcess',
+            processConfig: {
+                controlFlow: [
+                    { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess' },
+                    { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' }
+                ]
+            }
+        }
+    ],
+    onComplete: 'proceed_to_visualization'
+};
+
+/**
+ * D3 Visualization Generation and Validation Pipeline
+ */
+export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
+    name: 'D3VisualizationPipeline',
+    description: 'Pipeline for D3 code generation and validation',
+    steps: [
+        {
+            agentType: 'D3JSCodeProfiler',
+            name: 'D3CodeGenerationStep',
+            description: 'Generate D3.js visualization code',
+            inputFrom: 'agentStructures',
+            outputKey: 'd3jsCode',
+            process: 'D3JSCodingProcess',
+            processConfig: {
+                controlFlow: [
+                    { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                ],
+                renderVisualization: true // Render with Playwright after code generation
+            }
+        },
+        {
+            agentType: 'D3JSCodeValidator',
+            name: 'D3CodeValidationStep',
+            description: 'Validate D3.js code against requirements and SVG output',
+            inputFrom: 'd3jsCode',
+            outputKey: 'validatedCode',
+            processConfig: {
+                controlFlow: [
+                    { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                ],
+                testWithPlaywright: true // Re-test with Playwright if code was corrected
+            }
+        }
+    ],
+    onComplete: 'send_to_user'
+};
+
+/**
+ * Code Update Pipeline (for iteration/fixes)
+ */
+export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
+    name: 'D3CodeUpdatePipeline',
+    description: 'Pipeline for updating existing D3 code based on feedback',
+    steps: [
+        {
+            agentType: 'D3JSCodeValidator',
+            name: 'ValidateExistingCode',
+            description: 'Validate and fix existing D3 code',
+            outputKey: 'updatedCode',
+            processConfig: {
+                controlFlow: [
+                    { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                ],
+                renderVisualization: true,
+                testWithPlaywright: true
+            }
+        }
+    ],
+    onComplete: 'send_to_user'
+};
+
+/**
+ * Pipeline execution state
+ */
+export interface PipelineExecutionState {
+    pipelineName: string;
+    currentStepIndex: number;
+    context: Record<string, any>;
+    startTime: Date;
+    errors: string[];
+    completed: boolean;
+}

@@ -5,39 +5,62 @@
  * The SDK agent interprets both inputs and generates appropriate D3.js code.
  */
 
-import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
 
-export class D3JSCodeProfiler {
-    private options: Options;
+export interface D3CodeInput {
+    userRequirements: string;
+    contextData: string;
+}
 
+export class D3JSCodeProfiler extends BaseSDKAgent {
     constructor() {
-        this.options = {
-            permissionMode: 'bypassPermissions',
-            maxTurns: 15,
-            cwd: process.cwd(),
-            model: 'sonnet'
-        };
+        super('D3JSCodeProfiler', 15);
     }
 
     /**
-     * Generate D3.js visualization code
-     *
-     * @param userRequirements - User's visualization requirements
-     * @param contextData - Context from previous agent (contains data file path)
-     * @returns Complete D3.js visualization code
+     * Execute D3 code generation
      */
-    async generateD3Code(userRequirements: string, contextData: string): Promise<string> {
-        console.log('D3 JS REQ', userRequirements);
-        console.log('CTX', contextData);
+    async execute(input: D3CodeInput): Promise<SDKAgentResult> {
+        if (!this.validateInput(input)) {
+            return {
+                success: false,
+                output: '',
+                error: 'Invalid input: userRequirements and contextData are required'
+            };
+        }
 
+        try {
+            const prompt = this.buildPrompt(input);
+            const output = await this.executeQuery(prompt);
 
-        const prompt = `You are a D3.js visualization code generator.
+            return {
+                success: true,
+                output,
+                metadata: {
+                    requirements: input.userRequirements,
+                    contextLength: input.contextData.length
+                }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                output: '',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
+     * Build prompt for D3 code generation
+     */
+    protected buildPrompt(input: D3CodeInput): string {
+        return `You are a D3.js visualization code generator.
 
 USER REQUIREMENTS:
-${userRequirements}
+${input.userRequirements}
 
 CONTEXT DATA (contains CSV file path from MCP server):
-${contextData}
+${input.contextData}
 
 YOUR TASK:
 Generate complete D3.js code based on the user requirements. You must:
@@ -59,28 +82,30 @@ The HTML will be rendered in Playwright which can access local files via file://
 - Zero explanatory text
 - Zero markdown
 `;
+    }
 
-        const q = query({ prompt, options: this.options });
+    /**
+     * Validate input for D3 code generation
+     */
+    protected validateInput(input: any): boolean {
+        return (
+            input &&
+            typeof input.userRequirements === 'string' &&
+            typeof input.contextData === 'string' &&
+            input.userRequirements.length > 0 &&
+            input.contextData.length > 0
+        );
+    }
 
-        let result = '';
-        let turnCount = 0;
-
-        for await (const message of q) {
-            turnCount++;
-
-            if (message.type === 'result' && message.subtype === 'success') {
-                result = message.result;
-                console.log(`[RESULT] Code generated (${result.length} chars)\n`);
-            } else if (message.type === 'assistant') {
-                console.log(`[TURN ${turnCount}] Generating...`);
-            }
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use execute() instead
+     */
+    async generateD3Code(userRequirements: string, contextData: string): Promise<string> {
+        const result = await this.execute({ userRequirements, contextData });
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to generate D3.js code');
         }
-
-        if (!result) {
-            throw new Error('Failed to generate D3.js code');
-        }
-
-        console.log('✅ D3JSCodeProfiler complete\n', prompt);
-        return result;
+        return result.output;
     }
 }

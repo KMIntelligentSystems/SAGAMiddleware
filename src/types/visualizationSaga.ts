@@ -101,6 +101,9 @@ export interface HumanInLoopConfig {
   };
 }
 
+export const userRequestPrompt = `Your task is examine the user's request and out put it as two clearly defined JSON objects:
+1. {CSV_FILE_PATH: [the file path provided in the user's request]R, {REQUIREMENTS: [user's requirements]}}`
+
 export const agentDefinitionPrompt = `You have two tasks:
 1. Your task is to depict the flow of data processing in a set of agents. The agents are defined below by this format: [AGENT name, id]instructions[/AGENT]
 In a multi-agent environment, the flow of information from one agent to another can be one of these four configurations which are mutually exclusive and self-contained, 

@@ -265,6 +265,23 @@ Order the records in CSV format with columns: Date, Category type, installation,
 
 `;
 
+export const userRequirementsResultJSON = '{"CSV_FILE_PATH": "C:/repos/SAGAMiddleware/data/two_days.csv"}\n' +
+  '{"REQUIREMENTS": {"task": "Data profiling", "file_metadata": {"source": "Excel export", "encoding": "UTF-8 with BOM", "header_rows": 2, "interval_minutes": 5}, "date_time": {"format": "MM/DD/YYYY H:MM", "locale": "en-US"}, "energy_mapping": {"include_only": t' +
+  'rue, "Solar": ["BARCSF1", "GRIFSF1", "HUGSF1", "LRSF1", "MLSP1", "ROTALLA1"], "Wind": ["CAPTL_WF", "CHALLHWF", "CULLRGWF", "DIAPURWF1", "MLWF1", "WAUBRAWF", "WOOLNTH1", "YAMBUKWF", "YSWF1"], "Natural Gas": ["SHOAL1"], "Hydro": ["BUTLERSG", "CLOVER", "CLUNY", "PALO' +
+  'ONA", "REPULSE"], "Diesel": ["ERGT01", "GBO1"], "Battery": ["KEPBG1"], "Coal": ["ERGTO1", "RPCG"]}, "filter": {"date": "11/02/2023", "time_start": "06:00", "time_end": "18:00", "inclusive": true}, "aggregation": {"from_interval_minutes": 5, "to_interval": "hourly"' +
+  ', "method": "SUM", "points_per_hour": 12, "group_by": "installation"}}}';
+
+export const userRequirementsResult = ` {
+  agentName: 'TransactionGroupingAgent',
+  result: '{"CSV_FILE_PATH": "C:/repos/SAGAMiddleware/data/two_days.csv"}\n' +
+    '{"REQUIREMENTS": {"task": "Data profiling", "file_metadata": {"source": "Excel export", "encoding": "UTF-8 with BOM", "header_rows": 2, "interval_minutes": 5}, "date_time": {"format": "MM/DD/YYYY H:MM", "locale": "en-US"}, "energy_mapping": {"include_only": t
+rue, "Solar": ["BARCSF1", "GRIFSF1", "HUGSF1", "LRSF1", "MLSP1", "ROTALLA1"], "Wind": ["CAPTL_WF", "CHALLHWF", "CULLRGWF", "DIAPURWF1", "MLWF1", "WAUBRAWF", "WOOLNTH1", "YAMBUKWF", "YSWF1"], "Natural Gas": ["SHOAL1"], "Hydro": ["BUTLERSG", "CLOVER", "CLUNY", "PALO
+ONA", "REPULSE"], "Diesel": ["ERGT01", "GBO1"], "Battery": ["KEPBG1"], "Coal": ["ERGTO1", "RPCG"]}, "filter": {"date": "11/02/2023", "time_start": "06:00", "time_end": "18:00", "inclusive": true}, "aggregation": {"from_interval_minutes": 5, "to_interval": "hourly"
+, "method": "SUM", "points_per_hour": 12, "group_by": "installation"}}}',
+  success: true,
+  timestamp: 2025-11-02T00:37:39.799Z
+}`
+
 export const groupingAgentResult = `{
   agentName: TransactionGroupingAgent,
   result: [AGENT: EnergyCSVNormalizer, EDN-01]

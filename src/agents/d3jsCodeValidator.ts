@@ -5,41 +5,65 @@
  * Returns either: success message OR corrected code.
  */
 
-import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
 
-export class D3JSCodeValidator {
-    private options: Options;
+export interface D3ValidationInput {
+    requirements: string;
+    codePath?: string;
+    svgPath?: string;
+}
 
+export class D3JSCodeValidator extends BaseSDKAgent {
     constructor() {
-        this.options = {
-            permissionMode: 'bypassPermissions',
-            maxTurns: 20,
-            cwd: process.cwd(),
-            model: 'sonnet'
-        };
+        super('D3JSCodeValidator', 20);
     }
 
     /**
-     * Validate D3.js code against requirements and rendered output
-     *
-     * @param requirements - Original user requirements for the visualization
-     * @param codePath - Path to the generated D3 code file
-     * @param svgPath - Path to the rendered SVG output
-     * @returns Either success message or corrected D3 code
+     * Execute validation
      */
-    async validateD3Code(
-        requirements: string,
-        codePath: string = 'c:/repos/SAGAMiddleware/data/d3jsCodeResult.txt',
-        svgPath: string = 'c:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg'
-    ): Promise<string> {
-        console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-        console.log('║              D3JSCodeValidator - Validating Code               ║');
-        console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+    async execute(input: D3ValidationInput): Promise<SDKAgentResult> {
+        if (!this.validateInput(input)) {
+            return {
+                success: false,
+                output: '',
+                error: 'Invalid input: requirements are required'
+            };
+        }
 
-        const prompt = `You are a D3.js code validation and correction expert.
+        try {
+            const prompt = this.buildPrompt(input);
+            const output = await this.executeQuery(prompt);
+
+            const isValid = output.includes('Requirements achieved');
+
+            return {
+                success: true,
+                output,
+                metadata: {
+                    isValid,
+                    hasCorrections: !isValid
+                }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                output: '',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
+     * Build prompt for validation
+     */
+    protected buildPrompt(input: D3ValidationInput): string {
+        const codePath = input.codePath || 'c:/repos/SAGAMiddleware/data/d3jsCodeResult.txt';
+        const svgPath = input.svgPath || 'c:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg';
+
+        return `You are a D3.js code validation and correction expert.
 
 USER REQUIREMENTS:
-${requirements}
+${input.requirements}
 
 YOUR TASK:
 Validate the D3.js code against the requirements and rendered output. You must:
@@ -66,36 +90,32 @@ OUTPUT RULES:
    Return ONLY the complete corrected D3.js HTML code with ALL issues fixed.
    Do NOT include any explanations, markdown, or additional text.
    Just the clean HTML code ready to run.`;
+    }
 
-        const q = query({ prompt, options: this.options });
+    /**
+     * Validate input
+     */
+    protected validateInput(input: any): boolean {
+        return (
+            input &&
+            typeof input.requirements === 'string' &&
+            input.requirements.length > 0
+        );
+    }
 
-        let result = '';
-        let turnCount = 0;
-
-        for await (const message of q) {
-            turnCount++;
-
-            if (message.type === 'result' && message.subtype === 'success') {
-                result = message.result;
-                console.log(`[RESULT] Validation complete\n`);
-            } else if (message.type === 'assistant') {
-                console.log(`[TURN ${turnCount}] Validating...`);
-            }
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use execute() instead
+     */
+    async validateD3Code(
+        requirements: string,
+        codePath?: string,
+        svgPath?: string
+    ): Promise<string> {
+        const result = await this.execute({ requirements, codePath, svgPath });
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to validate D3.js code');
         }
-
-        if (!result) {
-            throw new Error('Failed to validate D3.js code');
-        }
-
-        console.log('═'.repeat(67));
-        if (result.includes('Requirements achieved')) {
-            console.log('✅ Validation PASSED - Requirements achieved');
-        } else {
-            console.log('⚠️  Validation FAILED - Corrected code returned');
-        }
-        console.log('═'.repeat(67));
-        console.log();
-
-        return result;
+        return result.output;
     }
 }

@@ -1,15 +1,16 @@
-// DefineGenericAgentsProcess - Executes a default agent to define new agents
+// DefineUserRequirementsProcess - Executes a default agent to define new agents
 // Used for agents like TransactionGroupingAgent, VisualizationCoordinatingAgent, D3JSCoordinatingAgent
 
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
-import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult } from '../test/testData.js'
-import { dataValidatingAgentPrompt } from '../types/visualizationSaga.js'
+import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult, userRequirementsResultJSON } from '../test/testData.js'
+import { dataValidatingAgentPrompt, userRequestPrompt } from '../types/visualizationSaga.js'
+import { DataProfileInput } from '../agents/dataProfiler.js'
 import * as fs from 'fs'
 
 /**
- * DefineGenericAgentsProcess
+ * DefineUserRequirementsProcess
  *
  * Executes a default agent (singleton) to create agent definitions.
  * The agent receives its task extracted from the user query via parseConversationResultForAgent.
@@ -25,7 +26,7 @@ import * as fs from 'fs'
  * - Singleton agents (single agent definition)
  * - Multiple agents (e.g., Python coder + tool caller)
  */
-export class DefineGenericAgentsProcess {
+export class DefineUserRequirementsProcess {
   private agent: GenericAgent;
   private contextManager: ContextManager;
   private userQuery: string;
@@ -46,12 +47,9 @@ export class DefineGenericAgentsProcess {
    * Execute the process
    */
   async execute(): Promise<AgentResult> {
-    console.log(`\n🎯 DefineGenericAgentsProcess: Executing ${this.agent.getName()}`);
+    console.log(`\n🎯 DefineUserRequirementsProcess: Executing ${this.agent.getName()}`);
 
-  const taskDescription = `Your role is coordinator. You will receive instructions which will indicate your specific task 
-  and the output from thinking through the task to provide meaningful instructions for other agents to 
-  enable them to execute their tasks`;
-
+ 
 console.log('DEFINE ', this.userQuery)
     // Parse user query to extract this agent's task
     const conversationContext = this.parseConversationResultForAgent(
@@ -74,9 +72,9 @@ console.log('DEFINE ', this.userQuery)
 
     // Clear previous context
   //  this.agent.deleteContext();
-    this.agent.setTaskDescription(taskDescription);
+
     // Set new context
-    this.agent.receiveContext({ 'YOUR TASK': conversationContext });
+   
 console.log('CONVERSATION ',conversationContext )
     // Execute agent
 
@@ -89,11 +87,13 @@ console.log('CONVERSATION ',conversationContext )
     };
  
     if(this.agent.getName() === 'TransactionGroupingAgent'){
-    //   const result = await this.agent.execute({});
-   //   console.log('DEFINE AGENT ', result.result)
-      result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');
-    console.log('PROFILE RESULT', result.result)
-
+      this.agent.setTaskDescription(userRequestPrompt);
+      result.result =  userRequirementsResultJSON;//await this.agent.execute({'USER REQUEST': conversationContext});
+      console.log('🔍 Before extraction, result.result:', result.result);
+      const extracted = this.extractDataFromResult(result);
+      console.log('🔍 After extraction, extracted:', JSON.stringify(extracted, null, 2));
+      result.result = extracted as any; // Store DataProfileInput object in result
+      console.log('🔍 Final result.result:', result.result);
     } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
      result.result = visualizationGroupingAgentsResult;
       this.agent.setTaskDescription(dataValidatingAgentPrompt);
@@ -184,5 +184,55 @@ console.log('CONVERSATION ',conversationContext )
    */
   getAgent(): GenericAgent {
     return this.agent;
+  }
+
+  /**
+   * Extract CSV_FILE_PATH and REQUIREMENTS from agent result
+   * Parses the result string which may contain multiple JSON objects separated by newlines
+   *
+   * @param agentResult - The agent result object containing the result string
+   * @returns Object containing csvFilePath and requirements, or null if extraction fails
+   */
+  extractDataFromResult(agentResult: {
+    agentName: string;
+    result: string;
+    success: boolean;
+    timestamp: Date;
+  }): DataProfileInput | null {
+    try {
+      const lines = agentResult.result.split('\n').filter(line => line.trim());
+      let csvFilePath: string | null = null;
+      let requirements: any | null = null;
+
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+
+          if (parsed.CSV_FILE_PATH) {
+            csvFilePath = parsed.CSV_FILE_PATH;
+          }
+
+          if (parsed.REQUIREMENTS) {
+            requirements = parsed.REQUIREMENTS;
+          }
+        } catch (e) {
+          // Skip lines that aren't valid JSON
+          console.warn(`Skipping non-JSON line: ${line.substring(0, 50)}...`);
+        }
+      }
+
+      if (!csvFilePath || !requirements) {
+        console.error('Missing required fields: CSV_FILE_PATH or REQUIREMENTS');
+        return null;
+      }
+
+      return {
+        filepath: csvFilePath,
+        userRequirements: JSON.stringify(requirements)
+      };
+    } catch (error) {
+      console.error('Failed to extract data from result:', error);
+      return null;
+    }
   }
 }

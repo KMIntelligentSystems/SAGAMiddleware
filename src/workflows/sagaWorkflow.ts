@@ -18,19 +18,22 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
   visCodeExecutorTaskDescription, graphAnalyzerResult, agentConstructorInput } from '../test/testData.js'
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
+import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
+import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE } from '../types/pipelineConfig.js'
+
 import * as fs from 'fs'
 
 
 
 // Default control flow list for saga coordinator
 const CONTROL_FLOW_LIST = [
-  { agent: 'TransactionGroupingAgent', process: 'DefineGenericAgentsProcess' },
+  { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess' },
 //{ agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' },
-/*  { agent: 'VisualizationCoordinatingAgent', process: 'DefineGenericAgentsProcess' },
+/*  { agent: 'VisualizationCoordinatingAgent', process: 'DefineUserRequirementsProcess' },
   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'VisualizationCoordinatingAgent', },
-  { agent: 'D3JSCoordinatingAgent', process:'DefineGenericAgentsProcess'},
+  { agent: 'D3JSCoordinatingAgent', process:'DefineUserRequirementsProcess'},
   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'D3JSCoordinatingAgent', },
   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess' },
@@ -241,7 +244,7 @@ export class SagaWorkflow {
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
+        taskExpectedOutput: 'Output as expected.'
       }, 
 
       //validation of rendering an agent [/AGENT  etc
@@ -644,9 +647,12 @@ Focus: Only array extraction
        this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
-      const initialPrompt = this.coordinator.parseConversationResultForAgent(data.message, 'TransactionGroupingAgent')
-console.log('INITIAL PROMPT', initialPrompt)
-      const dataProfiler: DataProfiler = new DataProfiler();
+    //  const initialPrompt = this.coordinator.parseConversationResultForAgent(data.message, 'TransactionGroupingAgent')
+
+      const pipelineExecutor: PipelineExecutor = new  PipelineExecutor(this.coordinator);
+      const state = await pipelineExecutor.executePipeline(DATA_PROFILING_PIPELINE,data.message);// D3_VISUALIZATION_PIPELINE
+
+    /*  const dataProfiler: DataProfiler = new DataProfiler();
      // let profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(initialPrompt,'C:/repos/SAGAMiddleware/data/two_days.csv')
 
       console.log('✅ Data profiling complete, sending to user for review...\n');
@@ -667,7 +673,7 @@ if(opType === 'profile_approved'){
        };
 
       // Execute SAGA with thread context (wait for user approval)
-      await this.executeThreadVisualizationSAGA(browserRequest, threadId, profiledPrompt);
+      await this.executeThreadVisualizationSAGA(browserRequest, threadId, profiledPrompt);*/
       
     } catch (error) {
       console.error('❌ Error handling OpenAI thread request:', error);
@@ -730,8 +736,9 @@ if(opType === 'profile_approved'){
     
 
       if(browserRequest.operationType === 'create_code'){
+      
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
-        let result = await this.coordinator.executeControlFlow(browserRequest.userQuery, profiledPrompt);
+        let result = await this.coordinator.executeControlFlow(browserRequest.userQuery);//, profiledPrompt
         //result is result from the last Data Exporter - provides the csv file location 
         console.log('USER QUERY ', browserRequest.userQuery)
         let graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(browserRequest.userQuery), 'D3JSCoordinatingAgent');
@@ -746,11 +753,11 @@ if(opType === 'profile_approved'){
          
          )
          this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST);
-         result = await this.coordinator.executeControlFlow(browserRequest.userQuery, nxtProfiledPrompt);
+         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);//, nxtProfiledPrompt
          const validatedD3JSCodeResult =  new  D3JSCodeValidator();
         const request = this.coordinator.parseConversationResultForAgent(browserRequest.userQuery, 'D3JSCoordinatingAgent');
   
-        result = await validatedD3JSCodeResult.validateD3Code(request);
+     //   result = await validatedD3JSCodeResult.validateD3Code(request);
         console.log('RESULT ', result)
       } else  if(browserRequest.operationType === 'update_code'){
          this.coordinator.initializeControlFlow(CONTROL_UPDATE_CODE_FLOW_LIST);
