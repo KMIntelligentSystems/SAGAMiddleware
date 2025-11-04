@@ -5,7 +5,8 @@
  * Returns either: success message OR corrected code.
  */
 
-import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
+import { BaseSDKAgent } from './baseSDKAgent.js';
+import { AgentResult } from '../types/index.js';
 
 export interface D3ValidationInput {
     requirements: string;
@@ -21,12 +22,15 @@ export class D3JSCodeValidator extends BaseSDKAgent {
     /**
      * Execute validation
      */
-    async execute(input: D3ValidationInput): Promise<SDKAgentResult> {
+    async execute(input: D3ValidationInput): Promise<AgentResult> {
+
         if (!this.validateInput(input)) {
             return {
+                agentName: 'D3JSCodeValidator',
+                result: '',
                 success: false,
-                output: '',
-                error: 'Invalid input: requirements are required'
+                timestamp: new Date(),
+                error: 'Invalid input: filepath and userRequirements are required'
             };
         }
 
@@ -36,19 +40,21 @@ export class D3JSCodeValidator extends BaseSDKAgent {
 
             const isValid = output.includes('Requirements achieved');
 
-            return {
+             return {
+                agentName: 'D3JSCodeValidator',
+                result: output,
                 success: true,
-                output,
-                metadata: {
-                    isValid,
-                    hasCorrections: !isValid
-                }
+                timestamp: new Date(),
+                error: 'Invalid input: filepath and userRequirements are required'
             };
+            
         } catch (error) {
-            return {
+             return {
+                agentName: 'D3JSCodeValidator',
+                result: '',
                 success: false,
-                output: '',
-                error: error instanceof Error ? error.message : String(error)
+                timestamp: new Date(),
+                error: 'Invalid input: filepath and userRequirements are required'
             };
         }
     }
@@ -116,6 +122,6 @@ OUTPUT RULES:
         if (!result.success) {
             throw new Error(result.error || 'Failed to validate D3.js code');
         }
-        return result.output;
+        return result.result;
     }
 }

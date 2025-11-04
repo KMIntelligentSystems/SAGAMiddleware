@@ -356,7 +356,8 @@ sleep(ms: number) {
           flowDefiningAgent,
           agent,
           this.contextManager,
-          this
+          this,
+          userQuery
         );
       }
 
@@ -498,12 +499,13 @@ sleep(ms: number) {
           const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,step.targetAgent,transactionSetCollection );
           const response =  await executionProcess?.execute() as AgentResult;
           console.log('VALIDATING EXEC', response.result)
-          validatedResult = JSON.stringify(response.result);
+          result.result = JSON.stringify(response.result);
           this.contextManager.updateContext('D3JSCoordinatingAgent', {
                   lastTransactionResult: response.result,//pythonLogCodeResult,
                   transactionId: 'tx-5',
                   timestamp: new Date()
                 });
+          
         /*  transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
             if(transactionSet.transactions.length > 1){
                  transactionSet.transactions.forEach((transaction: SagaTransaction) => {
@@ -608,6 +610,7 @@ sleep(ms: number) {
       }
          console.log('\n🎉 Control flow execution completed')             
     }
+
       return result;
   }
 

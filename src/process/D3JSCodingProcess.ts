@@ -5,7 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { D3JSCodeCorrectionPrompt } from '../types/visualizationSaga.js'
-
+import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
 
 import * as fs from 'fs'; 
 import * as path from 'path';

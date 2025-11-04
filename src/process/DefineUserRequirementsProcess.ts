@@ -98,11 +98,8 @@ console.log('CONVERSATION ',conversationContext )
      result.result = visualizationGroupingAgentsResult;
       this.agent.setTaskDescription(dataValidatingAgentPrompt);
     } else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
-     result.result = graphAnalyzerResult_1;
-           this.agent.setTaskDescription(dataValidatingAgentPrompt);
-    } else if(this.agent.getName() === 'D3JSCoordinatingAgent' && this.targetAgent  === 'D3JSCoordinatingAgent'){
-            this.agent.setTaskDescription(dataValidatingAgentPrompt);
-     result.result = graphAnalyzerResult_1; // d3jsCodeUpdateResult;//
+     result.result =JSON.stringify( conversationContext);//graphAnalyzerResult_1;
+         
     } 
    
     // Store result in context manager

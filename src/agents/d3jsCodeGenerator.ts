@@ -1,51 +1,60 @@
 /**
- * D3JSCodeProfiler
+ * D3JSCodeGenerator
  *
  * Generates D3.js visualization code based on user requirements and context data.
  * The SDK agent interprets both inputs and generates appropriate D3.js code.
  */
 
-import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
+import { BaseSDKAgent} from './baseSDKAgent.js';
+import { AgentResult } from '../types/index.js';
+
+import * as fs from 'fs'
+
 
 export interface D3CodeInput {
+    filepath: string;
     userRequirements: string;
-    contextData: string;
 }
 
-export class D3JSCodeProfiler extends BaseSDKAgent {
+export class D3JSCodeGenerator extends BaseSDKAgent {
     constructor() {
-        super('D3JSCodeProfiler', 15);
+        super('D3JSCodeGenerator', 15);
     }
 
     /**
      * Execute D3 code generation
      */
-    async execute(input: D3CodeInput): Promise<SDKAgentResult> {
+    async execute(input: D3CodeInput): Promise<AgentResult> {
+        console.log('FILE ', input.filepath)
+        console.log(input.userRequirements)
         if (!this.validateInput(input)) {
-            return {
+             return {
+                agentName: ' D3JSCodeGenerator',
+                result: '',
                 success: false,
-                output: '',
-                error: 'Invalid input: userRequirements and contextData are required'
+                timestamp: new Date(),
+                error: 'Invalid input: filepath and userRequirements are required'
             };
         }
 
         try {
             const prompt = this.buildPrompt(input);
-            const output = await this.executeQuery(prompt);
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await this.executeQuery(prompt);
 
-            return {
+           return {
+                agentName: ' D3JSCodeGenerator',
+                result: output,
                 success: true,
-                output,
-                metadata: {
-                    requirements: input.userRequirements,
-                    contextLength: input.contextData.length
-                }
+                timestamp: new Date()
             };
+            
         } catch (error) {
             return {
+                agentName: ' D3JSCodeGenerator',
+                result: '',
                 success: false,
-                output: '',
-                error: error instanceof Error ? error.message : String(error)
+                timestamp: new Date(),
+                error: 'Invalid input: filepath and userRequirements are required'
             };
         }
     }
@@ -60,7 +69,7 @@ USER REQUIREMENTS:
 ${input.userRequirements}
 
 CONTEXT DATA (contains CSV file path from MCP server):
-${input.contextData}
+${input.filepath}
 
 YOUR TASK:
 Generate complete D3.js code based on the user requirements. You must:
@@ -91,9 +100,9 @@ The HTML will be rendered in Playwright which can access local files via file://
         return (
             input &&
             typeof input.userRequirements === 'string' &&
-            typeof input.contextData === 'string' &&
+            typeof input.filepath === 'string' &&
             input.userRequirements.length > 0 &&
-            input.contextData.length > 0
+            input.filepath.length > 0
         );
     }
 
@@ -101,11 +110,11 @@ The HTML will be rendered in Playwright which can access local files via file://
      * Legacy method for backward compatibility
      * @deprecated Use execute() instead
      */
-    async generateD3Code(userRequirements: string, contextData: string): Promise<string> {
+  /*  async generateD3Code(userRequirements: string, contextData: string): Promise<string> {
         const result = await this.execute({ userRequirements, contextData });
         if (!result.success) {
             throw new Error(result.error || 'Failed to generate D3.js code');
         }
-        return result.output;
-    }
+        return result.result;
+    }*/
 }

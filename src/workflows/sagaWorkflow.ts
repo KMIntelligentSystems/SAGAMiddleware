@@ -2,7 +2,7 @@ import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { DataProfiler } from '../agents/dataProfiler.js';
-import { D3JSCodeProfiler } from '../agents/d3jsCodeProfiler.js';
+import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { SagaState, HumanInLoopConfig,
 
@@ -27,8 +27,8 @@ import * as fs from 'fs'
 
 // Default control flow list for saga coordinator
 const CONTROL_FLOW_LIST = [
-  { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess' },
-//{ agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'TransactionGroupingAgent' },
+  { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' },
+  { agent: 'DataProfiler', process: 'agentGeneratorProcess', targetAgent: 'FlowDefiningAgent' },
   { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' },
 /*  { agent: 'VisualizationCoordinatingAgent', process: 'DefineUserRequirementsProcess' },
   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'VisualizationCoordinatingAgent' },
@@ -245,7 +245,15 @@ export class SagaWorkflow {
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Output as expected.'
-      }, 
+      },
+      {
+        agentName: 'DataProfiler',
+        agentType: 'processing',
+        transactionId: 'tx-2-2',
+        backstory: 'You analyze data files and generate technical specifications.',
+        taskDescription: 'Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate comprehensive technical specifications for agent generation. You process user requirements in the context of the actual data.',
+        taskExpectedOutput: 'Detailed technical specification including file structure, data types, transformation requirements, and agent generation guidelines.'
+      },
 
       //validation of rendering an agent [/AGENT  etc
       {
@@ -283,9 +291,25 @@ export class SagaWorkflow {
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
         taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
-      }, 
+      },
+      {
+        agentName: 'D3JSCodeGenerator',
+        agentType: 'processing',
+        transactionId: 'tx-5-1',
+        backstory: 'You are a D3.js visualization code generator.',
+        taskDescription: 'Your role is to generate D3.js visualization code based on data specifications and user requirements. You create complete, working D3.js code that can be rendered in a browser.',
+        taskExpectedOutput: 'Complete D3.js HTML code ready to run in a browser, including data loading, scales, axes, and visual elements.'
+      },
+      {
+        agentName: 'D3JSCodeValidator',
+        agentType: 'processing',
+        transactionId: 'tx-5-2',
+        backstory: 'You are a D3.js code validator and quality assurance specialist.',
+        taskDescription: 'Your role is to validate D3.js visualization code against requirements, check for errors, ensure best practices, and verify that the code will render correctly.',
+        taskExpectedOutput: 'Validation report indicating whether code meets requirements, list of any issues found, and corrected code if needed.'
+      },
 
-      //Was part of validation of the collated results of csv data analysis given to challenger tx-6 to make critique and provide back to tx-5 
+      //Was part of validation of the collated results of csv data analysis given to challenger tx-6 to make critique and provide back to tx-5
       {
         agentName: 'D3AnalysisChallengingAgent',
         agentType: 'processinisg',
@@ -650,7 +674,11 @@ Focus: Only array extraction
     //  const initialPrompt = this.coordinator.parseConversationResultForAgent(data.message, 'TransactionGroupingAgent')
 
       const pipelineExecutor: PipelineExecutor = new  PipelineExecutor(this.coordinator);
-      const state = await pipelineExecutor.executePipeline(DATA_PROFILING_PIPELINE,data.message);// D3_VISUALIZATION_PIPELINE
+      let state = await pipelineExecutor.executePipeline(DATA_PROFILING_PIPELINE,data.message, undefined);// D3_VISUALIZATION_PIPELINE
+     // const graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(data.message), 'D3JSCoordinatingAgent');
+      console.log('STATE CONTEXT ', state)
+      state = await pipelineExecutor.executePipeline( D3_VISUALIZATION_PIPELINE,data.message, state); 
+      console.log('STATE CONTEXT 1', state)
 
     /*  const dataProfiler: DataProfiler = new DataProfiler();
      // let profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(initialPrompt,'C:/repos/SAGAMiddleware/data/two_days.csv')
@@ -743,7 +771,7 @@ if(opType === 'profile_approved'){
         console.log('USER QUERY ', browserRequest.userQuery)
         let graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(browserRequest.userQuery), 'D3JSCoordinatingAgent');
         
-          const dataProfiler:D3JSCodeProfiler = new D3JSCodeProfiler();
+          const dataProfiler:D3JSCodeGenerator = new D3JSCodeGenerator();
        //  const nxtProfiledPrompt = await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
          const nxtProfiledPrompt = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
          console.log('D3JS COORDINATOR', nxtProfiledPrompt)

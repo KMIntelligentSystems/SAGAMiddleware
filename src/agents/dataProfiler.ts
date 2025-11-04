@@ -15,7 +15,8 @@
  * - Technical specifications for code generation
  */
 
-import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
+import { BaseSDKAgent } from './baseSDKAgent.js';
+import { AgentResult } from '../types/index.js';
 import * as fs from 'fs'
 
 export interface DataProfileInput {
@@ -31,11 +32,14 @@ export class DataProfiler extends BaseSDKAgent {
     /**
      * Execute data profiling
      */
-    async execute(input: DataProfileInput): Promise<SDKAgentResult> {
+    async execute(input: DataProfileInput): Promise<AgentResult> {
+   
         if (!this.validateInput(input)) {
             return {
+                agentName: 'DataProfiler',
+                result: '',
                 success: false,
-                output: '',
+                timestamp: new Date(),
                 error: 'Invalid input: filepath and userRequirements are required'
             };
         }
@@ -45,18 +49,18 @@ export class DataProfiler extends BaseSDKAgent {
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');//await this.executeQuery(prompt);
 
             return {
+               agentName: 'DataProfiler',
+                result: output,
                 success: true,
-                output,
-                metadata: {
-                    filepath: input.filepath,
-                    requirementsLength: input.userRequirements.length
-                }
+                timestamp: new Date(),
             };
         } catch (error) {
             return {
+              agentName: 'DataProfiler',
+                result: '',
                 success: false,
-                output: '',
-                error: error instanceof Error ? error.message : String(error)
+                timestamp: new Date(), 
+                error: ''
             };
         }
     }
@@ -124,6 +128,6 @@ Output the complete prompt now.`;
         if (!result.success) {
             throw new Error(result.error || 'Failed to generate prompt from file analysis');
         }
-        return result.output;
+        return result.result;
     }
 }

@@ -1,18 +1,14 @@
 /**
  * BaseSDKAgent
  *
- * Base class for all Claude SDK agents (DataProfiler, AgentStructureGenerator, D3JSCodeProfiler, D3JSCodeValidator)
+ * Base class for all Claude SDK agents (DataProfiler, AgentStructureGenerator, D3JSCodeGenerator, D3JSCodeValidator)
  * Provides common functionality and standardized interface
  */
 
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { AgentResult } from '../types/index.js';
 
-export interface SDKAgentResult {
-    success: boolean;
-    output: string;
-    error?: string;
-    metadata?: Record<string, any>;
-}
+
 
 export abstract class BaseSDKAgent {
     protected options: Options;
@@ -32,7 +28,7 @@ export abstract class BaseSDKAgent {
      * Execute the SDK agent with given input
      * Must be implemented by child classes
      */
-    abstract execute(input: any): Promise<SDKAgentResult>;
+    abstract execute(input: any): Promise<AgentResult>;
 
     /**
      * Build the prompt for the SDK agent

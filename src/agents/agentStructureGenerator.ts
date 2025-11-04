@@ -5,7 +5,8 @@
  * that the existing SagaWorkflow system expects.
  */
 
-import { BaseSDKAgent, SDKAgentResult } from './baseSDKAgent.js';
+import { BaseSDKAgent } from './baseSDKAgent.js';
+import { AgentResult } from '../types/index.js';
 import * as fs from 'fs';
 
 export interface AgentStructureInput {
@@ -20,31 +21,26 @@ export class AgentStructureGenerator extends BaseSDKAgent {
     /**
      * Execute agent structure generation
      */
-    async execute(input: AgentStructureInput): Promise<SDKAgentResult> {
-        if (!this.validateInput(input)) {
-            return {
-                success: false,
-                output: '',
-                error: 'Invalid input: prompt is required'
-            };
-        }
-
+    async execute(input: string): Promise<AgentResult> {
+      
         try {
             const prompt = this.buildPrompt(input);
-            const output = await this.executeQuery(prompt);
+            const output =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');//await this.executeQuery(prompt);
 
-            return {
+             return {
+                agentName: ' AgentStructureGenerator',
+                result: output,
                 success: true,
-                output,
-                metadata: {
-                    promptLength: input.prompt.length
-                }
+                timestamp: new Date(),
+               
             };
         } catch (error) {
-            return {
+                  return {
+                agentName: 'AgentStructureGenerator',
+                result: '',
                 success: false,
-                output: '',
-                error: error instanceof Error ? error.message : String(error)
+                timestamp: new Date(),
+                error: 'Invalid input: filepath and userRequirements are required'
             };
         }
     }
@@ -52,11 +48,11 @@ export class AgentStructureGenerator extends BaseSDKAgent {
     /**
      * Build prompt for agent structure generation
      */
-    protected buildPrompt(input: AgentStructureInput): string {
+    protected buildPrompt(input: string): string {
         return `You are generating agent structures for a SAGA workflow system.
 
 USER REQUEST:
-${input.prompt}
+${input}
 
 YOUR TASK:
 Generate agent structures in this exact format:
@@ -95,11 +91,11 @@ Generate the agent structures now.`;
      * @deprecated Use execute() instead
      */
     async generateAgentStructures(userRequest: string): Promise<string> {
-        const result = await this.execute({ prompt: userRequest });
+        const result = await this.execute(userRequest );
         if (!result.success) {
             throw new Error(result.error || 'Failed to generate agent structures');
         }
-        result.output  =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');
-        return result.output;
+        result.result  =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');
+        return result.result
     }
 }

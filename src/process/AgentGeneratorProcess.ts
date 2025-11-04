@@ -28,17 +28,20 @@ export class AgentGeneratorProcess {
   private targetAgent: GenericAgent;
   private contextManager: ContextManager;
   private coordinator: SagaCoordinator;
+  private query: string;
 
   constructor(
     flowDefiningAgent: GenericAgent,
     targetAgent: GenericAgent,
     contextManager: ContextManager,
-    coordinator: SagaCoordinator
+    coordinator: SagaCoordinator,
+    query: string
   ) {
     this.flowDefiningAgent = flowDefiningAgent;
     this.targetAgent = targetAgent;
     this.contextManager = contextManager;
     this.coordinator = coordinator;
+    this.query = '[AGENT: TransactionGroupingAgent tx-2]' + query + '[/AGENT]'
   }
 
   /**
@@ -61,7 +64,7 @@ export class AgentGeneratorProcess {
       this.flowDefiningAgent.getName()
     ) as WorkingMemory;
  
-    const agentDefinitionsText = flowCtx?.previousTransactionResult;
+    const agentDefinitionsText = this.query//flowCtx?.previousTransactionResult;
     const flowData = flowCtx?.lastTransactionResult;
 
     console.log(`📝 Agent definitions: $agentFlowText}...`, flowData);
