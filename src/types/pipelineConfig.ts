@@ -138,6 +138,8 @@ export interface PipelineExecutionState {
     pipelineName: string;
     currentStepIndex: number;
     context: Record<string, any>;
+    lastControlFlowResult?: any;
+    lastSDKResult?: any;
     startTime: Date;
     errors: string[];
     completed: boolean;

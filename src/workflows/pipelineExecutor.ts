@@ -161,6 +161,8 @@ export class PipelineExecutor {
         // SDK agents are stateless - GenericAgents handle context management
         if (this.state) {
             this.state.context['COMPLETED'] = sdkResult.result;
+            this.state.lastControlFlowResult = controlFlowResult;
+            this.state.lastSDKResult = sdkResult;
             console.log(`💾 Stored latest SDK result in COMPLETED context`);
         }
 
