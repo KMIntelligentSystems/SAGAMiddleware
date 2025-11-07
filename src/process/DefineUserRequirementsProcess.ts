@@ -69,11 +69,6 @@ console.log('DEFINE ', this.userQuery)
     }
 
     console.log(`📝 Extracted task for ${this.agent.getName()} (${conversationContext.length} chars)`);
-
-    // Clear previous context
-  //  this.agent.deleteContext();
-
-    // Set new context
    
 console.log('CONVERSATION ',conversationContext )
     // Execute agent
@@ -94,9 +89,22 @@ console.log('CONVERSATION ',conversationContext )
       console.log('🔍 After extraction, extracted:', JSON.stringify(extracted, null, 2));
       result.result = extracted as any; // Store DataProfileInput object in result
       console.log('🔍 Final result.result:', result.result);
-    } else if(this.agent.getName() === 'VisualizationCoordinatingAgent'){
-     result.result = visualizationGroupingAgentsResult;
-      this.agent.setTaskDescription(dataValidatingAgentPrompt);
+      if(this.targetAgent){
+          this.contextManager.updateContext(this.targetAgent, {
+          lastTransactionResult: result.result,
+          transactionId: this.agent.getId(),
+           timestamp: new Date()
+      })
+      }
+    
+    } else if(this.agent.getName() === 'AgentStructureGenerator'){
+      if(this.targetAgent){
+          this.contextManager.updateContext(this.targetAgent, {
+          lastTransactionResult: JSON.stringify( conversationContext),
+          transactionId: this.agent.getId(),
+           timestamp: new Date()
+      })
+      }
     } else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
      result.result =JSON.stringify( conversationContext);//graphAnalyzerResult_1;
          

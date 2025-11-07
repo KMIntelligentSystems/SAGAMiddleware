@@ -7,14 +7,15 @@
 
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { AgentResult } from '../types/index.js';
-
+import { ContextManager } from '../sublayers/contextManager.js';
 
 
 export abstract class BaseSDKAgent {
     protected options: Options;
     protected agentName: string;
+    protected contextManager: ContextManager;
 
-    constructor(agentName: string, maxTurns: number = 15) {
+    constructor(agentName: string, maxTurns: number = 15, contextManager?: ContextManager) {
         this.agentName = agentName;
         this.options = {
             permissionMode: 'bypassPermissions',
@@ -22,6 +23,8 @@ export abstract class BaseSDKAgent {
             cwd: process.cwd(),
             model: 'sonnet'
         };
+        // Use injected context manager or create a new one
+        this.contextManager = contextManager || new ContextManager();
     }
 
     /**
@@ -98,5 +101,23 @@ export abstract class BaseSDKAgent {
      */
     setMaxTurns(maxTurns: number): void {
         this.options.maxTurns = maxTurns;
+    }
+
+    /**
+     * Get the context manager instance
+     */
+    getContextManager(): ContextManager {
+        return this.contextManager;
+    }
+
+    /**
+     * Set context in the shared context manager
+     */
+    setContext(value: string){
+         this.contextManager.updateContext(this.agentName, {
+            lastTransactionResult: value,
+            transactionId: 'tx-2',
+            timestamp: new Date()
+        });
     }
 }

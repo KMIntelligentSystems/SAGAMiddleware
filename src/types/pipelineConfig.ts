@@ -6,7 +6,7 @@
  */
 
 export interface SDKAgentStep {
-    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeValidator';
+    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeValidator' |'AgentExecutor';
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
@@ -47,21 +47,34 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             processConfig: {
                 controlFlow: [
                     { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' },
-                    { agent: 'DataProfiler', process: 'DefineUserRequirementsProcess', targetAgent: 'FlowDefiningAgent' },
-                    { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' }
+                   
+                  //  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' }
                 ]
             }
         },
         {
-            transactionType: 'DataProfiler',
-            name: 'DataProfilingStep',
-            description: 'Analyze CSV data and generate technical specifications',
-            inputFrom: 'agentStructures',
-            outputKey: 'profiledPrompt',
+            transactionType: 'AgentStructureGenerator',
+            name: 'AgentGenerationStep',
+            description: 'Generate agent structures in [AGENT:...] format',
+            inputFrom: 'profiledPrompt',
+            outputKey: 'agentStructures',
             processConfig: {
                 controlFlow: [
-                    { agent: 'TransactionGroupingAgent', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
-                    { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' }
+                     { agent: 'DataProfiler', process: 'GenerateAgentAgentStructureProcess', targetAgent: 'AgentStructureGenerator' }
+                ]
+            }
+        },
+        {
+            transactionType: 'AgentExecutor',
+            name: 'AgentExecutorStep',
+            description: 'Generate agent structures in [AGENT:...] format',
+            inputFrom: 'profiledPrompt',
+            outputKey: 'agentStructures',
+            processConfig: {
+                controlFlow: [
+                    { agent: 'AgentStructureGenerator', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
+                    { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
+                    { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'FlowDefiningAgent'  }
                 ]
             }
         }
@@ -84,10 +97,10 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             outputKey: 'd3jsCode',
             processConfig: {
                 controlFlow: [
-                    { agent: 'D3JSCoordinatingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'D3JSCodeGenerator'  },
-                    { agent: 'D3JSCodeGenerator', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                    { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator'  },
+                  //  { agent: 'D3JSCodeGenerator', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
                 ],
-                renderVisualization: true // Render with Playwright after code generation
+                testWithPlaywright: true 
             }
         },
         {
@@ -100,7 +113,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
                 controlFlow: [
                     { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeValidator' }
                 ],
-                testWithPlaywright: true // Re-test with Playwright if code was corrected
+               // Re-test with Playwright if code was corrected
             }
         }
     ],

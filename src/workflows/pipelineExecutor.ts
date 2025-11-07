@@ -12,7 +12,7 @@ import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
-import { AgentResult } from '../types/index.js';
+import { AgentResult, WorkingMemory } from '../types/index.js';
 
 export class PipelineExecutor {
     private coordinator: SagaCoordinator;
@@ -36,16 +36,25 @@ export class PipelineExecutor {
 
         // Initialize execution state with fresh context
         // SDK agents are stateless - only the last result matters
+        // If pipelineExecutionState is provided, extract lastControlFlowResult
+        console.log('🔍 Debug - Initializing new pipeline state');
+        console.log('🔍 Debug - pipelineExecutionState provided:', pipelineExecutionState ? 'YES' : 'NO');
+        console.log('🔍 Debug - pipelineExecutionState.lastSDKResult:', pipelineExecutionState?.lastSDKResult ? (typeof pipelineExecutionState.lastSDKResult === 'string' ? pipelineExecutionState.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
+
         this.state = {
             pipelineName: pipeline.name,
             currentStepIndex: 0,
             context: {
                 input
             },
+            lastControlFlowResult: pipelineExecutionState?.lastControlFlowResult,
+            lastSDKResult: pipelineExecutionState?.lastSDKResult,
             startTime: new Date(),
             errors: [],
             completed: false
         };
+
+        console.log('🔍 Debug - New state.lastSDKResult:', this.state.lastSDKResult ? (typeof this.state.lastSDKResult === 'string' ? this.state.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
           let result: AgentResult = {
                agentName: 'cycle_start',
                result: '',//visualizationGroupingAgentsResult groupingAgentResult,groupingAgentFailedResult,
@@ -64,7 +73,7 @@ export class PipelineExecutor {
 
             try {
                 // Execute control flow for this step and capture result
-                result = await this.executeStepControlFlow(step, result, pipelineExecutionState);
+                result = await this.executeStepControlFlow(step, result,this.state);
 
                 if (!result.success) {
                     throw new Error(`Control flow failed: ${result.error || 'Unknown error'}`);
@@ -85,6 +94,16 @@ export class PipelineExecutor {
 
         this.state.completed = this.state.errors.length === 0;
 
+        // Store the final composite agent result in the state
+        if (result && result.result) {
+            this.state.lastControlFlowResult = result.result.controlFlowResult;
+            this.state.lastSDKResult = result.result.sdkResult;
+            console.log('✅ Stored in state.lastControlFlowResult:', this.state.lastControlFlowResult ? 'exists' : 'undefined');
+            console.log('✅ Stored in state.lastSDKResult:', this.state.lastSDKResult ? (typeof this.state.lastSDKResult === 'string' ? this.state.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
+        } else {
+            console.log('⚠️  No result to store in state');
+        }
+
         console.log(`\n${'='.repeat(70)}`);
         if (this.state.completed) {
             console.log(`✅ Pipeline Complete: ${pipeline.name}`);
@@ -102,17 +121,20 @@ export class PipelineExecutor {
 
     /**
      * Instantiate SDK agent by transaction type
+     * Injects the coordinator's context manager for shared context access
      */
     private instantiateAgent(transactionType: string): BaseSDKAgent {
+        const contextManager = this.coordinator.contextManager;
+
         switch (transactionType) {
             case 'DataProfiler':
-                return new DataProfiler();
+                return new DataProfiler(contextManager);
             case 'AgentStructureGenerator':
-                return new AgentStructureGenerator();
+                return new AgentStructureGenerator(contextManager);
             case 'D3JSCodeGenerator':
-                return new D3JSCodeGenerator();
+                return new D3JSCodeGenerator(contextManager);
             case 'D3JSCodeValidator':
-                return new D3JSCodeValidator();
+                return new D3JSCodeValidator(contextManager);
             default:
                 throw new Error(`Unknown transaction type: ${transactionType}`);
         }
@@ -134,11 +156,21 @@ export class PipelineExecutor {
         this.coordinator.initializeControlFlow(step.processConfig.controlFlow);
 
         // Determine input for control flow execution
-        const input = this.determineStepInput(step, previousResult, pipelineExecutionState);
+        const userQuery = this.determineStepInput(step, previousResult, pipelineExecutionState);
 
         // Execute the control flow through the coordinator
+        // Pass composite input with previous results if this is a chained pipeline
         console.log(`🔄 Starting control flow with ${step.processConfig.controlFlow.length} steps`);
-        const controlFlowResult = await this.coordinator.executeControlFlow(input);
+        console.log(`🔍 Debug - state.lastControlFlowResult:`, this.state?.lastControlFlowResult ? 'exists' : 'undefined');
+        console.log(`🔍 Debug - state.lastSDKResult:`, this.state?.lastSDKResult ? 'exists' : 'undefined');
+        console.log(`🔍 Debug - state.lastSDKResult.result:`, this.state?.lastSDKResult?.result ? (typeof this.state.lastSDKResult.result === 'string' ? this.state.lastSDKResult.result.substring(0, 100) + '...' : 'object') : 'undefined');
+
+        const compositeInput = {
+            userQuery,
+            previousControlFlowResult: this.state?.lastControlFlowResult,
+            previousSDKResult: this.state?.lastSDKResult?.result  // Extract just the result, not the whole AgentResult
+        };
+        const controlFlowResult = await this.coordinator.executeControlFlow(compositeInput);
 
         console.log(`✅ Control flow execution complete`, controlFlowResult);
 
@@ -157,7 +189,22 @@ export class PipelineExecutor {
 
         console.log(`✅ SDK Agent execution complete`);
 
-        // Store only the latest SDK agent result
+        // Store SDK result in context manager immediately so next step's control flow can access it
+        this.coordinator.contextManager.updateContext(step.transactionType, {
+            lastTransactionResult: sdkResult.result,
+            transactionId: step.transactionType,
+            timestamp: new Date()
+        });
+        console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
+
+        // Debug: Verify the result was stored
+        const verification = this.coordinator.contextManager.getContext(step.transactionType);
+        console.log(`🔍 Debug - Verification: ${step.transactionType} context exists:`, verification ? 'YES' : 'NO');
+        if (verification) {
+            console.log(`🔍 Debug - Has lastTransactionResult:`, verification.lastTransactionResult ? 'YES' : 'NO');
+        }
+
+        // Store only the latest SDK agent result in pipeline state
         // SDK agents are stateless - GenericAgents handle context management
         if (this.state) {
             this.state.context['COMPLETED'] = sdkResult.result;
@@ -166,18 +213,26 @@ export class PipelineExecutor {
             console.log(`💾 Stored latest SDK result in COMPLETED context`);
         }
 
-        // Handle post-processing based on step configuration
-        if (step.processConfig.renderVisualization && sdkResult.result) {
-            await this.handleVisualizationRendering(step, sdkResult.result);
-        }
-
         if (step.processConfig.testWithPlaywright) {
-            await this.handlePlaywrightTesting(step);
+           const svgPath =  await this.handlePlaywrightTesting(step, sdkResult.result);
+           sdkResult.result = {'D3 JS CODE: ': sdkResult.result, 'SVG PATH: ': svgPath}
         }
 
         console.log(`✅ Step complete: ${step.name}`);
 
-        return sdkResult;
+        // Return composite result containing both control flow and SDK agent results
+        const compositeResult: AgentResult = {
+            agentName: sdkResult.agentName,
+            result: {
+                controlFlowResult: controlFlowResult,
+                sdkResult: sdkResult.result
+            },
+            success: sdkResult.success,
+            error: sdkResult.error,
+            timestamp: sdkResult.timestamp
+        };
+
+        return compositeResult;
     }
 
     /**
@@ -189,17 +244,52 @@ export class PipelineExecutor {
         controlFlowResult: AgentResult,
         pipelineExecutionState?: PipelineExecutionState
     ): any {
+        console.log('LAST RESULT ', controlFlowResult)
+
         // Different SDK agents have different input formats
         switch (step.transactionType) {
             case 'DataProfiler':
                 // DataProfiler needs filepath + userRequirements
+                console.log('DATAFILER ', controlFlowResult)
+                const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory
+                console.log('CTX ', ctx.lastTransactionResult)
                 return {
-                    filepath: this.extractFilePath(controlFlowResult, pipelineExecutionState),
-                    userRequirements: controlFlowResult.result
+                    filepath: ctx.lastTransactionResult.filepath,//this.extractFilePath(controlFlowResult, pipelineExecutionState),
+                    userRequirements: ctx.lastTransactionResult.userRequirements//controlFlowResult.result
                 };
 
+            case 'D3JSCodeGenerator': {
+                // D3JSCodeGenerator needs structured input with filepath and userRequirements
+                // Control flow result has nested structure: result.result contains the actual data
+                const actualResult = controlFlowResult.result?.result || controlFlowResult.result;
+
+                // Parse the result if it's a JSON string
+                let parsedResult = actualResult;
+                if (typeof actualResult === 'string') {
+                    try {
+                        parsedResult = JSON.parse(actualResult);
+                    } catch (e) {
+                        console.warn('Could not parse control flow result as JSON, using as-is');
+                    }
+                }
+
+                // Extract filepath and userRequirements from the parsed result
+                const filepath = parsedResult.filePath || parsedResult.filepath || '';
+                const userRequirements = parsedResult.userRequirements
+                    ? (typeof parsedResult.userRequirements === 'string'
+                        ? parsedResult.userRequirements
+                        : JSON.stringify(parsedResult.userRequirements, null, 2))
+                    : JSON.stringify(parsedResult, null, 2);
+
+                console.log('📋 Prepared D3JSCodeGenerator input:', { filepath, userRequirements: userRequirements.substring(0, 100) + '...' });
+
+                return {
+                    filepath,
+                    userRequirements
+                };
+            }
+
             case 'AgentStructureGenerator':
-            case 'D3JSCodeGenerator':
             case 'D3JSCodeValidator':
                 // These agents take string input
                 return typeof controlFlowResult.result === 'string'
@@ -255,12 +345,14 @@ export class PipelineExecutor {
                 : JSON.stringify(pipelineExecutionState.context['input']);
         }
 
-        // Priority 2: If previous step in current pipeline has result, use that
-        if (previousResult.result) {
-            console.log(`📥 Using result from previous step in current pipeline`);
-            return typeof previousResult.result === 'string'
-                ? previousResult.result
-                : JSON.stringify(previousResult.result);
+        // Priority 2: If previous step in current pipeline has result, combine input with previous result
+        if (previousResult.result && this.state) {
+            console.log(`📥 Combining original input with previous step result`);
+            const compositeInput = {
+                input: this.state.context.input,
+                previousResult: previousResult.result
+            };
+            return JSON.stringify(compositeInput);
         }
 
         // Priority 3: Fall back to initial input
@@ -298,11 +390,11 @@ export class PipelineExecutor {
     /**
      * Handle visualization rendering with Playwright
      */
-    private async handleVisualizationRendering(step: SDKAgentStep, d3Code: string): Promise<void> {
+    private async handlePlaywrightTesting(step: SDKAgentStep, d3Code: string): Promise<any> {
         console.log(`\n🎨 Rendering visualization with Playwright...`);
-
-        try {
-            const renderResult = await this.coordinator.renderD3Visualization(
+        let renderResult;
+       try {
+            renderResult = await this.coordinator.renderD3Visualization(
                 d3Code,
                 step.name,
                 `${step.name}-${Date.now()}`
@@ -324,28 +416,8 @@ export class PipelineExecutor {
         } catch (error) {
             console.error(`❌ Error rendering visualization:`, error);
         }
+        return renderResult?.svgPath
     }
-
-    /**
-     * Handle Playwright testing for validation
-     */
-    private async handlePlaywrightTesting(step: SDKAgentStep): Promise<void> {
-        console.log(`\n🧪 Testing with Playwright...`);
-
-        // If validator returned corrected code, render it again for testing
-        if (this.state && this.state.context[step.outputKey]) {
-            const output = this.state.context[step.outputKey];
-
-            // Check if output is corrected code (not success message)
-            if (!output.includes('Requirements achieved')) {
-                console.log(`   Re-rendering corrected code...`);
-                await this.handleVisualizationRendering(step, output);
-            } else {
-                console.log(`   ✅ Code validated successfully, no re-test needed`);
-            }
-        }
-    }
-
     /**
      * Get current execution state
      */

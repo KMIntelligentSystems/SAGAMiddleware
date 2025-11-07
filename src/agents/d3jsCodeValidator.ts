@@ -10,13 +10,13 @@ import { AgentResult } from '../types/index.js';
 
 export interface D3ValidationInput {
     requirements: string;
-    codePath?: string;
+    d3jsCode?: string;
     svgPath?: string;
 }
 
 export class D3JSCodeValidator extends BaseSDKAgent {
-    constructor() {
-        super('D3JSCodeValidator', 20);
+    constructor(contextManager?: any) {
+        super('D3JSCodeValidator', 20, contextManager);
     }
 
     /**
@@ -63,7 +63,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
      * Build prompt for validation
      */
     protected buildPrompt(input: D3ValidationInput): string {
-        const codePath = input.codePath || 'c:/repos/SAGAMiddleware/data/d3jsCodeResult.txt';
+        const d3jsCode = input.d3jsCode || 'c:/repos/SAGAMiddleware/data/d3jsCodeResult.txt';
         const svgPath = input.svgPath || 'c:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg';
 
         return `You are a D3.js code validation and correction expert.
@@ -74,7 +74,7 @@ ${input.requirements}
 YOUR TASK:
 Validate the D3.js code against the requirements and rendered output. You must:
 
-1. Read the generated D3 code from: ${codePath}
+1. Read the generated D3 code from: ${d3jsCode}
 2. Read the rendered SVG output from: ${svgPath}
 3. Analyze if the code meets ALL user requirements
 4. Check for any runtime errors or issues visible in the SVG
@@ -115,10 +115,10 @@ OUTPUT RULES:
      */
     async validateD3Code(
         requirements: string,
-        codePath?: string,
+        d3jsCode?: string,
         svgPath?: string
     ): Promise<string> {
-        const result = await this.execute({ requirements, codePath, svgPath });
+        const result = await this.execute({ requirements, d3jsCode, svgPath });
         if (!result.success) {
             throw new Error(result.error || 'Failed to validate D3.js code');
         }

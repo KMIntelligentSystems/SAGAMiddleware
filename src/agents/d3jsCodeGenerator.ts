@@ -17,8 +17,8 @@ export interface D3CodeInput {
 }
 
 export class D3JSCodeGenerator extends BaseSDKAgent {
-    constructor() {
-        super('D3JSCodeGenerator', 15);
+    constructor(contextManager?: any) {
+        super('D3JSCodeGenerator', 15, contextManager);
     }
 
     /**
@@ -40,7 +40,8 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
         try {
             const prompt = this.buildPrompt(input);
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await this.executeQuery(prompt);
-
+            this.setContext(output);
+            
            return {
                 agentName: ' D3JSCodeGenerator',
                 result: output,

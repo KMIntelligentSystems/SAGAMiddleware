@@ -14,8 +14,8 @@ export interface AgentStructureInput {
 }
 
 export class AgentStructureGenerator extends BaseSDKAgent {
-    constructor() {
-        super('AgentStructureGenerator', 10);
+    constructor(contextManager?: any) {
+        super('AgentStructureGenerator', 10, contextManager);
     }
 
     /**
@@ -26,7 +26,7 @@ export class AgentStructureGenerator extends BaseSDKAgent {
         try {
             const prompt = this.buildPrompt(input);
             const output =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');//await this.executeQuery(prompt);
-
+            this.setContext(output);
              return {
                 agentName: ' AgentStructureGenerator',
                 result: output,

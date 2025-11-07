@@ -43,6 +43,9 @@ import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
 import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
 import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
 import { GenReflectProcess } from '../process/GenReflectProcess.js';
+import { FlowGeneratingProcess } from '../process/FlowGeneratingProcess.js';
+import { GenerateAgentAgentStructureProcess } from '../process/GenerateAgentAgentStructureProcess.js'
+import { AgentParser } from '../agents/agentParser.js'
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -69,7 +72,7 @@ export class SagaCoordinator extends EventEmitter {
   private csvReader: CSVReader = new CSVReader();
   private d3Client: D3VisualizationClient | null = null;
  
-//  private agentParser: AgentParser;
+ //private agentParser: AgentParser;
  // private currentContextSet: ContextSetDefinition | null = null;
 
   // Process execution state tracking
@@ -84,7 +87,7 @@ export class SagaCoordinator extends EventEmitter {
 
   constructor(mcpServers: Record<string, MCPServerConfig>) {
     super();
-  //  this.agentParser = agentParser;
+   // this.agentParser = agentParser;
     this.contextManager = new ContextManager();
     this.validationManager = new ValidationManager();
     this.transactionManager = new TransactionManager();
@@ -275,7 +278,7 @@ sleep(ms: number) {
     targetAgentName?: string,
     transactionSetCollection?: TransactionSetCollection,
     svgFilePath?: string
-  ): DefineUserRequirementsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | GenReflectProcess | null {
+  ): DefineUserRequirementsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | GenReflectProcess | FlowGeneratingProcess | GenerateAgentAgentStructureProcess |null {
     const agent = this.agents.get(agentName);
     
     console.log('PROCESS TYPE', processType)
@@ -291,7 +294,8 @@ sleep(ms: number) {
         return new DefineUserRequirementsProcess(
           agent,
           this.contextManager,
-          userQuery
+          userQuery,
+          targetAgentName
         );
 
       case 'ValidationProcess': {
@@ -331,36 +335,54 @@ sleep(ms: number) {
         );
        }
       
+      }   
+      
+      case 'FlowGeneratingProcess': {
+       if(targetAgentName){
+          const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
+          return new FlowGeneratingProcess(
+            agent.getName(),
+            targetAgent.getName(),
+            this.contextManager
+        );
+       }
+      
       } 
+
+
  
       case 'ExecuteGenericAgentsProcess': {
-        if (!transactionSetCollection) {
-          console.error('❌ ExecuteGenericAgentsProcess requires transactionSetCollection');
-          return null;
-        }
+      
         return new ExecuteGenericAgentsProcess(
           agent,
           this,
-          transactionSetCollection,
+         // transactionSetCollection,
           targetAgentName as string
         );
       } 
 
       case 'AgentGeneratorProcess': {
-        const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
-        if (!flowDefiningAgent) {
-          console.error('❌ FlowDefiningAgent not found');
-          return null;
-        }
+          if(targetAgentName){
+          const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
         return new AgentGeneratorProcess(
-          flowDefiningAgent,
-          agent,
+          agentName,
+          targetAgent,
           this.contextManager,
-          this,
-          userQuery
+          userQuery,
+          this
         );
-      }
-
+      }} 
+      
+       case 'GenerateAgentAgentStructureProcess': {
+          if(targetAgentName){
+         return new GenerateAgentAgentStructureProcess
+          (
+          agentName,
+          targetAgentName,
+          this.contextManager
+        );  
+      }}
+      
       case 'D3JSCodingProcess':
       
         return new D3JSCodingProcess(
@@ -418,9 +440,24 @@ sleep(ms: number) {
    * Execute the control flow
    * Iterates through control flow list and executes each process in sequence
    */
-  async executeControlFlow(userQuery: string/*, profiledPrompt: string*/): Promise<AgentResult> {
+  async executeControlFlow(input: { userQuery: string; previousControlFlowResult?: any; previousSDKResult?: any }): Promise<AgentResult> {
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
+
+    // If previous control flow result exists, store it in context for GenericAgents to access
+    if (input.previousControlFlowResult) {
+      console.log('📥 Previous control flow result available for GenericAgents');
+      this.contextManager.setContext('PREVIOUS_CONTROL_FLOW', input.previousControlFlowResult);
+    }
+
+    // If previous SDK result exists, store it in context for processes to access
+    if (input.previousSDKResult) {
+      console.log('📥 Previous SDK result available for processes');
+      console.log('🔍 Debug - Storing in PREVIOUS_SDK_RESULT:', typeof input.previousSDKResult === 'string' ? input.previousSDKResult.substring(0, 100) + '...' : 'object');
+      this.contextManager.setContext('PREVIOUS_SDK_RESULT', input.previousSDKResult);
+    } else {
+      console.log('⚠️  No previous SDK result provided to executeControlFlow');
+    }
 
     let validatedResult = '';
 
@@ -445,34 +482,31 @@ sleep(ms: number) {
 
       // Instantiate process
       let process;
-     /*  if (step.process === 'FlowProcess') {
-          //const transGrpAgentCtx = this.contextManager.getContext('TransactionGroupingAgent') as WorkingMemory;
-             this.contextManager.updateContext('TransactionGroupingAgent', {
-             lastTransactionResult: userQuery,
-              transactionId: 'tx-2',
-              timestamp: new Date()
-          });
-      }*/
-      if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
-        process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent, undefined, this.svgPath);
+       if (step.process === 'FlowProcess') {
+        process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent);
+      } else if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
+        process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent, undefined, this.svgPath);
       } else if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent'){
        //   const ctx = this.contextManager.getContext('D3JSCoordinatingAgent');
         //  const codingAgent = this.agents.get('D3JSCodingAgent');
-        
+
           process = this.instantiateProcess(step.process, step.agent, d3CodeValidatingAgentPrompt, step.targetAgent);
           //
       }  else if (step.process === 'D3JSCodingProcess'){
         console.log('aaaaaaaaaaaaaa ',  step.agent)
-          process = this.instantiateProcess(step.process, step.agent,userQuery  , step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
+        console.log('PROCESS TYPE', step.process)
+        console.log(' AGENT ', step.agent)
+        console.log(input)
+          process = this.instantiateProcess(step.process, step.agent, JSON.stringify(input),step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
           //
       }else if (step.process === 'DefineUserRequirementsProcess' && step.agent === 'TransactionGroupingAgent'){
           const agent = this.agents.get('TransactionGroupingAgent') as GenericAgent;
       //    agent?.receiveContext({'YOUR TASKS: ': profiledPrompt})
-          process = this.instantiateProcess(step.process, step.agent,userQuery  , step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
+          process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
           //
       }
       else{
-        process = this.instantiateProcess(step.process, step.agent, userQuery, step.targetAgent);
+        process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent);
       }
 
       if (!process) {
@@ -489,14 +523,22 @@ sleep(ms: number) {
           result = processResult as AgentResult;
         }
 
+        if (step.process === 'AgentStructureProcess'){
+       
+
+        }
+
         // Handle ValidationProcess specifically for retry logic
+        if (step.process === 'D3JSCodingProcess') {
+              const agentResult = processResult as AgentResult;
+              result.result = agentResult.result;
+        }
 
+      /*  if (step.process === 'FlowProcess') {
 
-        if (step.process === 'FlowProcess') {
-        
-          const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, userQuery);
+          const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, input.userQuery);
           const transactionSetCollection = await process?.execute() as TransactionSetCollection;
-          const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, userQuery,step.targetAgent,transactionSetCollection );
+          const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, input.userQuery, step.targetAgent, transactionSetCollection);
           const response =  await executionProcess?.execute() as AgentResult;
           console.log('VALIDATING EXEC', response.result)
           result.result = JSON.stringify(response.result);
@@ -506,25 +548,12 @@ sleep(ms: number) {
                   timestamp: new Date()
                 });
           
-        /*  transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
-            if(transactionSet.transactions.length > 1){
-                 transactionSet.transactions.forEach((transaction: SagaTransaction) => {
-                lastDynamicAgentName = transaction.agentName
-            }) 
-            } else {
-              transactionSetCollection.sets[0].transactions[0].agentName; //lastDynamicAgentName = 
-            }
-         
-          });
-          console.log('LASTE', lastDynamicAgentName)
-           const validatingProcess = this.instantiateProcess('ValidationProcess', 'ValidatingAgent',validationPythonReq, lastDynamicAgentName );
-           const validatingResult = await  validatingProcess?.execute();*/
-          // 
+        
            
-        }
+        }*/
 
         // Auto-render D3 visualization after D3JSCodingProcess SVGInterpreterPrompt
-        if (step.process === 'D3JSCodingProcess') {
+      /*  if (step.process === 'D3JSCodingProcess') {
           const agentResult = processResult as AgentResult;
 
           const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
@@ -574,7 +603,7 @@ sleep(ms: number) {
               //Add the 
 
               // Render the visualization
-           /*   const renderResult = await this.renderD3Visualization(
+           /   const renderResult = await this.renderD3Visualization(
                 d3Code,
                 step.agent,
                 `${step.agent}-output`,
@@ -582,13 +611,13 @@ sleep(ms: number) {
                 csvFilename || undefined
               );
 
-              this.svgPath = renderResult.svgPath as string;*/
+              this.svgPath = renderResult.svgPath as string;/
          
             } else {
               console.warn('⚠️  No D3 code found in result, skipping auto-render');
             }
           }
-        }
+        }*/
 
         if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent') {
             const validatedResult = result as AgentResult
@@ -674,7 +703,7 @@ sleep(ms: number) {
     const baseName = outputName || (agentName ? `${agentName}-${Date.now()}` : `visualization-${Date.now()}`);
 
     try {
-      const result = await this.d3Client.renderD3({
+      const result = { success: true, screenshotPath: '', svgPath: 'C:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg'}/*await this.d3Client.renderD3({
         d3Code,
         csvData,
         csvFilename,
@@ -696,7 +725,7 @@ console.log('D3CODE',d3Code)
             timestamp: new Date()
           });
         }
-      }
+      }*/
 
       return result;
     } catch (error) {

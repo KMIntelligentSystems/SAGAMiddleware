@@ -166,14 +166,16 @@ are no errors then simply provide the tool response to the coding agent. `;
 export const codingAgentErrorPrompt = `The code you created has errors. Look at the errors and a fix that has been provided. You can also see the code with errors. 
 Understand the problems and provide clean and complete python code that fixes the problems. You will find the problem in <context></context>. Your previous incorrect code is:
 `
-export const D3JSCoordinatingAgentAnalysis = `Your role is validator acting on behalf of a d3 js coding agent. THe coding agent will be provided with a csv data file at run time. But because of size constraints in the Context Window, this file cannot be  provided to the
-coding agent at build time. Therefore, an analysis of the csv data is provided in your <context>. Examine this analysis and extract the minimum amount of information to assist the coding agent. For example, you will provide data points for the x-y axes.
-You will provide the labels for the data items.  Provide as much information as you think is required to assist the coding agent to create code at build time remembering that the csv data will be provided at run time`;
+export const D3JSCoordinatingAgentAnalysis = `Your task is to extract two items of information provided in your <context>:
+1. User requirements to be used as inputs to another process
+2. File path to be extracte from a Python result
+Output the result as JSON: {userRequirements:..., filePath...}`;
 
-export const D3JSCodeValidationResultPrompt = `You are a coding agent working in a team of other agents. You have these tasks:
-1. <Think> about the code in PREVIOUS CODE and identify problems
-2. Look at the EVALUATION of the previous code 
-3. Update the code following fixes suggested in the EVALUATION`;
+export const D3JSCoordinatingAgentCodeValiation = `Your task is to extract two items of information provided in your <context>:
+1. User requirements to be used as inputs to another process
+2. d3 js code
+3. svg file path
+Output the result as JSON: {userRequirements:..., d3jsCode..., svgPath...`
 
 export const D3JSCodeValidationResultPrompt__ = `You are a coding agent working in a team of other agents. You have these tasks:
 1. <Think> about the code in PREVIOUS CODE and identify problems

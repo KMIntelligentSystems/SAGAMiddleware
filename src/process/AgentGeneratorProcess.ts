@@ -24,44 +24,40 @@ import { TransactionSetCollection } from '../types/visualizationSaga.js';
  * Returns: TransactionSet containing the created agents
  */
 export class AgentGeneratorProcess {
-  private flowDefiningAgent: GenericAgent;
+ // private flowDefiningAgent: GenericAgent;
+  private agent: string;
   private targetAgent: GenericAgent;
   private contextManager: ContextManager;
   private coordinator: SagaCoordinator;
   private query: string;
 
   constructor(
-    flowDefiningAgent: GenericAgent,
+    //flowDefiningAgent: GenericAgent,
+    agent: string,
     targetAgent: GenericAgent,
     contextManager: ContextManager,
-    coordinator: SagaCoordinator,
-    query: string
+    query: string,
+    coordinator: SagaCoordinator
   ) {
-    this.flowDefiningAgent = flowDefiningAgent;
+    this.agent = agent;
     this.targetAgent = targetAgent;
     this.contextManager = contextManager;
     this.coordinator = coordinator;
-    this.query = '[AGENT: TransactionGroupingAgent tx-2]' + query + '[/AGENT]'
+    this.query = query;
   }
 
   /**
    * Execute agent generation
    */
-  async execute(): Promise<TransactionSetCollection> {
+  async execute(): Promise<any> {//ransactionSetCollection
     console.log(`\n🏭 AgentGeneratorProcess: Creating agents from ${this.targetAgent.getName()} definitions`);//FlowDefiningAgent
 
     // Get agent definitions from target agent
-    const agentDefinitionsCtx = this.contextManager.getContext(
-      this.targetAgent.getName()
-    ) as WorkingMemory;
-
-    if (!agentDefinitionsCtx || !agentDefinitionsCtx.lastTransactionResult) {
-      throw new Error(`No target agent definitions found for ${this.targetAgent.getName()}`);
-    }
+   
 
     // Get flow information from flow defining agent
     const flowCtx = this.contextManager.getContext(
-      this.flowDefiningAgent.getName()
+      this.agent
     ) as WorkingMemory;
  
     const agentDefinitionsText = this.query//flowCtx?.previousTransactionResult;
@@ -69,6 +65,11 @@ export class AgentGeneratorProcess {
 
     console.log(`📝 Agent definitions: $agentFlowText}...`, flowData);
     if (flowData) {
+      this.contextManager.updateContext(this.targetAgent.getName(), {
+        lastTransactionResult: flowData,
+         transactionId: this.targetAgent.getId(),
+           timestamp: new Date()
+      })
       console.log(`🔀 Flow data: ${JSON.stringify(flowData).substring(0, 150)}...`);
     } else {
       console.log(`🔀 No flow data (singleton agent)`);
@@ -76,14 +77,14 @@ export class AgentGeneratorProcess {
 
     // Use AgentParser to create TransactionSetCollection
     // Note: AgentParser will need to be updated to handle singletons
-    const transactionSetCollection = AgentParser.parseAndCreateAgents(
+   /* const transactionSetCollection = AgentParser.parseAndCreateAgents(
       agentDefinitionsText,
       flowData,
       this.coordinator
     );
 
     console.log(`✅ Created TransactionSetCollection: ${transactionSetCollection.id}`);
-    console.log(`   Sets: ${transactionSetCollection.sets.length}`);
+    console.log(`   Sets: ${transactionSetCollection.sets.length}`);*/
 
     // Log all transactions from all sets
    /* transactionSetCollection.sets.forEach(set => {
@@ -93,7 +94,7 @@ export class AgentGeneratorProcess {
       });
     });*/
 
-    return transactionSetCollection;
+    return [];//transactionSetCollection;
   }
 
   /**

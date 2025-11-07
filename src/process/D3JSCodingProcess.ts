@@ -4,8 +4,9 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { D3JSCodeCorrectionPrompt } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentAnalysis } from '../types/visualizationSaga.js'
 import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
+import { d3jsCoordinatingAgentResultforCodeGenerator } from '../test//testData.js'
 
 import * as fs from 'fs'; 
 import * as path from 'path';
@@ -27,29 +28,56 @@ export class D3JSCodingProcess {
   private agent: GenericAgent;
   private contextManager: ContextManager;
   private userQuery: string;
+  private previousResult: any;
   private targetAgentName: string;
+  private lastControlFlowResult: any;
+
   constructor(
     agent: GenericAgent,
     contextManager: ContextManager,
     userQuery: string,
-     targetAgentName: string
+    targetAgentName: string,
+
   ) {
     this.agent = agent;
     this.contextManager = contextManager;
-    this.userQuery = userQuery;
     this.targetAgentName = targetAgentName;
+
+    // Parse userQuery which may be a composite JSON string { input, previousResult }
+    try {
+      const parsed = JSON.parse(userQuery);
+      if (parsed.input && parsed.previousResult !== undefined) {
+        // It's a composite input from Priority 2
+        this.userQuery = parsed.input;
+        this.previousResult = parsed.userQuery;
+        console.log('📦 Parsed composite input with previous result');
+      } else {
+        // It's a simple string input
+        this.userQuery = userQuery;
+        this.previousResult = null;
+      }
+    } catch (e) {
+      // Not JSON, treat as simple string
+      this.userQuery = userQuery;
+      this.previousResult = null;
+    }
+
+    // Get previous control flow result from context manager
+    this.lastControlFlowResult = this.contextManager.getContext('PREVIOUS_CONTROL_FLOW');
   }
 
   /**
    * Execute D3 coding
    */
   async execute(): Promise<AgentResult> {
-    console.log(`\n🎨 D3JSCodingProcess: Generating D3.js code with ${this.agent.getName()}`);
 
+    console.log(`\n🎨 D3JSCodingProcess: Generating D3.js code with ${this.agent.getName()}`);
     // Parse user query to extract D3JSCodingAgent's task
     const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
-      this.targetAgentName)
+      this.agent.getName())
+
+         console.log('LASTT',  this.previousResult)
 console.log('CONVERSATION CTX', conversationContext)
     if (!conversationContext) {
       console.warn(`⚠️  No task found for ${this.agent.getName()} in user query`);
@@ -68,40 +96,17 @@ console.log('CONVERSATION CTX', conversationContext)
       timestamp: new Date()
     };
     console.log(`📝 Extracted task for ${this.agent.getName()}`);
+    if(this.targetAgentName === 'D3JSCodeGenerator'){
+           this.agent.deleteContext();
+          this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis);
+          this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
+          this.agent.receiveContext({ 'LAST CONTROL FLOW RESULT: ' :this.lastControlFlowResult }); 
+          result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+    } else if (this.targetAgentName === 'D3JSCodeValidator'){
 
-     this.agent.deleteContext();
-     const ctx = this.contextManager.getContext( this.targetAgentName)as WorkingMemory;
-     this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
-
-     this.agent.receiveContext({ 'CODE: ' :ctx.d3jsCodeResult }); 
-   //  this.agent.receiveContext({'REPORT OF RUNTIME BEHAVIOR: ': ctx.lastTransactionResult})
-     result = await this.agent.execute({}) as AgentResult;
-     result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/codeAnalysisReport.txt', 'utf-8');
-    // Extract code and report from agent result
-    const extracted = this.extractCodeAndReport(result.result);
-
-    // Store D3 code result
-  /*  if (extracted) {
-      console.log('EXTRACTED CODE ',extracted.code)
-      this.contextManager.updateContext(this.targetAgentName, {
-        d3jsCodeResult: extracted.code,
-        d3jsAnalysis: extracted.report,
-        transactionId: this.agent.getId(),
-        timestamp: new Date()
-      });
-    } else {
-      // Fallback to storing raw result if extraction fails
-      this.contextManager.updateContext(this.targetAgentName, {
-        d3jsCodeResult: JSON.stringify(result.result),
-        d3jsAnalysis: '',
-        transactionId: this.agent.getId(),
-        timestamp: new Date()
-      });
+        //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }
-*/
-     
 
- //   this.agent.setTaskDescription(d3CodeValidatingAgentPrompt); 
 
     console.log(`✅ D3.js code generated`);
     console.log(`📄 Code preview: ${JSON.stringify(result.result)}`);

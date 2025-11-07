@@ -25,19 +25,19 @@ import * as fs from 'fs'
  */
 export class ExecuteGenericAgentsProcess {
   private agent: GenericAgent;
-  private transactionSetCollection: TransactionSetCollection;
+//  private transactionSetCollection: TransactionSetCollection;
   private coordinator: SagaCoordinator;
   private targetAgent: string;
 
   constructor(
     agent: GenericAgent,
     coordinator: SagaCoordinator,
-    transactionSetCollection: TransactionSetCollection,
+//    transactionSetCollection: TransactionSetCollection,
     targetAgent: string
   ) {
     this.agent = agent; //FlowDefiningAgent
     this.coordinator = coordinator;
-    this.transactionSetCollection = transactionSetCollection;
+ //   this.transactionSetCollection = JSON.parse(transactionSetCollection);
     this.targetAgent = targetAgent;
    
   }
@@ -46,10 +46,13 @@ export class ExecuteGenericAgentsProcess {
    * Execute generic agent
    */
   async execute(): Promise<AgentResult> {
-
+     
+      const ctx = this.coordinator.contextManager.getContext(this.targetAgent) as WorkingMemory;
+      const transactionSetCollection: TransactionSetCollection = JSON.parse(ctx.lastTransactionResule);
+      console.log('DEFINE AGENT TRANSACTION GROUPING AGENT',transactionSetCollection)
     // Get context for the agent
      let sagaTransactions: SagaTransaction[] = [];
-     this.transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
+     transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
             transactionSet.transactions.forEach((transaction: SagaTransaction) => {
               sagaTransactions.push(transaction)
             console.log('NAME ', transaction.agentName)

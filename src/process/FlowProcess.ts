@@ -6,6 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import {agentDefinitionPrompt} from '../types/visualizationSaga.js';
 import { flowDefiningAgentResult, flowData,d3jsFlowData } from '../test/testData.js';
+import {AgentParser} from '../agents/agentParser.js'
 
 /**
  * FlowProcess
@@ -78,10 +79,24 @@ export class FlowProcess {
       timestamp: new Date()
     };
 
-      if(this.targetAgent.getName() === 'TransactionGroupingAgent'){
+      if(this.targetAgent.getName() === 'FlowDefiningAgent'){
        //    result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
-       //   console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', result.result)
+        
+       const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
+      const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)
+     //   console.log('DEFINE AGENT TRANSACTION GROUPING AGENT',  agentDefinitionsText)
          result.result = flowDefiningAgentResult;
+         const transactionSetCollection = AgentParser.parseAndCreateAgents(
+                  agentDefinitionsText,
+                  flowDefiningAgentResult
+        );
+        this.contextManager.updateContext(this.targetAgent.getName(), {
+            lastTransactionResule: JSON.stringify(transactionSetCollection)
+        })
+    console.log(`✅ Created TransactionSetCollection: ${transactionSetCollection.id}`);
+    console.log(`   Sets: ${transactionSetCollection.sets.length}`);
+
+    //transactionSetCollection;
         } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
            console.log('VISUALISATION AGENT')
          result.result = flowData;

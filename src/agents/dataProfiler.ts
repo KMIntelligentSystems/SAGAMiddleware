@@ -25,8 +25,8 @@ export interface DataProfileInput {
 }
 
 export class DataProfiler extends BaseSDKAgent {
-    constructor() {
-        super('DataProfiler', 15);
+    constructor(contextManager?: any) {
+        super('DataProfiler', 15, contextManager);
     }
 
     /**
@@ -47,6 +47,7 @@ export class DataProfiler extends BaseSDKAgent {
         try {
             const prompt = this.buildPrompt(input);
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');//await this.executeQuery(prompt);
+            this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
 
             return {
                agentName: 'DataProfiler',
@@ -69,6 +70,8 @@ export class DataProfiler extends BaseSDKAgent {
      * Build prompt for data profiling
      */
     protected buildPrompt(input: DataProfileInput): string {
+        console.log('FILEPATH', input.filepath)
+        console.log('USER ',input.userRequirements)
         return `You are analyzing a data processing task to generate specifications for agent creation.
 
 FILE TO ANALYZE: ${input.filepath}

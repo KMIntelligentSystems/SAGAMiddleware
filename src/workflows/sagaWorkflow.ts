@@ -254,6 +254,14 @@ export class SagaWorkflow {
         taskDescription: 'Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate comprehensive technical specifications for agent generation. You process user requirements in the context of the actual data.',
         taskExpectedOutput: 'Detailed technical specification including file structure, data types, transformation requirements, and agent generation guidelines.'
       },
+      {
+         agentName: 'AgentStructureGenerator',
+        agentType: 'processing',
+        transactionId: 'tx-2-3',
+        backstory: 'You analyze data files and generate technical specifications.',
+        taskDescription: 'Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate comprehensive technical specifications for agent generation. You process user requirements in the context of the actual data.',
+        taskExpectedOutput: 'Detailed technical specification including file structure, data types, transformation requirements, and agent generation guidelines.'
+      },
 
       //validation of rendering an agent [/AGENT  etc
       {
@@ -290,7 +298,7 @@ export class SagaWorkflow {
         backstory: 'Provide files for indexing using tool calls.',
         taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
       //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Provide information exactly as provided in meaningful terms for each agent in the set. You may frame your response in such a way as would be most beneficial for the receiving agent.'
+        taskExpectedOutput: 'Provide output in expected format.'
       },
       {
         agentName: 'D3JSCodeGenerator',
@@ -764,13 +772,13 @@ if(opType === 'profile_approved'){
     
 
       if(browserRequest.operationType === 'create_code'){
-      
+
          this.coordinator.initializeControlFlow(CONTROL_FLOW_LIST);
-        let result = await this.coordinator.executeControlFlow(browserRequest.userQuery);//, profiledPrompt
-        //result is result from the last Data Exporter - provides the csv file location 
+        let result = await this.coordinator.executeControlFlow({ userQuery: browserRequest.userQuery });//, profiledPrompt
+        //result is result from the last Data Exporter - provides the csv file location
         console.log('USER QUERY ', browserRequest.userQuery)
         let graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(browserRequest.userQuery), 'D3JSCoordinatingAgent');
-        
+
           const dataProfiler:D3JSCodeGenerator = new D3JSCodeGenerator();
        //  const nxtProfiledPrompt = await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
          const nxtProfiledPrompt = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await dataProfiler.generateD3Code(graphRequestPrompt,'LOCATE FILE IN RESULT: ' + result)
@@ -778,10 +786,10 @@ if(opType === 'profile_approved'){
          this.coordinator.contextManager.updateContext('D3JSCoordinatingAgent',{
              d3jsCodeResult:nxtProfiledPrompt
          }
-         
+
          )
          this.coordinator.initializeControlFlow(VALIDATE_D3JS_CODE_FLOW_LIST);
-         result = await this.coordinator.executeControlFlow(browserRequest.userQuery);//, nxtProfiledPrompt
+         result = await this.coordinator.executeControlFlow({ userQuery: browserRequest.userQuery });//, nxtProfiledPrompt
          const validatedD3JSCodeResult =  new  D3JSCodeValidator();
         const request = this.coordinator.parseConversationResultForAgent(browserRequest.userQuery, 'D3JSCoordinatingAgent');
   

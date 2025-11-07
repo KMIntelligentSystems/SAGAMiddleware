@@ -3410,4 +3410,26 @@ export const dataExporterPythonresult = ` {
   timestamp: 2025-10-27T22:17:59.250Z
 }`
 
+export const d3jsCoordinatingAgentResultforCodeGenerator = `{
+  "userRequirements": {
+    "filter": {
+      "date": "11/02/2023",
+      "timeRange": "06:00-18:00",
+      "inclusive": true
+    },
+    "aggregate": {
+      "from": "5-min",
+      "to": "hourly",
+      "method": "SUM",
+      "note": "12 readings per hour per installation"
+    },
+    "tasks": [
+      "Create D3 js line chart from the CSV file provided from the response from the MCP server using d3.csv()",
+      "Create an interactive legend for the line chart"
+    ],
+    "dataDescription": "Data represents energy installations MW/hr output for the designated time period"
+  },
+  "filePath": "C:/repos/SAGAMiddleware/data/processed_hourly.csv"
+}`
+
 export { csvContent, agentData };
