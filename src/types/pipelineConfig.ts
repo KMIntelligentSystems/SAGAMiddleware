@@ -53,11 +53,11 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             }
         },
         {
-            transactionType: 'AgentStructureGenerator',
-            name: 'AgentGenerationStep',
-            description: 'Generate agent structures in [AGENT:...] format',
-            inputFrom: 'profiledPrompt',
-            outputKey: 'agentStructures',
+            transactionType: 'DataProfiler',
+            name: 'DataProfilingStep',
+            description: 'Analyze CSV data and generate technical specifications',
+            inputFrom: 'agentStructures',
+            outputKey: 'profiledPrompt',
             processConfig: {
                 controlFlow: [
                     { agent: 'TransactionGroupingAgent', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
