@@ -12,6 +12,7 @@ export interface SDKAgentStep {
     inputFrom?: string; // Previous step's output
     outputKey: string; // Key to store result in context
     processConfig: {
+        processType: string;
         controlFlow: ProcessFlowStep[];
         renderVisualization?: boolean;
         testWithPlaywright?: boolean;
@@ -45,6 +46,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             description: 'Analyze CSV data and generate technical specifications',
             outputKey: 'profiledPrompt',
             processConfig: {
+                processType: 'agent',
                 controlFlow: [
                     { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' },
                    
@@ -59,6 +61,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             inputFrom: 'profiledPrompt',
             outputKey: 'agentStructures',
             processConfig: {
+                processType: 'agent',
                 controlFlow: [
                      { agent: 'DataProfiler', process: 'GenerateAgentAgentStructureProcess', targetAgent: 'AgentStructureGenerator' }
                 ]
@@ -71,10 +74,11 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             inputFrom: 'profiledPrompt',
             outputKey: 'agentStructures',
             processConfig: {
+                processType: 'subAgent',
                 controlFlow: [
                     { agent: 'AgentStructureGenerator', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
-                    { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'FlowDefiningAgent'  }
+                    { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'D3JSCoordinatingAgent'  }
                 ]
             }
         }
@@ -96,6 +100,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             inputFrom: 'agentStructures',
             outputKey: 'd3jsCode',
             processConfig: {
+                processType: 'agent',
                 controlFlow: [
                     { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator'  },
                   //  { agent: 'D3JSCodeGenerator', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
@@ -110,6 +115,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             inputFrom: 'd3jsCode',
             outputKey: 'validatedCode',
             processConfig: {
+                processType: 'agent',
                 controlFlow: [
                     { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeValidator' }
                 ],
@@ -133,6 +139,7 @@ export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
             description: 'Validate and fix existing D3 code',
             outputKey: 'updatedCode',
             processConfig: {
+                processType: 'agent',
                 controlFlow: [
                     { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
                 ],

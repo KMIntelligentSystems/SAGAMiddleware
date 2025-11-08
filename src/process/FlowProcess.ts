@@ -90,11 +90,17 @@ export class FlowProcess {
                   agentDefinitionsText,
                   flowDefiningAgentResult
         );
+        // Stringify with proper formatting to ensure transactions are included
+        const serialized = JSON.stringify(transactionSetCollection, null, 2);
         this.contextManager.updateContext(this.targetAgent.getName(), {
-            lastTransactionResule: JSON.stringify(transactionSetCollection)
+            lastTransactionResult: serialized
         })
     console.log(`✅ Created TransactionSetCollection: ${transactionSetCollection.id}`);
     console.log(`   Sets: ${transactionSetCollection.sets.length}`);
+    // Verify transactions are properly serialized
+    transactionSetCollection.sets.forEach((set, idx) => {
+      console.log(`   Set ${idx + 1} (${set.name}): ${set.transactions.length} transactions`);
+    });
 
     //transactionSetCollection;
         } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
@@ -107,13 +113,13 @@ export class FlowProcess {
         } 
        
     // Store flow result
-    this.contextManager.updateContext(this.flowDefiningAgent.getName(), {
+ /*   this.contextManager.updateContext(this.flowDefiningAgent.getName(), {
       lastTransactionResult: result.result,
       previousTransactionResult: ctx.lastTransactionResult,
       transactionId: 'tx-8',
       timestamp: new Date()
     });
-
+*/
     // Log extracted flow
     console.log(`✅ Flow extracted`);
     this.logFlowInfo(result.result);

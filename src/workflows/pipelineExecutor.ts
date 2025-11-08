@@ -176,26 +176,41 @@ export class PipelineExecutor {
 
         // PHASE 2: Execute SDK Agent (uses control flow output)
         console.log(`\n🤖 Executing SDK Agent: ${step.transactionType}...`);
-        const sdkAgent = this.instantiateAgent(step.transactionType);
+        let sdkResult: AgentResult;
 
-        // Prepare input for SDK agent from control flow result
-        const sdkInput = this.prepareSDKAgentInput(step, controlFlowResult, pipelineExecutionState);
+        if(step.processConfig.processType === 'agent')
+        {
+            const sdkAgent = this.instantiateAgent(step.transactionType);
 
-        const sdkResult = await sdkAgent.execute(sdkInput);
+            // Prepare input for SDK agent from control flow result
+            const sdkInput = this.prepareSDKAgentInput(step, controlFlowResult, pipelineExecutionState);
 
-        if (!sdkResult.success) {
-            throw new Error(`SDK Agent ${step.transactionType} failed: ${sdkResult.error}`);
+            sdkResult = await sdkAgent.execute(sdkInput);
+
+            if (!sdkResult.success) {
+                throw new Error(`SDK Agent ${step.transactionType} failed: ${sdkResult.error}`);
+            }
+
+            console.log(`✅ SDK Agent execution complete`);
+            this.coordinator.contextManager.updateContext(step.transactionType, {
+                lastTransactionResult: sdkResult.result,
+                transactionId: step.transactionType,
+                timestamp: new Date()
+            });
+            console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
+        } else {
+            // If processType is not 'agent', create a result from control flow only
+            console.log(`⚠️  Process type is not 'agent', using control flow result only`);
+            sdkResult = {
+                agentName: step.transactionType,
+                result: controlFlowResult.result,
+                success: true,
+                timestamp: new Date()
+            };
         }
 
-        console.log(`✅ SDK Agent execution complete`);
-
         // Store SDK result in context manager immediately so next step's control flow can access it
-        this.coordinator.contextManager.updateContext(step.transactionType, {
-            lastTransactionResult: sdkResult.result,
-            transactionId: step.transactionType,
-            timestamp: new Date()
-        });
-        console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
+       
 
         // Debug: Verify the result was stored
         const verification = this.coordinator.contextManager.getContext(step.transactionType);
@@ -214,7 +229,10 @@ export class PipelineExecutor {
         }
 
         if (step.processConfig.testWithPlaywright) {
-           const svgPath =  await this.handlePlaywrightTesting(step, sdkResult.result);
+           const codeString = typeof sdkResult.result === 'string'
+               ? sdkResult.result
+               : JSON.stringify(sdkResult.result);
+           const svgPath = await this.handlePlaywrightTesting(step, codeString);
            sdkResult.result = {'D3 JS CODE: ': sdkResult.result, 'SVG PATH: ': svgPath}
         }
 

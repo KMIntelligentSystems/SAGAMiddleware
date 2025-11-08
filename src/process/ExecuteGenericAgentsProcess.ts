@@ -46,10 +46,19 @@ export class ExecuteGenericAgentsProcess {
    * Execute generic agent
    */
   async execute(): Promise<AgentResult> {
-     
-      const ctx = this.coordinator.contextManager.getContext(this.targetAgent) as WorkingMemory;
-      const transactionSetCollection: TransactionSetCollection = JSON.parse(ctx.lastTransactionResule);
-      console.log('DEFINE AGENT TRANSACTION GROUPING AGENT',transactionSetCollection)
+
+      const ctx = this.coordinator.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+//console.log('TRANSACTION COLLECTION ', ctx.lastTransactionResult)
+      // Parse the transaction set collection with error handling
+      let transactionSetCollection: TransactionSetCollection;
+      try {
+        transactionSetCollection = JSON.parse(ctx.lastTransactionResult);
+        console.log('DEFINE AGENT TRANSACTION GROUPING AGENT', JSON.stringify(transactionSetCollection, null, 2));
+      } catch (error) {
+        console.error('Failed to parse transactionSetCollection:', error);
+        console.error('Raw data:', ctx.lastTransactionResult);
+        throw new Error('Invalid transaction set collection data');
+      }
     // Get context for the agent
      let sagaTransactions: SagaTransaction[] = [];
      transactionSetCollection.sets.forEach((transactionSet: TransactionSet) => {
@@ -139,6 +148,7 @@ console.log('target agent 1',this.targetAgent)
       const validatingAgent =  this.coordinator.agents.get('ValidatingAgent') as GenericAgent;
       const toolCallingAgent = this.coordinator.agents.get('ToolCallingAgent') as GenericAgent;
       for (const linearTx of linearTransactions) {
+        console.log('LINEAR TX ', linearTx)
              let agent = this.coordinator.agents.get(linearTx.agentName) as GenericAgent;
              console.log('LINEAR AGENT NAME', agent?.getName())//PandasDailyAveragingCoder-> MCPExecutePythonCaller
               console.log('LINEAR AGENT TASK ', agent?.getAgentDefinition().taskDescription) //task set
@@ -196,7 +206,7 @@ console.log('target agent 1',this.targetAgent)
             }
              
                  result.result =  dataExporterPythonresult;//pythonLogCodeResult //codeExecutorResult error result
-                 this.coordinator.contextManager.updateContext(linearTx.agentName, {
+                 this.coordinator.contextManager.updateContext(this.targetAgent, {
                   lastTransactionResult: result.result,//pythonLogCodeResult,
                   previousTransactionResult:  prevResult,
                   transactionId: this.agent.getId(),

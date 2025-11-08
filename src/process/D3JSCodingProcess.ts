@@ -96,7 +96,11 @@ console.log('CONVERSATION CTX', conversationContext)
       timestamp: new Date()
     };
     console.log(`📝 Extracted task for ${this.agent.getName()}`);
+    console.log('LAST CONTROL FLOW RESULT',this.lastControlFlowResult )//user requirements + file path
+
     if(this.targetAgentName === 'D3JSCodeGenerator'){
+          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+          console.log('CONTECT LAST TRANS RES', ctx.lastTransactionResult)//esult: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\r\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
            this.agent.deleteContext();
           this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis);
           this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
