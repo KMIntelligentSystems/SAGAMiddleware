@@ -17,6 +17,7 @@ import { AgentResult, WorkingMemory } from '../types/index.js';
 export class PipelineExecutor {
     private coordinator: SagaCoordinator;
     private state: PipelineExecutionState | null = null;
+    private finalResult: any;
 
     constructor(coordinator: SagaCoordinator) {
         this.coordinator = coordinator;
@@ -91,7 +92,11 @@ export class PipelineExecutor {
                 break;
             }
         }
-
+        if(pipeline.steps[pipeline.steps.length-1].transactionType  === 'UserReview'){
+            const ctx = this.coordinator.contextManager.getContext('ConversationAgent') as WorkingMemory;
+ 
+            this.finalResult = ctx.lastTransactionResult;
+        }
         this.state.completed = this.state.errors.length === 0;
 
         // Store the final composite agent result in the state
@@ -319,33 +324,9 @@ export class PipelineExecutor {
         }
     }
 
-    /**
-     * Extract file path from control flow result or pipeline state
-     */
-    private extractFilePath(
-        controlFlowResult: AgentResult,
-        pipelineExecutionState?: PipelineExecutionState
-    ): string {
-        // Check if filepath is in the control flow result
-        if (typeof controlFlowResult.result === 'object' && controlFlowResult.result?.filepath) {
-            return controlFlowResult.result.filepath;
-        }
-
-        // Check pipeline execution state for COMPLETED data with filepath
-        if (pipelineExecutionState?.context['COMPLETED']) {
-            const completed = pipelineExecutionState.context['COMPLETED'];
-            if (typeof completed === 'object' && completed.filepath) {
-                return completed.filepath;
-            }
-            if (typeof completed === 'string') {
-                return completed;
-            }
-        }
-
-        // Default to a standard test file path if not found
-        return 'c:/repos/SAGAMiddleware/data/supply.csv';
+    getFinalResult(): any{
+        return this.finalResult;
     }
-
     /**
      * Determine the appropriate input for a step based on configuration and previous results
      */
@@ -426,7 +407,7 @@ export class PipelineExecutor {
                 // Store paths in context
                 if (this.state) {
                     this.state.context.lastVisualizationPNG = renderResult.screenshotPath;
-                    this.state.context.lastVisualizationSVG = renderResult.svgPath;
+                    this.state.context.lastVisualizationSVGlastVisualizationSVG = renderResult.svgPath;
                 }
             } else {
                 console.warn(`⚠️  Visualization rendering failed: ${renderResult.error}`);

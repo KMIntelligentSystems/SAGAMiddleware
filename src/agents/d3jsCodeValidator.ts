@@ -6,7 +6,8 @@
  */
 
 import { BaseSDKAgent } from './baseSDKAgent.js';
-import { AgentResult } from '../types/index.js';
+import { AgentResult, WorkingMemory } from '../types/index.js';
+import * as fs from 'fs'
 
 export interface D3ValidationInput {
     requirements: string;
@@ -24,48 +25,65 @@ export class D3JSCodeValidator extends BaseSDKAgent {
      */
     async execute(input: D3ValidationInput): Promise<AgentResult> {
 
-        if (!this.validateInput(input)) {
-            return {
-                agentName: 'D3JSCodeValidator',
-                result: '',
-                success: false,
-                timestamp: new Date(),
-                error: 'Invalid input: filepath and userRequirements are required'
-            };
-        }
-
+        let output;
         try {
+            const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
+
+            if (!ctx || !ctx.lastTransactionResult) {
+                return {
+                    agentName: 'D3JSCodeValidator',
+                    result: '',
+                    success: false,
+                    timestamp: new Date(),
+                    error: 'Context not initialized: D3JSCodeValidator context must be set with requirements, d3jsCode, and svgPath before execution'
+                };
+            }
+
+            input = ctx.lastTransactionResult as D3ValidationInput;
+
+            if (!input.requirements || typeof input.requirements !== 'string' || input.requirements.length === 0) {
+                return {
+                    agentName: 'D3JSCodeValidator',
+                    result: '',
+                    success: false,
+                    timestamp: new Date(),
+                    error: 'Invalid input: requirements field is missing or empty in context'
+                };
+            }
+
             const prompt = this.buildPrompt(input);
-            const output = await this.executeQuery(prompt);
+            output = fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');//await this.executeQuery(prompt);
+            this.contextManager.updateContext('D3JSCodeValidator', {
+                lastTransactionResult: output
+            })
 
-            const isValid = output.includes('Requirements achieved');
-
-             return {
-                agentName: 'D3JSCodeValidator',
-                result: output,
-                success: true,
-                timestamp: new Date(),
-                error: 'Invalid input: filepath and userRequirements are required'
-            };
-            
         } catch (error) {
              return {
                 agentName: 'D3JSCodeValidator',
                 result: '',
                 success: false,
                 timestamp: new Date(),
-                error: 'Invalid input: filepath and userRequirements are required'
+                error: `Validation error: ${error instanceof Error ? error.message : String(error)}`
             };
         }
+          
+        return {
+                agentName: 'D3JSCodeValidator',
+                result: output,
+                success: true,
+                timestamp: new Date()
+            };
+            
     }
 
     /**
      * Build prompt for validation
      */
     protected buildPrompt(input: D3ValidationInput): string {
+        console.log('FINAL RESULT ', input)
         const d3jsCode = input.d3jsCode || 'c:/repos/SAGAMiddleware/data/d3jsCodeResult.txt';
         const svgPath = input.svgPath || 'c:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg';
-
+console.log('REQUIREMENTS ', input.requirements)
         return `You are a D3.js code validation and correction expert.
 
 USER REQUIREMENTS:

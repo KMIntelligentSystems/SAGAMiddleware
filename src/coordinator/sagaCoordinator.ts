@@ -299,25 +299,16 @@ sleep(ms: number) {
         );
 
       case 'ValidationProcess': {
-        console.log('TARGET AGENT NAME', targetAgentName)
-        // For ValidationProcess, agentName is ValidatingAgent, targetAgentName is the agent being validated
-        if (!targetAgentName) {
-          console.error('❌ ValidationProcess requires targetAgent');
-          return null;
-        }
-        const targetAgent = this.agents.get(targetAgentName);
-        if (!targetAgent) {
-          console.error(`❌ Target agent ${targetAgentName} not found`);
-          return null;
-        }
+        if( targetAgentName){
         return new ValidationProcess(
-          agent, // ValidatingAgent
-          targetAgent, // Agent being validated
+          agent.getName(), // ValidatingAgent
+          targetAgentName, // Agent being validated
           this.contextManager,
           userQuery
         );
       }
-
+    }
+     
       case 'FlowProcess': {
        /* const flowDefiningAgent = this.agents.get('FlowDefiningAgent');
         if (!flowDefiningAgent) {

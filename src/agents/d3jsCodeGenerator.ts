@@ -6,7 +6,9 @@
  */
 
 import { BaseSDKAgent} from './baseSDKAgent.js';
-import { AgentResult } from '../types/index.js';
+import { AgentResult, WorkingMemory } from '../types/index.js';
+import { D3VisualizationClient, D3RenderResult } from '../mcp/d3VisualizationClient.js';
+import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 
 import * as fs from 'fs'
 
@@ -17,6 +19,7 @@ export interface D3CodeInput {
 }
 
 export class D3JSCodeGenerator extends BaseSDKAgent {
+      private d3Client: D3VisualizationClient | null = null;
     constructor(contextManager?: any) {
         super('D3JSCodeGenerator', 15, contextManager);
     }
@@ -25,7 +28,9 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
      * Execute D3 code generation
      */
     async execute(input: D3CodeInput): Promise<AgentResult> {
-        console.log('FILE ', input.filepath)
+       
+        input = this.getInput();
+         console.log('FILE ', input.filepath)
         console.log(input.userRequirements)
         if (!this.validateInput(input)) {
              return {
@@ -40,8 +45,9 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
         try {
             const prompt = this.buildPrompt(input);
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await this.executeQuery(prompt);
-            this.setContext(output);
-            
+           
+            const svgResult = this.handlePlaywrightTesting(output)
+            this.setContext({'D3JS_CODE:': output, 'SVG_FILE_PATH:':svgResult });
            return {
                 agentName: ' D3JSCodeGenerator',
                 result: output,
@@ -107,15 +113,156 @@ The HTML will be rendered in Playwright which can access local files via file://
         );
     }
 
-    /**
-     * Legacy method for backward compatibility
-     * @deprecated Use execute() instead
+    protected getInput(): D3CodeInput{
+        const ctx = this.contextManager.getContext('D3JSCodeGenerator') as WorkingMemory;
+        const actualResult = ctx.lastTransactionResult;
+        let parsedResult;
+        if (typeof actualResult === 'string') {
+            try {
+                parsedResult = JSON.parse(actualResult);
+            } catch (e) {
+                    console.warn('Could not parse control flow result as JSON, using as-is');
+                }
+            }
+
+                // Extract filepath and userRequirements from the parsed result
+                const filepath = parsedResult.filePath || parsedResult.filepath || '';
+                const userRequirements = parsedResult.userRequirements
+                    ? (typeof parsedResult.userRequirements === 'string'
+                        ? parsedResult.userRequirements
+                        : JSON.stringify(parsedResult.userRequirements, null, 2))
+                    : JSON.stringify(parsedResult, null, 2);
+
+                console.log('📋 Prepared D3JSCodeGenerator input:', { filepath, userRequirements: userRequirements.substring(0, 100) + '...' });
+
+                return {
+                    filepath,
+                    userRequirements
+    }
+}
+
+  /**
+     * Handle visualization rendering with Playwright
      */
-  /*  async generateD3Code(userRequirements: string, contextData: string): Promise<string> {
-        const result = await this.execute({ userRequirements, contextData });
-        if (!result.success) {
-            throw new Error(result.error || 'Failed to generate D3.js code');
+    private async handlePlaywrightTesting(d3Code: string): Promise<any> {
+        console.log(`\n🎨 Rendering visualization with Playwright...`);
+        let renderResult;
+       try {
+            renderResult = await this.renderD3Visualization(
+                d3Code
+            );
+
+            if (renderResult.success) {
+                console.log(`✅ Visualization rendered`);
+                console.log(`   PNG: ${renderResult.screenshotPath}`);
+                console.log(`   SVG: ${renderResult.svgPath}`);
+            } else {
+                console.warn(`⚠️  Visualization rendering failed: ${renderResult.error}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error rendering visualization:`, error);
         }
-        return result.result;
-    }*/
+        return renderResult?.svgPath
+    }
+
+      /**
+       * Initialize D3 visualization client with Playwright MCP server
+       */
+      initializeD3Client(): void {
+        if (!this.d3Client) {
+          this.d3Client = new D3VisualizationClient(mcpClientManager, 'playwright-server');
+          console.log('✅ D3 visualization client initialized');
+        }
+      }
+    
+      /**
+       * Render D3 visualization code using Playwright MCP
+       *
+       * @param d3Code - The D3.js code to render
+       * @param agentName - The name of the agent that generated the code (optional, for context)
+       * @param outputName - Custom name for output files (optional)
+       * @param csvData - CSV data content to provide to d3.csv() calls (optional)
+       * @param csvFilename - CSV filename to intercept (optional)
+       * @returns Promise with render result including paths to PNG and SVG files
+       */
+      async renderD3Visualization(
+        d3Code: string,
+        agentName?: string,
+        outputName?: string,
+        csvData?: string,
+        csvFilename?: string
+      ): Promise<D3RenderResult> {
+        // Initialize D3 client if not already initialized
+        if (!this.d3Client) {
+          this.initializeD3Client();
+        }
+    
+        if (!this.d3Client) {
+          console.error('❌ Failed to initialize D3 client');
+          return {
+            success: false,
+            error: 'D3 client initialization failed'
+          };
+        }
+    
+        console.log(`🎨 Rendering D3 visualization${agentName ? ` from ${agentName}` : ''}...`);
+    
+        // Generate output name based on agent or timestamp
+        const baseName = outputName || (agentName ? `${agentName}-${Date.now()}` : `visualization-${Date.now()}`);
+    
+        try {
+          const result = { success: true, screenshotPath: '', svgPath: 'C:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg'}
+          
+          /*await this.d3Client.renderD3({
+            d3Code,
+            csvData,
+            csvFilename,
+            screenshotName: `${baseName}.png`,
+            svgName: `${baseName}.svg`,
+            outputPath: path.join(process.cwd(), 'output', 'd3-visualizations')
+          });
+    
+          if (result.success) {
+            console.log(`✅ D3 visualization rendered successfully`);
+            console.log(`  📸 PNG: ${result.screenshotPath}`);
+            console.log(`  💾 SVG: ${result.svgPath}`);
+    console.log('D3CODE',d3Code)
+            // Store visualization paths in context for the agent
+            if (agentName) {
+              this.contextManager.updateContext(agentName, {
+                lastVisualizationPNG: result.screenshotPath,
+                lastVisualizationSVG: result.svgPath,
+                timestamp: new Date()
+              });
+            }
+          }*/
+           this.contextManager.updateContext('D3JSCodeGenerator', {
+                d3jsCodeResult: d3Code,
+                userRequirements: this.getInput().userRequirements,
+                lastVisualizationPNG: result.screenshotPath,
+                lastVisualizationSVG: result.svgPath,
+                timestamp: new Date()
+              });
+    
+          return result;
+        } catch (error) {
+          console.error('❌ Error rendering D3 visualization:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    
+      /**
+       * Close D3 client and cleanup
+       */
+      async closeD3Client(): Promise<void> {
+        if (this.d3Client) {
+          await this.d3Client.close();
+          this.d3Client = null;
+          console.log('🔒 D3 visualization client closed');
+        }
+      }
+ 
 }

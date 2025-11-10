@@ -634,7 +634,8 @@ Focus: Only array extraction
     
     socket.on('event_received', async (message: any) => {
       console.log('MESSAGE TYPE', message.type)
-       if ((message.type === 'create_code' ||  message.type === 'update_code' || message.type === 'profile_approved') && message.source === 'react-app') {
+       console.log('MESSAGE SOURCE', message.source)
+       if ((message.type === 'create_code' ||  message.type === 'update_code' || message.type === 'profile_approved' || message.type === 'profile_rejected') && message.source === 'react-app') {
         console.log(`🧵 Received create_code from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'update_code' && message.source === 'react-app') {
@@ -687,30 +688,18 @@ Focus: Only array extraction
       console.log('STATE CONTEXT ', state)
       state = await pipelineExecutor.executePipeline( D3_VISUALIZATION_PIPELINE,data.message, state); 
       console.log('STATE CONTEXT 1', state)
-
-    /*  const dataProfiler: DataProfiler = new DataProfiler();
-     // let profiledPrompt = await dataProfiler.analyzeAndGeneratePrompt(initialPrompt,'C:/repos/SAGAMiddleware/data/two_days.csv')
-
-      console.log('✅ Data profiling complete, sending to user for review...\n');
-      const profiledPrompt =  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');
-      
-      // Send profiled prompt to user for review
-   //  await this.sendDataProfileToUser(profiledPrompt, threadId, data.workflowId, data.correlationId);
+      const finalResult = pipelineExecutor.getFinalResult();
+                 console.log('PIPE LINE ', finalResult)
+     await this.sendDataProfileToUser(finalResult, threadId, data.workflowId, data.correlationId);
 if(opType === 'profile_approved'){
-
+  console.log('PROFILE APPROVED ', data.message)
+} else if (opType === 'profile_rejected'){
+   console.log('PROFILE REJECTED ', data.message)
+   this.coordinator.contextManager.updateContext('ConversationAgent', {
+    userComment: data.message
+   })
 }
-    //  const agentStruct: AgentStructureGenerator = new AgentStructureGenerator()
-     // const res = agentConstructorInput//await agentStruct.generadteAgentStructures( data.message);
-
-      // Create browser request from thread) message
-       const browserRequest: BrowserGraphRequest = {
-        userQuery: message.data,
-         operationType: opType
-       };
-
-      // Execute SAGA with thread context (wait for user approval)
-      await this.executeThreadVisualizationSAGA(browserRequest, threadId, profiledPrompt);*/
-      
+   
     } catch (error) {
       console.error('❌ Error handling OpenAI thread request:', error);
       

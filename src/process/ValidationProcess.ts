@@ -26,19 +26,19 @@ import * as fs from 'fs';
  * Note: Retry logic (when validation fails) is handled by SagaCoordinator
  */
 export class ValidationProcess {
-  private validatingAgent: GenericAgent;
-  private targetAgent: GenericAgent;
+  private validatingAgent: string;
+  private targetAgent: string;
   private contextManager: ContextManager;
   private userQuery: string;
  
   constructor(
-    validatingAgent: GenericAgent,
-    targetAgent: GenericAgent,
+    validatingAgent: string,
+    targetAgent: string,
     contextManager: ContextManager,
     userQuery: string
   ) {
     this.validatingAgent = validatingAgent;
-    this.targetAgent = targetAgent;
+    this.targetAgent = targetAgent as string;
     this.contextManager = contextManager;
     this.userQuery = userQuery;
   }
@@ -47,21 +47,21 @@ export class ValidationProcess {
    * Execute validation
    */
   async execute(): Promise<AgentResult> {
-    console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent.getName()}`);
+    console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent}`);
 
     const taskDescription = this.userQuery;
     console.log('VALIDATION TASK DESC', taskDescription)//1 [AGENT: TransactionGroupingAgent, tx-2]  2 You will validate python code 3 [AGENT: TransactionGroupingAgent, tx-2] 4 You will validate python code 5 [AGENT: TransactionGroupingAgent, tx-2] 4 5 repeated
     // Get target agent's last result
-    const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
+    const ctx = this.contextManager.getContext(this.validatingAgent) as WorkingMemory;
 
     if (!ctx || !ctx.lastTransactionResult) {
-      console.error(`❌ No result found for ${this.targetAgent.getName()}`);
+      console.error(`❌ No result found for ${this.validatingAgent}`);
       return {
-        agentName: this.validatingAgent.getName(),
+        agentName: this.validatingAgent,
         result: 'ERROR: No output to validate',
         success: false,
         timestamp: new Date(),
-        error: `No lastTransactionResult found for ${this.targetAgent.getName()}`
+        error: `No lastTransactionResult found for ${this.targetAgent}`
       };
     }
 
@@ -74,7 +74,7 @@ export class ValidationProcess {
     );*/
 
      let result: AgentResult = {
-      agentName: this.targetAgent.getName(),
+      agentName: this.targetAgent,
       result: validationFixedSyntaxResult,
       success: true,
       timestamp: new Date()
@@ -83,198 +83,34 @@ export class ValidationProcess {
     console.log(`📝 Target agent output: ${ctx.lastTransactionResult.substring(0, 100)}...`);
 
     // Clear validating agent context
-    this.validatingAgent.deleteContext();
 
-    this.validatingAgent.setTaskDescription(this.targetAgent.getAgentDefinition().taskDescription);
-    // Set context for validation
-    //ValidatingAgent → ValidationProcess -> d3jscodingagent
-  if(this.targetAgent.getName() === 'D3JSCodingAgent'){
-    console.log('HERE D3JS VA')
-    const validateCtx = this.contextManager.getContext(this.validatingAgent.getName());
-
-     this.validatingAgent.receiveContext({ 'CODE': ctx.d3jsCodeResult });
-     this.validatingAgent.receiveContext({'CODE ANALYSIS: ': validateCtx?.lastTransactionResult})
-    this.validatingAgent.setTaskDescription(taskDescription);
-   result =  await this.validatingAgent.execute({});
-      result.result =  genReflectValidateResponse;// fs.readFileSync('data/d3JSValidation1.txt', 'utf-8')
-     this.contextManager.updateContext(this.targetAgent.getName(), {
-      lastTransactionResult: result.result,
-      transactionId: this.validatingAgent.getId(),
-      timestamp: new Date()
-    });
-  } else if(this.targetAgent.getName() === 'GeneratingAgent') {
-       const previousCtx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
-       this.validatingAgent.receiveContext({ 'REQUIREMENTS': previousCtx.lastTransactionResult });
-       this.validatingAgent.receiveContext({ 'SVG ANALYSIS': ctx.lastTransactionResult });
-       this.validatingAgent.receiveContext({'SVG': ctx.svgContent});
-       result.result = genReflectValidateResponse;
-       this.contextManager.updateContext(this.targetAgent.getName(), { //ValidatingAgent
-        lastTransactionResult: result.result,
-        transactionId: this.targetAgent.getId(),
+  if(this.targetAgent === 'D3JSCodeValidator') {
+       const ctx = this.contextManager.getContext('D3JSCodeGenerator') as WorkingMemory;
+       console.log('FIRST ',ctx.d3jsCodeResult)
+       console.log('requirements:', ctx.userRequirements)
+       console.log('THIRD',ctx.lastVisualizationSVG)
+       const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
+        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
+        lastTransactionResult: input,
+        transactionId: 'tx-3-3',
         timestamp: new Date()
       });
-
-     //  await this.validatingAgent.execute({});
-       
-  } else {
-     this.validatingAgent.receiveContext({ 'VALIDATE': ctx.lastTransactionResult });
+  } else  if(this.targetAgent === 'ConversationAgent') {
+       const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
+       console.log('FINAL IN VALIDATION ', ctx.lastTransactionResult)
+       const code = ctx.lastTransactionResult;
+       const input = {d3jsOutput: code} 
+       result.result = code;
+        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
+        lastTransactionResult: input,
+        transactionId: 'tx-1',
+        timestamp: new Date()
+      });
   }
-   
-    // Execute validation
- //  const result = await this.validatingAgent.execute({});
- //  console.log('VALIDATION ', result.result)
- 
-   
 
-    // Check if validation passed
-    const validationPassed = this.isValidationSuccessful(result.result);
-
-    if (validationPassed) {
-      console.log(`✅ Validation PASSED for ${this.targetAgent.getName()}`); //TransactionGroupingAgent
-       // Store validation result in context manager
-    // NOTE: We store under targetAgent's name so it can see validation feedback
-  /* this.contextManager.updateContext(this.targetAgent.getName(), {
-      lastTransactionResult: result.result,
-      validationResult: result.result,
-      transactionId: this.validatingAgent.getId(),
-      timestamp: new Date()
-    });*/
-    } else {
-      console.warn(`⚠️  Validation FAILED for ${this.targetAgent.getName()}`);
-      console.log(`📋 Validation feedback: ${result.result.substring(0, 200)}...`);
-    }
-//Assume that ValidatingAgent has fixed errors
-  /*  this.contextManager.updateContext('FlowDefiningAgent', {
-      lastTransactionResult: result.result,
-      validationResult: result.result,
-      transactionId: this.validatingAgent.getId(),
-      timestamp: new Date()
-    });*/
-
-    return {
+  return {
       ...result,
-      success: validationPassed
+      success: true
     };
-  }
-
-  /**
-   * Check if validation result indicates success
-   * Based on typical validation results like validationFixedSyntaxResult in testData.js
-   */
-  private isValidationSuccessful(validationResult: any): boolean {
-    // Type guard: ensure validationResult can be converted to string
-    if (validationResult === null || validationResult === undefined) {
-      return false;
-    }
-
-    const resultStr = typeof validationResult === 'string' ? validationResult : String(validationResult);
-    const resultLower = resultStr.toLowerCase();
-
-    // Try to parse as JSON to check for structured success/error fields
-    try {
-      // Look for JSON object in the string
-      const jsonMatch = resultStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-
-        // Check for explicit success field (e.g., "success": false)
-        if (typeof parsed.success === 'boolean') {
-          return parsed.success;
-        }
-
-        // Check for errors array (presence indicates failure)
-        if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
-          return false;
-        }
-      }
-    } catch (e) {
-      // Not JSON or invalid JSON, continue with text-based checks
-    }
-
-    // Check for explicit failure indicators
-    if (resultLower.includes('"success": false') ||
-        resultLower.includes('"success":false')) {
-      return false;
-    }
-
-    if (resultLower.includes('"errors"') && resultLower.includes('[')) {
-      return false;
-    }
-
-    // Check for text-based failure indicators
-    if (resultLower.includes('error') ||
-        resultLower.includes('invalid') ||
-        resultLower.includes('incorrect') ||
-        resultLower.includes('fail')) {
-      return false;
-    }
-
-    // Check for success indicators
-    if (resultLower.includes('"success": true') ||
-        resultLower.includes('"success":true') ||
-        resultLower.includes('valid') && !resultLower.includes('invalid') ||
-        resultLower.includes('correct') ||
-        resultLower.includes('passed')) {
-      return true;
-    }
-
-    // Default: assume validation passed if no clear failure indicators
-    return true;
-  }
-
-  /**
-   * Parse conversation result to extract content for a specific agent
-   */
-  private parseConversationResultForAgent(conversationResult: any, agentName: string): string {
-    try {
-      let resultText = '';
-      if (typeof conversationResult === 'string') {
-        resultText = conversationResult;
-      } else if (conversationResult.message) {
-        // Handle JSON object with message property (e.g., { threadId, message })
-        resultText = conversationResult.message;
-      } else if (conversationResult.result) {
-        resultText = conversationResult.result;
-      } else {
-        return '';
-      }
-
-      // Updated regex to handle both formats:
-      // [AGENT: agentName id] or [AGENT:agentName id] (with or without space after colon)
-      const startTagPattern = new RegExp(`\\[AGENT:\\s*${agentName}(?:[,\\s]+[^\\]]+)?\\]`, 'i');
-      const endTag = `[/AGENT]`;
-
-      const startTagMatch = resultText.match(startTagPattern);
-      let startIndex = -1;
-      let startTagLength = 0;
-
-      if (startTagMatch) {
-        startIndex = startTagMatch.index!;
-        startTagLength = startTagMatch[0].length;
-      } else {
-        return '';
-      }
-
-      const endIndex = resultText.indexOf(endTag, startIndex);
-
-      if (startIndex !== -1 && endIndex !== -1) {
-        let content = resultText.substring(startIndex + startTagLength, endIndex).trim();
-        content = content.replace(/^\d+\.\s*/, '').replace(/^\./, '').trim();
-        return content;
-      }
-
-      return '';
-    } catch (error) {
-      console.warn(`Failed to parse for agent ${agentName}:`, error);
-      return '';
-    }
-  }
-
-  /**
-   * Get validation result
-   */
-  getValidationResult(): string | null {
-    const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
-    return ctx?.validationResult || null;
   }
 }

@@ -105,9 +105,13 @@ console.log('CONVERSATION CTX', conversationContext)
           this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis);
           this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
           this.agent.receiveContext({ 'LAST CONTROL FLOW RESULT: ' :this.lastControlFlowResult }); 
+          //Disentangles the reqs and filepath for use by code generator
           result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+          this.contextManager.updateContext(this.targetAgentName, {
+            lastTransactionResult: result.result
+          })
     } else if (this.targetAgentName === 'D3JSCodeValidator'){
-
+         const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }
 

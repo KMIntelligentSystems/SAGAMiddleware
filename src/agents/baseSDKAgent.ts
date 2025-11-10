@@ -113,7 +113,7 @@ export abstract class BaseSDKAgent {
     /**
      * Set context in the shared context manager
      */
-    setContext(value: string){
+    setContext(value: any){
          this.contextManager.updateContext(this.agentName, {
             lastTransactionResult: value,
             transactionId: 'tx-2',

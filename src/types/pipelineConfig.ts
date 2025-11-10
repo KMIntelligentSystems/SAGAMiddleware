@@ -6,7 +6,7 @@
  */
 
 export interface SDKAgentStep {
-    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeValidator' |'AgentExecutor';
+    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview';
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
@@ -117,7 +117,21 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                    { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeValidator' }
+                    { agent: 'D3JSCodeGenerator', process: 'ValidationProcess', targetAgent: 'D3JSCodeValidator' }
+                ],
+               // Re-test with Playwright if code was corrected
+            }
+        },
+         {
+            transactionType: 'UserReview',
+            name: 'UserReviewingStep',
+            description: 'Validate D3.js code against requirements and SVG output',
+            inputFrom: 'd3jsCode',
+            outputKey: 'validatedCode',
+            processConfig: {
+                processType: 'subAgent',
+                controlFlow: [
+                    { agent: 'D3JSCodeValidator', process: 'ValidationProcess', targetAgent: 'ConversationAgent' }
                 ],
                // Re-test with Playwright if code was corrected
             }
@@ -135,13 +149,13 @@ export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
     steps: [
         {
             transactionType: 'D3JSCodeValidator',
-            name: 'ValidateExistingCode',
+            name: 'ValidateExistingCodeStep',
             description: 'Validate and fix existing D3 code',
             outputKey: 'updatedCode',
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                    { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                    { agent: 'ConversationAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator' }
                 ],
                 renderVisualization: true,
                 testWithPlaywright: true
