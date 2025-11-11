@@ -46,7 +46,8 @@ export class DataProfiler extends BaseSDKAgent {
 
         try {
             const prompt = this.buildPrompt(input);
-            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileResponse.txt', 'utf-8');//await this.executeQuery(prompt);
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //await this.executeQuery(prompt); //
+           // console.log('DATA PROFILER ', output)
             this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
 
             return {
@@ -70,44 +71,9 @@ export class DataProfiler extends BaseSDKAgent {
      * Build prompt for data profiling
      */
     protected buildPrompt(input: DataProfileInput): string {
-        console.log('FILEPATH', input.filepath)
-        console.log('USER ',input.userRequirements)
-        return `You are analyzing a data processing task to generate specifications for agent creation.
-
-FILE TO ANALYZE: ${input.filepath}
-
-USER REQUIREMENTS:
-${input.userRequirements}
-
-YOUR TASK:
-
-1. **Read and analyze the file** at ${input.filepath}:
-   - Detect encoding (check for BOM character at start)
-   - Understand structure (header rows, columns, MultiIndex)
-   - Identify datetime columns and infer their exact format strings
-   - Detect any data mappings/categories in the header structure
-   - Note data characteristics (missing values, negatives, data types)
-
-2. **Interpret user requirements**:
-   - What transformations are needed?
-   - What filters, aggregations, or outputs are requested?
-   - Infer implicit requirements from context
-
-3. **Generate a comprehensive prompt** for an agent structure generator.
-
-Your output should be a detailed prompt that will be used to create [AGENT: Name, ID] structures.
-
-Include in your prompt:
-- EXACT technical specifications from your file analysis (encoding, date format strings, column flattening methods)
-- Clear transformation requirements derived from user's request
-- Critical instructions for Python coding agents (grouping keys, output formats, error prevention)
-- Specific examples of what to avoid (wrong date formats, wrong aggregation grouping, syntax errors)
-
-The agent structure generator will use your prompt to create detailed instructions for cheap LLMs (gpt-4o-mini).
-Be specific about technical details you discovered - don't make the next agent guess.
-
-Output the complete prompt now.`;
-    }
+       
+        return this.getHistogramPrompt(input)
+      }
 
     /**
      * Validate input for data profiling
@@ -132,5 +98,98 @@ Output the complete prompt now.`;
             throw new Error(result.error || 'Failed to generate prompt from file analysis');
         }
         return result.result;
+    }
+
+    getFileAnalysisPrompt(input: DataProfileInput): string {
+        console.log('FILEPATH', input.filepath)
+        console.log('USER ',input.userRequirements)
+
+       return `You are analyzing a data processing task to generate specifications for agent creation.
+
+        FILE TO ANALYZE: ${input.filepath}
+
+        USER REQUIREMENTS:
+        ${input.userRequirements}
+
+        YOUR TASK:
+
+        1. **Read and analyze the file** at ${input.filepath}:
+        - Detect encoding (check for BOM character at start)
+        - Understand structure (header rows, columns, MultiIndex)
+        - Identify datetime columns and infer their exact format strings
+        - Detect any data mappings/categories in the header structure
+        - Note data characteristics (missing values, negatives, data types)
+
+        2. **Interpret user requirements**:
+        - What transformations are needed?
+        - What filters, aggregations, or outputs are requested?
+        - Infer implicit requirements from context
+
+        3. **Generate a comprehensive prompt** for an agent structure generator.
+
+        Your output should be a detailed prompt that will be used to create [AGENT: Name, ID] structures.
+
+        Include in your prompt:
+        - EXACT technical specifications from your file analysis (encoding, date format strings, column flattening methods)
+        - Clear transformation requirements derived from user's request
+        - Critical instructions for Python coding agents (grouping keys, output formats, error prevention)
+        - Specific examples of what to avoid (wrong date formats, wrong aggregation grouping, syntax errors)
+
+        The agent structure generator will use your prompt to create detailed instructions for cheap LLMs (gpt-4o-mini).
+        Be specific about technical details you discovered - don't make the next agent guess.
+
+        Output the complete prompt now.
+
+`;
+   
+    }
+
+    getHistogramPrompt(input: DataProfileInput): string {
+        console.log('FILEPATH', input.filepath)
+        console.log('USER ',input.userRequirements)
+
+    return `You are analyzing a data processing task to generate specifications for agent creation.
+
+        FILE TO ANALYZE: ${input.filepath}
+
+        USER REQUIREMENTS:
+        ${input.userRequirements}
+
+        YOUR TASK:
+            
+            You are a data analysis expert specializing in histogram generation.
+
+        Your task is to build a prompt for an agent structure generator to undertake the analysis of data in order to build a histogram. 
+        Consider the following for the agent:
+
+        1. **Interpret user requirements**:
+        - What transformations are needed?
+        - What filters, aggregations, or outputs are requested?
+        - Infer implicit requirements from context
+
+        2. **Data analysis and output**:
+        - Reads the CSV file
+        - Calculates statistical properties (min, max, mean, median, std, quartiles, IQR, skewness)
+        - Determines optimal bin sizes based on these statistics
+        - Considers multiple binning strategies (Sturges, Scott's rule, Freedman-Diaconis)
+        - Generates the histogram
+        - Exports results as CSV with UTF-8 BOM and 2 header rows
+
+        3. **Generate a comprehensive prompt** for an agent structure generator.
+
+        ## Important:
+        The data is too large to analyze directly.
+
+        Your output should be a detailed prompt that will be used to create [AGENT: Name, ID] structures.
+
+        Include in your prompt:
+        - Clear transformation requirements derived from user's request
+        - Critical instructions for Python coding agents (grouping keys, output formats, error prevention)
+        - Specific examples of what to avoid (wrong date formats, wrong aggregation grouping, syntax errors)
+
+        The agent structure generator will use your prompt to create detailed instructions for cheap LLMs (gpt-4o-mini).
+        Be specific about technical details you discovered - don't make the next agent guess.
+
+        Output the complete prompt now.`
     }
 }

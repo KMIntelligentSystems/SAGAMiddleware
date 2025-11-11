@@ -7,6 +7,7 @@ import { AgentResult } from '../types/index.js';
 import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult, userRequirementsResultJSON } from '../test/testData.js'
 import { dataValidatingAgentPrompt, userRequestPrompt } from '../types/visualizationSaga.js'
 import { DataProfileInput } from '../agents/dataProfiler.js'
+import {  histoRequirementsResultJSON } from '../test/histogramData.js'
 import * as fs from 'fs'
 
 /**
@@ -83,7 +84,7 @@ console.log('CONVERSATION ',conversationContext )
  
     if(this.agent.getName() === 'TransactionGroupingAgent'){
       this.agent.setTaskDescription(userRequestPrompt);
-      result.result =  userRequirementsResultJSON;//await this.agent.execute({'USER REQUEST': conversationContext});
+      result.result =  histoRequirementsResultJSON //await this.agent.execute({'USER REQUEST': conversationContext});  //userRequirementsResultJSON;//
       console.log('🔍 Before extraction, result.result:', result.result);
       const extracted = this.extractDataFromResult(result);
       console.log('🔍 After extraction, extracted:', JSON.stringify(extracted, null, 2));

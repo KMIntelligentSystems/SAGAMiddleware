@@ -6,7 +6,7 @@
  */
 
 export interface SDKAgentStep {
-    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview';
+    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview';
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
@@ -148,14 +148,14 @@ export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
     description: 'Pipeline for updating existing D3 code based on feedback',
     steps: [
         {
-            transactionType: 'D3JSCodeValidator',
-            name: 'ValidateExistingCodeStep',
-            description: 'Validate and fix existing D3 code',
+            transactionType: 'D3JSCodeUpdater',
+            name: 'UpdateExistingCodeStep',
+            description: 'Update existing D3 code based on user comments',
             outputKey: 'updatedCode',
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                    { agent: 'ConversationAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator' }
+                    { agent: 'ConversationAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeUpdater' }
                 ],
                 renderVisualization: true,
                 testWithPlaywright: true

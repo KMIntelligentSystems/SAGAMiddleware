@@ -46,10 +46,11 @@ export abstract class BaseSDKAgent {
         console.log(`\n╔═══════════════════════════════════════════════════════════════╗`);
         console.log(`║  ${this.agentName.padEnd(61)} ║`);
         console.log(`╚═══════════════════════════════════════════════════════════════╝\n`);
-
         let result = '';
         let turnCount = 0;
-     /*   const q = query({ prompt, options: this.options });
+        if(this.agentName === 'AgentStructureGenerator'){
+
+           /*    const q = query({ prompt, options: this.options });
 
       
 
@@ -68,8 +69,12 @@ export abstract class BaseSDKAgent {
             throw new Error(`${this.agentName} failed to generate result`);
         }
 
+
         console.log('═'.repeat(67));
         console.log(`✅ ${this.agentName} complete\n`);*/
+        }
+    
+        console.log('UPDATER RESULT ',result)
 
         return result;
     }

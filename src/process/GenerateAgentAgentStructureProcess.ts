@@ -59,7 +59,7 @@ export class GenerateAgentAgentStructureProcess {
 
      if(this.targetAgent){
           this.contextManager.updateContext(this.targetAgent, {
-          lastTransactionResult: agentDefinitionsCtx.lastTransactionResult,
+          lastTransactionResult: JSON.stringify(agentDefinitionsCtx.lastTransactionResult),
           transactionId: 'id',
            timestamp: new Date()
       })

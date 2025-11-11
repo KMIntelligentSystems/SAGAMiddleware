@@ -80,15 +80,16 @@ export class FlowProcess {
     };
 
       if(this.targetAgent.getName() === 'FlowDefiningAgent'){
-       //    result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
+           result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
+           console.log('FLOW DATA DEF', result.result)
         
        const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
       const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)
      //   console.log('DEFINE AGENT TRANSACTION GROUPING AGENT',  agentDefinitionsText)
-         result.result = flowDefiningAgentResult;
+       //  result.result = flowDefiningAgentResult;
          const transactionSetCollection = AgentParser.parseAndCreateAgents(
                   agentDefinitionsText,
-                  flowDefiningAgentResult
+                  result.result //flowDefiningAgentResult
         );
         // Stringify with proper formatting to ensure transactions are included
         const serialized = JSON.stringify(transactionSetCollection, null, 2);

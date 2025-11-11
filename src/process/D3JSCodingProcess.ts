@@ -113,6 +113,14 @@ console.log('CONVERSATION CTX', conversationContext)
     } else if (this.targetAgentName === 'D3JSCodeValidator'){
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+    } else if (this.targetAgentName === 'D3JSCodeUpdater'){
+         const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+         console.log('CONVERSATION AGENT CTX ',  ctx.lastTransactionResult)
+         const input = {existingCode: ctx.lastTransactionResult.d3jsOutput, userComment: ctx.userComment}
+         this.contextManager.updateContext(this.targetAgentName, {
+          lastTransactionResult: input
+         })
+        //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }
 
 

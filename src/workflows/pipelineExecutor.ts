@@ -11,6 +11,7 @@ import { DataProfiler } from '../agents/dataProfiler.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
+import { D3JSCodeUpdater } from '../agents/d3jsCodeUpdater.js';
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 
@@ -138,6 +139,8 @@ export class PipelineExecutor {
                 return new AgentStructureGenerator(contextManager);
             case 'D3JSCodeGenerator':
                 return new D3JSCodeGenerator(contextManager);
+            case 'D3JSCodeUpdater':
+                return new D3JSCodeUpdater(contextManager);
             case 'D3JSCodeValidator':
                 return new D3JSCodeValidator(contextManager);
             default:
@@ -273,7 +276,6 @@ export class PipelineExecutor {
         switch (step.transactionType) {
             case 'DataProfiler':
                 // DataProfiler needs filepath + userRequirements
-                console.log('DATAFILER ', controlFlowResult)
                 const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory
                 console.log('CTX ', ctx.lastTransactionResult)
                 return {
@@ -312,7 +314,45 @@ export class PipelineExecutor {
                 };
             }
 
-            case 'AgentStructureGenerator':
+            case 'D3JSCodeUpdater': {
+                // D3JSCodeUpdater needs existingCode and userComment
+             /*   const actualResult = controlFlowResult.result?.result || controlFlowResult.result;
+
+                // Parse the result if it's a JSON string
+                let parsedResult = actualResult;
+                if (typeof actualResult === 'string') {
+                    try {
+                        parsedResult = JSON.parse(actualResult);
+                    } catch (e) {
+                        console.warn('Could not parse control flow result as JSON, using as-is');
+                    }
+                }
+
+                // Extract required fields from the parsed result
+                const existingCode = parsedResult.existingCode || parsedResult.code || '';
+                const userComment = parsedResult.userComment || parsedResult.comment || '';
+
+                console.log('📋 Prepared D3JSCodeUpdater input:', {
+                    userComment: userComment.substring(0, 100) + '...',
+                    existingCodeLength: existingCode.length
+                });*/
+                const ctx = this.coordinator.contextManager.getContext( 'D3JSCodeUpdater') as WorkingMemory;
+                console.log('UPDATER ',  ctx.lastTransactionResult)
+                const existingCode =  ctx.lastTransactionResult.existingCode;
+                const userComment =  ctx.lastTransactionResult.userComment
+                return {
+                  existingCode,
+                  userComment
+                };
+            }
+
+            case 'AgentStructureGenerator':{
+                  const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory
+                console.log('CTX ', ctx.lastTransactionResult)
+                const req =   JSON.stringify(ctx.lastTransactionResult)
+                return req;
+            }
+
             case 'D3JSCodeValidator':
                 // These agents take string input
                 return typeof controlFlowResult.result === 'string'

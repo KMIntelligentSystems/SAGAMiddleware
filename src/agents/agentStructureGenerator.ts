@@ -25,7 +25,8 @@ export class AgentStructureGenerator extends BaseSDKAgent {
       
         try {
             const prompt = this.buildPrompt(input);
-            const output =  fs.readFileSync('C:/repos/SAGAMiddleware/data/TransactionGroupingFormProfileResult.txt', 'utf-8');//await this.executeQuery(prompt);
+     console.log('AGENT STRUCTURE ', input)
+            const output =  await this.executeQuery(prompt);//fs.readFileSync('C:/repos/SAGAMiddleware/data/histoAgentGenResult.txt', 'utf-8');/ TransactionGroupingFormProfileResult
             this.setContext(output);
              return {
                 agentName: ' AgentStructureGenerator',

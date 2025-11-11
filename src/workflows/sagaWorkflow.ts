@@ -19,7 +19,7 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
-import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE } from '../types/pipelineConfig.js'
+import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE } from '../types/pipelineConfig.js'
 
 import * as fs from 'fs'
 
@@ -684,20 +684,19 @@ Focus: Only array extraction
 
       const pipelineExecutor: PipelineExecutor = new  PipelineExecutor(this.coordinator);
       let state = await pipelineExecutor.executePipeline(DATA_PROFILING_PIPELINE,data.message, undefined);// D3_VISUALIZATION_PIPELINE
-     // const graphRequestPrompt = this.coordinator.parseConversationResultForAgent(JSON.stringify(data.message), 'D3JSCoordinatingAgent');
-      console.log('STATE CONTEXT ', state)
       state = await pipelineExecutor.executePipeline( D3_VISUALIZATION_PIPELINE,data.message, state); 
       console.log('STATE CONTEXT 1', state)
       const finalResult = pipelineExecutor.getFinalResult();
                  console.log('PIPE LINE ', finalResult)
-     await this.sendDataProfileToUser(finalResult, threadId, data.workflowId, data.correlationId);
+//await this.sendDataProfileToUser(finalResult, threadId, data.workflowId, data.correlationId);
 if(opType === 'profile_approved'){
   console.log('PROFILE APPROVED ', data.message)
 } else if (opType === 'profile_rejected'){
    console.log('PROFILE REJECTED ', data.message)
    this.coordinator.contextManager.updateContext('ConversationAgent', {
     userComment: data.message
-   })
+   });
+   state = await pipelineExecutor.executePipeline( D3_CODE_UPDATE_PIPELINE,data.message, undefined);
 }
    
     } catch (error) {
