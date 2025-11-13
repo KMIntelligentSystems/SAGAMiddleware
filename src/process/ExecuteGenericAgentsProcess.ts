@@ -9,6 +9,7 @@ import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../ty
 import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError, dataLoaderPython,
    dataFilterPython, dataTransformerPython, dataAggregatorPython, dataExporterPython, dataExporterPythonresult
 } from '../test/testData.js'
+import { dataProfilerError } from '../test/histogramData.js'
 import * as fs from 'fs'
 
 /**,agentConstructorPythonExecutionError
@@ -68,8 +69,15 @@ export class ExecuteGenericAgentsProcess {
              console.log('ID ', transaction.id)
             })
           });
-
-
+     let hasError = false;
+     let correctedCode = '';
+     let agentInError = '';
+     if(ctx.hasError){
+       hasError = true;
+      correctedCode = ctx.codeInErrorResult;
+      agentInError = ctx.agentInError;
+     }
+console.log('AGENT IN ERROR ', agentInError)
     // Execute agent
     let result: AgentResult = {
       agentName: '',
@@ -81,7 +89,7 @@ sagaTransactions.forEach(e => {
   console.log('EXEC NAME ', e.agentName)
 })
     if(sagaTransactions.length > 1){
-     result = await this.executeSagaTransactionWithLinearContext( sagaTransactions);
+     result = await this.executeSagaTransactionWithLinearContext( sagaTransactions, hasError, correctedCode, agentInError);
     } else if(sagaTransactions.length === 1){
      result = await this.executeSagaTransactionWithSingletonContext( sagaTransactions[0]);
     }
@@ -107,34 +115,38 @@ sagaTransactions.forEach(e => {
      console.log('SINGLETON ', transaction.agentName)
       const agent = this.coordinator.agents.get(transaction.agentName);
 
- //     const result = await agent?.execute({});
-//flowProcess
+      if (!agent) {
+        throw new Error(`Agent ${transaction.agentName} not found`);
+      }
+
+      // Execute the agent
+      const result = await agent.execute({});
+
+      console.log('🔍 Singleton execution result:', JSON.stringify(result, null, 2).substring(0, 300));
+
+      // Store result in both agent's own context and target agent context
       this.coordinator.contextManager.updateContext(this.agent.getName(), {
-      lastTransactionResult: graphAnalyzerResult_1,
-      transactionId: this.agent.getId(),
-      timestamp: new Date()
-    });
-//D3JSCoordinationAgent
-console.log('target agent 1',this.targetAgent)
+        lastTransactionResult: result.result,
+        transactionId: this.agent.getId(),
+        timestamp: new Date()
+      });
+
+      console.log('target agent 1',this.targetAgent)
       this.coordinator.contextManager.updateContext(this.targetAgent, {
-      lastTransactionResult: graphAnalyzerResult_1,
-      transactionId: this.agent.getId(),
-      timestamp: new Date()
-    });
+        lastTransactionResult: result.result,
+        transactionId: this.agent.getId(),
+        timestamp: new Date()
+      });
 
-    
-       let result_: AgentResult = {agentName: this.agent.getName(),
-      result:  graphAnalyzerResult_1,
-      success: false,
-      timestamp: new Date()
-    };
-
-    return result_;
+      return result;
 
     }  
     
     private async executeSagaTransactionWithLinearContext(
-      linearTransactions: SagaTransaction[]
+      linearTransactions: SagaTransaction[],
+      inError: boolean, 
+      correctedCode: string, 
+      inErrorAgent: string
     ): Promise<AgentResult> {
 
       const firstAgent = linearTransactions[0].agentName;
@@ -147,109 +159,85 @@ console.log('target agent 1',this.targetAgent)
       let cleanCode = '';
       const validatingAgent =  this.coordinator.agents.get('ValidatingAgent') as GenericAgent;
       const toolCallingAgent = this.coordinator.agents.get('ToolCallingAgent') as GenericAgent;
+
+     /* let hasError = false;
+      let codeInError;
+      let agentInError;
+      const ctx = this.coordinator.contextManager.getContext(this.targetAgent) as WorkingMemory;
+      //TypeError: Cannot read properties of undefined (reading 'hasError')
+      if(ctx && ctx.hasError){
+        hasError = true;
+        codeInError = ctx.codeInErrorResult;
+        agentInError = ctx.agentInError;
+      }*/
       for (const linearTx of linearTransactions) {
         console.log('LINEAR TX ', linearTx)
-             let agent = this.coordinator.agents.get(linearTx.agentName) as GenericAgent;
-             console.log('LINEAR AGENT NAME', agent?.getName())//PandasDailyAveragingCoder-> MCPExecutePythonCaller
-              console.log('LINEAR AGENT TASK ', agent?.getAgentDefinition().taskDescription) //task set
-              console.log('LINEAR AGENT Type ', linearTx.agentType)
-           
-             console.log('LINEAR AGENT ', agent?.getContext())//nothing in context []
-             
-          if(firstAgent ===  linearTx.agentName ){
-            if ( linearTx.agentType === 'tool'){
-             /*  
-                prevResult = result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataLoadPythonResult.txt', 'utf-8');//await toolCallingAgent.execute({'CODE:': cleanCode})*/
+        console.log('LINEAR TX 1',inError)
+           console.log('LINEAR TX 2',inErrorAgent)
+ console.log('LINEAR TX 3', correctedCode)
 
-              //  validatingAgent.deleteContext();
-             //   result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
-                 cleanCode =  dataLoaderPython.trim();//this.cleanPythonCode(JSON.stringify(result.result)).trim();
-                 console.log('DATA TRANS CODE 1', cleanCode)
-                 toolCallingAgent.deleteContext();
-              //   result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-             //    console.log('TOOL CALL 1', result.result)
-            }
-          
-          } else{
-            if(linearTx.agentName === `Data Filter` && linearTx.agentType === 'tool'){
-               //   validatingAgent.deleteContext();
-               //   result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
-                 cleanCode =  dataFilterPython.trim()//this.cleanPythonCode(JSON.stringify(result.result) || '').trim();
-                 console.log('DATA FILTER CODE 2', cleanCode)
-               //  toolCallingAgent.deleteContext();
-               //  result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-               //  console.log('TOOL CALL 2', result.result)
-            } else  if(linearTx.agentName === `Data Transformer` && linearTx.agentType === 'tool'){
-                 // validatingAgent.deleteContext();
-                //  result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
-                 cleanCode = dataTransformerPython;//this.cleanPythonCode(JSON.stringify(result.result)).trim();
-                 console.log('DATA TRANS CODE 3', cleanCode)
-               //  toolCallingAgent.deleteContext();
-              //   result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-                 console.log('TOOL CALL  3', result.result)
-            } else if(linearTx.agentName === `Data Aggregator` && linearTx.agentType === 'tool'){
-                //  validatingAgent.deleteContext();
-                //  result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
-                 cleanCode = dataAggregatorPython;//this.cleanPythonCode(JSON.stringify(result.result)).trim();
-                 console.log('DATA TRANS CODE 4', cleanCode)
-               //  toolCallingAgent.deleteContext();
-               //  result  = await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-               //  console.log('TOOL CALL  4', result.result)
-            } else if(linearTx.agentName === `Data Exporter` && linearTx.agentType === 'tool'){
-               //   validatingAgent.deleteContext();
-                 // result = await validatingAgent.execute({'REQUIREMENTS AND CODE: ':  agent?.getAgentDefinition().taskDescription}); 
-                 cleanCode = dataExporterPython;//this.cleanPythonCode(JSON.stringify(result.result)).trim();
-                 console.log('DATA TRANS CODE 5', cleanCode)
-                // toolCallingAgent.deleteContext();
-                 result.result  = dataExporterPythonresult;//await  toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; 
-                 console.log('TOOL CALL  5', result.result)
-            }
-             
-                 result.result =  dataExporterPythonresult;//pythonLogCodeResult //codeExecutorResult error result
-                 this.coordinator.contextManager.updateContext(this.targetAgent, {
-                  lastTransactionResult: result.result,//pythonLogCodeResult,
-                  previousTransactionResult:  prevResult,
-                  transactionId: this.agent.getId(),
-                  timestamp: new Date()
-                });
+        if (linearTx.agentType === 'tool') {
+          console.log(`🔧 Executing tool agent: ${linearTx.agentName}`);
+          toolCallingAgent.deleteContext();
+          let cleanCode = '';
+          if(inError && inErrorAgent === linearTx.agentName){
+                cleanCode = this.cleanPythonCode( correctedCode).trim();
+                console.log('CLEAN CODE EXEC ', cleanCode)
+                await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
+          } else {
+               cleanCode = this.cleanPythonCode(JSON.stringify(linearTx)).trim();
           }
-          
-             
-            
-            
-           /*  visCodeWriterResult
-           
-           let cleanCode = this.cleanPythonCode(result.result || '')
-            //  console.log('LINEAR CTX ', cleanCode)
-            //TEST wrting code
-          //    result = await agent?.execute({'Information to complete your task:': cleanCode}) as AgentResult;
-             
-              result.result = D3JSCodeingAgentReuslt;
-              cleanCode = this.cleanPythonCode(result.result || '')
-              const agentName = agent?.getName() as string
-              //OUT LINEAR  PythonToolInvoker
-              //OUT LINEAR  1  codeExecutorResult ie python tool call
-              console.log('OUT LINEAR ', agentName)
-              console.log('OUT LINEAR  1 ', cleanCode)
-               try{
-                //codeWriterResult is example of clean code previous Result which is executed 
-                this.coordinator.contextManager.updateContext(agentName,{previousResult: cleanCode });
-                //codeExecutorResult is example of result.result for python tool call response
-                this.coordinator.contextManager.updateContext(agentName,{latestExecutionResult: result.result });
-               }catch (error) {
-                  console.log('ERROR ', error)
-               }
-              */
-            
-   
+       
+
+          try {
+            // Actually execute the tool calling agent
+            result.result = dataProfilerError//await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
+
+            console.log('TOOL CALL ' + linearTx.agentName, result)
+            console.log('TOOL CALL SUCCESS FLAG: ', result.success)
+
+            if (!result.success) {
+              console.log('RESULT ERROR EXEC 1', linearTx.agentName )
+                console.log('RESULT ERROR EXEC CODE', linearTx )
+              this.coordinator.contextManager.updateContext(this.targetAgent, {
+                 lastTransactionResult: result.result,
+                codeInErrorResult: linearTx,
+                agentInError: linearTx.agentName,
+                hasError: true,
+                transactionId: this.agent.getId(),
+                timestamp: new Date()
+              });
+              result.error = result.result
+              break;
+            } else {
+              this.coordinator.contextManager.updateContext(this.targetAgent, {
+                  lastTransactionResult: result.result,//pythonLogCodeResult,
+                  hasError: false,                 
+                  transactionId: this.agent.getId(),  
+                  timestamp: new Date()
+         });
+            }
+          } catch (error) {
+            console.error(`❌ Tool execution failed:`, error);
+            result = {
+              agentName: 'ToolCallingAgent',
+              result: `Error: ${error}`,
+              success: false,
+              timestamp: new Date()
+            };
+            break;
+          }
+        } 
       }
+       
         console.log('RESULT_2', result.result)
-          // Execute with enhanced context
+         console.log('RESULT_2_1', result.success)
+          // Execute with enhanced context - propagate the actual success flag from tool execution
           return {agentName: '',
         result: result,
-        success: true,
+        success: result.success, // Use the actual success flag from the tool result
         timestamp: new Date(
-          
+
         )};
     }
     

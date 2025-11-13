@@ -6,7 +6,7 @@
  */
 
 export interface SDKAgentStep {
-    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview';
+    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater';
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
@@ -78,12 +78,37 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                 controlFlow: [
                     { agent: 'AgentStructureGenerator', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
-                    { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'D3JSCoordinatingAgent'  }
+                    { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent'  },
+                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'ValidatingAgent'  }
                 ]
             }
         }
     ],
     onComplete: 'proceed_to_visualization'
+};
+
+export const PYTHON_CODE_UPDATE_PIPELINE: PipelineConfig = {
+    name: 'PythonCodeUpdatePipeline',
+    description: 'Pipeline for updating existing Python code based on feedback',
+    steps: [
+         {
+            transactionType: 'AgentExecutor',
+            name: 'AgentExecutorStep',
+            description: 'Generate agent structures in [AGENT:...] format',
+            inputFrom: 'profiledPrompt',
+            outputKey: 'agentStructures',
+            processConfig: {
+                processType: 'subAgent',
+                controlFlow: [
+                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'AgentStructureGenerator'  },
+                    { agent: 'AgentStructureGenerator', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
+                    { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent'  },
+                  //  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'ValidatingAgent'  }
+                ]
+            }
+        }
+    ],
+    onComplete: 'send_to_user'
 };
 
 /**

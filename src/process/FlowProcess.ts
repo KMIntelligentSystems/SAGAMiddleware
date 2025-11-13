@@ -6,6 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import {agentDefinitionPrompt} from '../types/visualizationSaga.js';
 import { flowDefiningAgentResult, flowData,d3jsFlowData } from '../test/testData.js';
+import {  histoFlowDefineingAgentResult } from '../test/histogramData.js';
 import {AgentParser} from '../agents/agentParser.js'
 
 /**
@@ -79,17 +80,16 @@ export class FlowProcess {
       timestamp: new Date()
     };
 
-      if(this.targetAgent.getName() === 'FlowDefiningAgent'){
-           result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
-           console.log('FLOW DATA DEF', result.result)
-        
+      if(this.flowDefiningAgent.getName() === 'FlowDefiningAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){
+           result.result =  histoFlowDefineingAgentResult//await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
+          
        const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
       const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)
      //   console.log('DEFINE AGENT TRANSACTION GROUPING AGENT',  agentDefinitionsText)
        //  result.result = flowDefiningAgentResult;
          const transactionSetCollection = AgentParser.parseAndCreateAgents(
                   agentDefinitionsText,
-                  result.result //flowDefiningAgentResult
+                   histoFlowDefineingAgentResult//result.result //flowDefiningAgentResult
         );
         // Stringify with proper formatting to ensure transactions are included
         const serialized = JSON.stringify(transactionSetCollection, null, 2);
@@ -102,25 +102,18 @@ export class FlowProcess {
     transactionSetCollection.sets.forEach((set, idx) => {
       console.log(`   Set ${idx + 1} (${set.name}): ${set.transactions.length} transactions`);
     });
+  } else if(this.flowDefiningAgent.getName() === 'ValidatingAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){ 
+       const valCtx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
+       console.log('FLOW VALIDATION',JSON.stringify(valCtx))
+         this.contextManager.updateContext(this.targetAgent.getName(), {
+                codeInErrorResult: valCtx.lastTransactionResult,
+                agentInError: valCtx.agentInError,
+                hasError:  valCtx.hasError,
+                transactionId: this.targetAgent.getId(),
+                timestamp: new Date()
+              });
+  } 
 
-    //transactionSetCollection;
-        } else if(this.targetAgent.getName() === 'VisualizationCoordinatingAgent'){
-           console.log('VISUALISATION AGENT')
-         result.result = flowData;
-        } else if(this.targetAgent.getName() === 'D3JSCoordinatingAgent'){
-        //  const result = await this.flowDefiningAgent.execute({});
-        //   console.log('D3JS AGENT', result.result )
-           result.result = d3jsFlowData;
-        } 
-       
-    // Store flow result
- /*   this.contextManager.updateContext(this.flowDefiningAgent.getName(), {
-      lastTransactionResult: result.result,
-      previousTransactionResult: ctx.lastTransactionResult,
-      transactionId: 'tx-8',
-      timestamp: new Date()
-    });
-*/
     // Log extracted flow
     console.log(`✅ Flow extracted`);
     this.logFlowInfo(result.result);

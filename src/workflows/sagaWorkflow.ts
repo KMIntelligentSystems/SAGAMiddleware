@@ -19,7 +19,7 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
-import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE } from '../types/pipelineConfig.js'
+import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE ,  PYTHON_CODE_UPDATE_PIPELINE} from '../types/pipelineConfig.js'
 
 import * as fs from 'fs'
 
@@ -684,6 +684,12 @@ Focus: Only array extraction
 
       const pipelineExecutor: PipelineExecutor = new  PipelineExecutor(this.coordinator);
       let state = await pipelineExecutor.executePipeline(DATA_PROFILING_PIPELINE,data.message, undefined);// D3_VISUALIZATION_PIPELINE
+   
+      const result = state.lastControlFlowResult as AgentResult;
+       console.log('END ', state.lastControlFlowResult)
+      if(!state.lastControlFlowResult.success){
+         state = await pipelineExecutor.executePipeline( PYTHON_CODE_UPDATE_PIPELINE,data.message, undefined);
+      }
       state = await pipelineExecutor.executePipeline( D3_VISUALIZATION_PIPELINE,data.message, state); 
       console.log('STATE CONTEXT 1', state)
       const finalResult = pipelineExecutor.getFinalResult();

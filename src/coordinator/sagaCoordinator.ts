@@ -301,7 +301,7 @@ sleep(ms: number) {
       case 'ValidationProcess': {
         if( targetAgentName){
         return new ValidationProcess(
-          agent.getName(), // ValidatingAgent
+          agent, // ValidatingAgent
           targetAgentName, // Agent being validated
           this.contextManager,
           userQuery
@@ -525,103 +525,12 @@ sleep(ms: number) {
               result.result = agentResult.result;
         }
 
-      /*  if (step.process === 'FlowProcess') {
-
-          const process = this.instantiateProcess('AgentGeneratorProcess', step.agent, input.userQuery);
-          const transactionSetCollection = await process?.execute() as TransactionSetCollection;
-          const executionProcess = this.instantiateProcess('ExecuteGenericAgentsProcess', step.agent, input.userQuery, step.targetAgent, transactionSetCollection);
-          const response =  await executionProcess?.execute() as AgentResult;
-          console.log('VALIDATING EXEC', response.result)
-          result.result = JSON.stringify(response.result);
-          this.contextManager.updateContext('D3JSCoordinatingAgent', {
-                  lastTransactionResult: response.result,//pythonLogCodeResult,
-                  transactionId: 'tx-5',
-                  timestamp: new Date()
-                });
-          
-        
-           
-        }*/
-
-        // Auto-render D3 visualization after D3JSCodingProcess SVGInterpreterPrompt
-      /*  if (step.process === 'D3JSCodingProcess') {
-          const agentResult = processResult as AgentResult;
-
-          const ctx = this.contextManager.getContext('D3JSCoordinatingAgent') as WorkingMemory;
-
-
-          if (agentResult.success) {
-            console.log('\n🎨 Auto-rendering D3 visualization...');
-
-            // Get the D3 code from the result
-            let d3Code = ctx.d3jsCodeResult;
-            console.log('D3 JS COORD CODE CTX', d3Code)
-
-            if (d3Code && typeof d3Code === 'string') {
-              // Extract CSV filename from the HTML code
-              // Handles: d3.csv('C:/repos/sagaMiddleware/data/processed_hourly.csv')
-              const csvMatch = d3Code.match(/d3\.csv\(['"](?:[A-Z]:\/)?(?:[^'"]*\/)?([^\/'"]+\.csv)['"]/i);
-              const csvFilename = csvMatch ? csvMatch[1] : null;
-
-              // Replace any absolute paths (C:/path/to/file.csv) in d3.csv() with just the filename
-              if (csvFilename) {
-                console.log(`📊 Extracted CSV filename: ${csvFilename}`);
-                d3Code = d3Code.replace(
-                  /d3\.csv\(['"][A-Z]:\/[^'"]+\/([^\/'"]+\.csv)['"]/gi,
-                  `d3.csv('$1'`
-                );
-                console.log(`🔧 Replaced d3.csv() path with just filename`);
-              }
-
-              let csvData: string | undefined;
-
-              // If CSV file is referenced, try to load it
-              if (csvFilename) {
-                console.log(`📊 Found CSV reference: ${csvFilename}`);
-                const csvPath = path.join(__dirname, '..', '..', 'data', csvFilename);
-
-                try {
-                  if (fs.existsSync(csvPath)) {
-                    csvData = fs.readFileSync(csvPath, 'utf-8');
-                    console.log(`✅ Loaded CSV data from: ${csvPath} (${csvData.length} bytes)`);
-                  } else {
-                    console.warn(`⚠️  CSV file not found at: ${csvPath}`);
-                  }
-                } catch (error) {
-                  console.error(`❌ Error reading CSV file:`, error);
-                }
-              }
-              //Add the 
-
-              // Render the visualization
-           /   const renderResult = await this.renderD3Visualization(
-                d3Code,
-                step.agent,
-                `${step.agent}-output`,
-                csvData,
-                csvFilename || undefined
-              );
-
-              this.svgPath = renderResult.svgPath as string;/
-         
-            } else {
-              console.warn('⚠️  No D3 code found in result, skipping auto-render');
-            }
-          }
-        }*/
-
-        if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent') {
-            const validatedResult = result as AgentResult
-           //  validatedResultForD3JS = validatedResult.result
+        if (step.process === 'ValidationProcess') {
+           result = processResult as AgentResult
+           console.log('HERE IN PIPE VAL ',  result)
         }
 
-        if (step.process === 'GenReflectProcess') {
-          const genAgent = this.agents.get('GeneratingAgent')
-          genAgent?.setTaskDescription(SVGValidationPrompt);
-       //   process = this.instantiateProcess('ValidationProcess', 'ValidatingAgent', SVGValidationPrompt,  'GeneratingAgent');
-       //   process?.execute();
-        }
-
+       
         console.log(`✅ Step ${i + 1} completed successfully`);
       
       } catch (error) {

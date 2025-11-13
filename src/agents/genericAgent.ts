@@ -99,14 +99,15 @@ export class GenericAgent {
         console.log('HERE D3 JS PROCESSING', this.counter)
       }
       console.log("PROMPT ",prompt)
-   result = await this.invokeLLM(prompt);
-   console.log('GENERIC RESULT ',result.result)
+ //  result = await this.invokeLLM(prompt);
+ //  console.log('GENERIC RESULT ',result.result)
 
-      
+
       return {
         agentName: this.definition.name,
-        result: result,
-        success: true,
+        result: result.result,  // Extract just the result data, not the whole AgentResult
+        success: result.success,
+        error: result.error,
         timestamp: startTime
       };
     } catch (error) {
@@ -748,9 +749,31 @@ try{
       throw error;
      }
 console.log('MESSAGE ', message)
+
+      // Try to parse the message as JSON if it looks like JSON
+      let parsedResult = message;
+      if (typeof message === 'string' && message.trim().startsWith('{')) {
+        try {
+          // First try direct JSON parsing
+          parsedResult = JSON.parse(message);
+          console.log('✅ Successfully parsed LLM response as JSON');
+        } catch (e) {
+          // If that fails, try evaluating as JavaScript (for cases where LLM returns JS code)
+          try {
+            // Use Function constructor to safely evaluate the expression
+            const evalResult = new Function('return ' + message)();
+            parsedResult = evalResult;
+            console.log('✅ Successfully evaluated LLM response as JavaScript object');
+          } catch (e2) {
+            console.log('⚠️ Could not parse LLM response as JSON or JS, using as-is');
+            console.log('Parse error:', e2);
+          }
+        }
+      }
+
       return  {
      agentName: this.getName(),
-     result: message,
+     result: parsedResult,
      success: true,
      timestamp: new Date()}
 
@@ -800,16 +823,27 @@ console.log('MESSAGE ', message)
           if (hasPreviousToolCalls) {
             console.log('✅ Analysis complete - OpenAI processed tool results and provided final answer');
             console.log('Final analysis content length:', message.content);
-            
+
+            // Try to parse the message as JSON if it looks like JSON
+            let parsedResult = message.content || "";
+            if (typeof parsedResult === 'string' && parsedResult.trim().startsWith('{')) {
+              try {
+                parsedResult = JSON.parse(parsedResult);
+                console.log('✅ Successfully parsed OpenAI response as JSON');
+              } catch (e) {
+                console.log('⚠️ Could not parse OpenAI response as JSON, using as-is');
+              }
+            }
+
             return {
               agentName: this.getName(),
-              result: message.content || "",
+              result: parsedResult,
               success: true,
               timestamp: new Date()
             };
           } else {
             console.log('⚠️ No tool calls made in first iteration. Message content:', message.content?.substring(0, 200) + '...');
-            
+
             // For tool agents, try forcing tool use on subsequent iterations
             if (this.definition.agentType === 'tool' && maxIterations > 1) {
               console.log(`🔄 Tool agent didn't call tools, retrying with tool_choice=required (${maxIterations - 1} attempts remaining)`);
@@ -817,16 +851,27 @@ console.log('MESSAGE ', message)
               maxIterations--;
               continue;
             }
-            
+
             // For other cases or when out of retries
             if (forceToolUse) {
               console.log('ERROR: Failed to call required tools - this should not happen with tool_choice=required');
               throw new Error('Required tool call was not made by the LLM');
             }
-           
+
+            // Try to parse the message as JSON if it looks like JSON
+            let parsedResult = message || "";
+            if (typeof parsedResult === 'string' && parsedResult.trim().startsWith('{')) {
+              try {
+                parsedResult = JSON.parse(parsedResult);
+                console.log('✅ Successfully parsed OpenAI response as JSON');
+              } catch (e) {
+                console.log('⚠️ Could not parse OpenAI response as JSON, using as-is');
+              }
+            }
+
             return {
               agentName: this.getName(),
-              result: message || "",
+              result: parsedResult,
               success: true,
               timestamp: new Date()
             };
@@ -872,22 +917,30 @@ console.log('MESSAGE ', message)
               const resultContent = JSON.stringify(toolResult);
               console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
               console.log(`Raw result length: ${resultContent.length} characters`);
-              
+
+              // Check for success flag in MCP response
+              const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
+
               return {
                 agentName: this.getName(),
                 result: resultContent,
-                success: true,
+                success: mcpSuccess,
                 timestamp: new Date()
               };
             } else{
                 const resultContent = JSON.stringify(toolResult);
-              console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
+              console.log(`✅ Tool call completed - returning results`);
               console.log(`Raw result length: ${resultContent.length} characters`);
-              
+
+              // Check for success flag in MCP response
+              // The success field should be present in the toolResult from execute_python
+              const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
+              console.log(`MCP tool success flag: ${mcpSuccess}`);
+
               return {
                 agentName: this.getName(),
                 result: resultContent,
-                success: true,
+                success: mcpSuccess,
                 timestamp: new Date()
               };
 
@@ -992,11 +1045,14 @@ console.log('MESSAGE ', message)
           if (toolUseContent.name === 'get_chunks' || toolUseContent.name === 'search_chunks' || toolUseContent.name === 'structured_query') {
             console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
             console.log(`Raw result length: ${JSON.stringify(toolResult).length} characters`);
-            
+
+            // Check for success flag in MCP response
+            const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
+
             return {
               agentName: this.getName(),
               result: JSON.stringify(toolResult),
-              success: true,
+              success: mcpSuccess,
               timestamp: new Date()
             };
           }

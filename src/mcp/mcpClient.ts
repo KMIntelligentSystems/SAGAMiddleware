@@ -352,10 +352,15 @@ MCP tool execute_python raw response: {
         }
       }
       
-      // Return the content directly, handling different content types
+      // Return the full response including success flag
       //MCP tool structured_query raw response
      console.log(`MCP tool ${enhancedToolCall.name} raw response:`, JSON.stringify(response, null, 2));
-      
+
+      // Always return the full response object to preserve success flag
+      // The response format from MCP servers typically includes:
+      // - content: array of content blocks
+      // - success: boolean (for execute_python tool)
+      // - error, stdout, stderr, filename (for execute_python tool)
       if (Array.isArray(response.content)) {
         // Handle MCP response format: content is array of objects with type and text
         if (response.content.length > 0 && response.content[0].type === 'text') {
@@ -363,24 +368,32 @@ MCP tool execute_python raw response: {
           const textContent = response.content[0].text;
           console.log(`Raw text content length: ${textContent.length} characters`);
           console.log(`Raw text content ends with: "${textContent.slice(-50)}"`);
-          
+
           try {
             // Try to parse the text content as JSON
             const parsedContent = JSON.parse(textContent);
             console.log(`Parsed ${enhancedToolCall.name} content:`, Array.isArray(parsedContent) ? `Array with ${parsedContent.length} items` : typeof parsedContent);
-            return parsedContent;
+            // Return full response with parsed content
+            return {
+              ...response,
+              parsedContent
+            };
           } catch (parseError) {
             console.error(`JSON Parse Error: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
             console.log(`Text content length: ${textContent.length}, last 100 chars:`, textContent.slice(-100));
-            
+
             // Check if truncation occurred (incomplete JSON)
             const lastChar = textContent.trim().slice(-1);
             if (lastChar !== '}' && lastChar !== ']') {
               console.error('⚠️ JSON appears to be truncated - last character is not } or ]');
               console.error('This suggests MCP transport buffer limit exceeded');
             }
-            
-            return textContent;
+
+            // Return full response with text content
+            return {
+              ...response,
+              parsedContent: textContent
+            };
           }
         }
         return response;

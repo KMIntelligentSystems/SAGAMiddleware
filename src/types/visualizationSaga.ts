@@ -232,15 +232,12 @@ You must provide new instructiosn as succinctly as possible`
 export const toolValidationPrompt = `You will recieve 1. Requirements and directives for python code; 2. The python code to be executed in a pipeline of data frames on a MCP server. Your tasks are: 1. Ensure that the code is error free; 
 2. Validate that the code meets the requirements.  
 If there are issues with the code, then address the issues. You must only return the python code without comment so that it can be run on an MCP server immediately`
-/*
-FORBIDDEN ACTIONS:
-❌ Do NOT summarize the input you receive  
-❌ Do NOT comment on the input you receive
-❌ Do NOT interpret what you receive
-❌ Do NOT provide any other output than that specifically requested: 
 
-Your output will consist of one line of information delimited by <flow> and </flow>. If there is more information than this then  you have failed in your task! Do exactly as requested: no more and no less.
-*/
+export const toolValidationErrorPrompt = `You will receive Python code containing an error. You will also receive the error message. FIx the code to remove the error. Output clean Python code`
+
+export const toolValidationCorrectionPrompt = `You will receive three items: 1. A set of autonomous agents which contain executable Python code; 2. A corrected Python code for one of the agents; 3. The name of the agent whose code is in error.
+Your task is to substitute the correct code for the agent's code in error. Be sure to place the correct code between the delimiters: [AGENT: agent id]correct code[/AGENT]`
+
 
 export const sagaPrompt = `Role and Purpose
 You are the Data Pipeline Coordinator Meta-Agent. Your role is to analyze user-provided data requirements and generate specific, actionable instructions for a sequence of data processing agents. You must create concrete instructions using the user's actual data structure, field names, and requirements - not generic examples.

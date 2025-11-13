@@ -57,12 +57,8 @@ export class PipelineExecutor {
         };
 
         console.log('🔍 Debug - New state.lastSDKResult:', this.state.lastSDKResult ? (typeof this.state.lastSDKResult === 'string' ? this.state.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
-          let result: AgentResult = {
-               agentName: 'cycle_start',
-               result: '',//visualizationGroupingAgentsResult groupingAgentResult,groupingAgentFailedResult,
-               success: true,
-               timestamp: new Date()
-             };
+          let result: AgentResult | null = null;
+
         // Execute each step
         for (let i = 0; i < pipeline.steps.length; i++) {
             this.state.currentStepIndex = i;
@@ -75,10 +71,26 @@ export class PipelineExecutor {
 
             try {
                 // Execute control flow for this step and capture result
-                result = await this.executeStepControlFlow(step, result,this.state);
+                const compositeResult = await this.executeStepControlFlow(step, result,this.state);
 
-                if (!result.success) {
-                    throw new Error(`Control flow failed: ${result.error || 'Unknown error'}`);
+                if (!compositeResult.success) {
+                    throw new Error(`Control flow failed: ${compositeResult.error || 'Unknown error'}`);
+                }
+
+                // Extract just the control flow result for passing to the next step
+                // This prevents nested result structures
+                // Control flow result is the primary result from GenericAgent execution
+                result = compositeResult.result?.controlFlowResult || compositeResult;
+
+                if (result) {
+                    console.log('🔍 Debug - Extracted result:', JSON.stringify({
+                        agentName: result.agentName,
+                        resultType: typeof result.result,
+                        hasControlFlowResult: !!compositeResult.result?.controlFlowResult,
+                        resultPreview: typeof result.result === 'string'
+                            ? result.result.substring(0, 100)
+                            : JSON.stringify(result.result).substring(0, 100)
+                    }));
                 }
 
                 console.log(`\n✅ Step ${i + 1} complete\n`);
@@ -100,12 +112,11 @@ export class PipelineExecutor {
         }
         this.state.completed = this.state.errors.length === 0;
 
-        // Store the final composite agent result in the state
-        if (result && result.result) {
-            this.state.lastControlFlowResult = result.result.controlFlowResult;
-            this.state.lastSDKResult = result.result.sdkResult;
-            console.log('✅ Stored in state.lastControlFlowResult:', this.state.lastControlFlowResult ? 'exists' : 'undefined');
-            console.log('✅ Stored in state.lastSDKResult:', this.state.lastSDKResult ? (typeof this.state.lastSDKResult === 'string' ? this.state.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
+        // Store the final control flow result in the state
+        // Note: result now contains the control flow AgentResult from the last step
+        if (result) {
+            this.state.lastControlFlowResult = result;
+            console.log('✅ Stored final control flow result in state.lastControlFlowResult:', this.state.lastControlFlowResult ? (typeof this.state.lastControlFlowResult.result === 'string' ? this.state.lastControlFlowResult.result.substring(0, 100) + '...' : 'object') : 'undefined');
         } else {
             console.log('⚠️  No result to store in state');
         }
@@ -154,7 +165,7 @@ export class PipelineExecutor {
      */
     private async executeStepControlFlow(
         step: SDKAgentStep,
-        previousResult: AgentResult,
+        previousResult: AgentResult | null,
         pipelineExecutionState?: PipelineExecutionState
     ): Promise<AgentResult> {
         console.log(`\n⚙️  Executing control flow for ${step.name}...`);
@@ -372,12 +383,12 @@ export class PipelineExecutor {
      */
     private determineStepInput(
         step: SDKAgentStep,
-        previousResult: AgentResult,
+        previousResult: AgentResult | null,
         pipelineExecutionState?: PipelineExecutionState
     ): string {
         // Priority 1: If this is the first step of a new pipeline and previous pipeline has input,
         // use the input from previous pipeline
-        if (pipelineExecutionState?.context['input'] && !previousResult.result) {
+        if (pipelineExecutionState?.context['input'] && (!previousResult || !previousResult.result)) {
             console.log(`📥 Using input from previous pipeline`);
             return typeof pipelineExecutionState.context['input'] === 'string'
                 ? pipelineExecutionState.context['input']
@@ -385,7 +396,7 @@ export class PipelineExecutor {
         }
 
         // Priority 2: If previous step in current pipeline has result, combine input with previous result
-        if (previousResult.result && this.state) {
+        if (previousResult && previousResult.result && this.state) {
             console.log(`📥 Combining original input with previous step result`);
             const compositeInput = {
                 input: this.state.context.input,

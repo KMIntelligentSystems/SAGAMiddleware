@@ -46,7 +46,7 @@ export class DataProfiler extends BaseSDKAgent {
 
         try {
             const prompt = this.buildPrompt(input);
-            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //await this.executeQuery(prompt); //
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //await this.executeQuery(prompt); //dataProfileHistogramResponse
            // console.log('DATA PROFILER ', output)
             this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
 

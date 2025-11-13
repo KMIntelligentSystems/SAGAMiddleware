@@ -5,6 +5,8 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
+import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt  } from '../types/visualizationSaga.js'
+import { fixedByValidationProcessDataProfilerPython } from '../test/histogramData.js'
 import * as fs from 'fs'; 
 
 /**
@@ -26,13 +28,13 @@ import * as fs from 'fs';
  * Note: Retry logic (when validation fails) is handled by SagaCoordinator
  */
 export class ValidationProcess {
-  private validatingAgent: string;
+  private validatingAgent: GenericAgent;
   private targetAgent: string;
   private contextManager: ContextManager;
   private userQuery: string;
  
   constructor(
-    validatingAgent: string,
+    validatingAgent: GenericAgent,
     targetAgent: string,
     contextManager: ContextManager,
     userQuery: string
@@ -50,14 +52,20 @@ export class ValidationProcess {
     console.log(`\n🔍 ValidationProcess: Validating output from ${this.targetAgent}`);
 
     const taskDescription = this.userQuery;
-    console.log('VALIDATION TASK DESC', taskDescription)//1 [AGENT: TransactionGroupingAgent, tx-2]  2 You will validate python code 3 [AGENT: TransactionGroupingAgent, tx-2] 4 You will validate python code 5 [AGENT: TransactionGroupingAgent, tx-2] 4 5 repeated
-    // Get target agent's last result
-    const ctx = this.contextManager.getContext(this.validatingAgent) as WorkingMemory;
+  // Get target agent's last result
+    const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+
+    console.log('🔍 DEBUG - Context retrieved:', {
+      contextExists: !!ctx,
+      hasLastTransactionResult: !!(ctx?.lastTransactionResult),
+      lastTransactionResultType: typeof ctx?.lastTransactionResult,
+      lastTransactionResultLength: typeof ctx?.lastTransactionResult === 'string' ? ctx.lastTransactionResult.length : 'not a string'
+    });
 
     if (!ctx || !ctx.lastTransactionResult) {
-      console.error(`❌ No result found for ${this.validatingAgent}`);
+      console.error(`❌ No result found for ${this.validatingAgent.getName()}`);
       return {
-        agentName: this.validatingAgent,
+        agentName: this.validatingAgent.getName(),
         result: 'ERROR: No output to validate',
         success: false,
         timestamp: new Date(),
@@ -65,24 +73,26 @@ export class ValidationProcess {
       };
     }
 
-    console.log('PATH', ctx.lastVisualizationSVG)
-
+  
     // Extract target agent's original task from user query
   /*  const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
       this.targetAgent.getName()
     );*/
 
-     let result: AgentResult = {
-      agentName: this.targetAgent,
-      result: validationFixedSyntaxResult,
+    const outputPreview = typeof ctx.lastTransactionResult === 'string'
+      ? ctx.lastTransactionResult.substring(0, 100)
+      : JSON.stringify(ctx.lastTransactionResult).substring(0, 100);
+    console.log(`📝 Target agent output: ${outputPreview}...`);
+
+    // Execute validation based on target agent
+
+    let result: AgentResult = {
+      agentName: 'ValidatingAgent',
+      result: 'TEST',
       success: true,
       timestamp: new Date()
     };
-
-    console.log(`📝 Target agent output: ${ctx.lastTransactionResult.substring(0, 100)}...`);
-
-    // Clear validating agent context
 
   if(this.targetAgent === 'D3JSCodeValidator') {
        const ctx = this.contextManager.getContext('D3JSCodeGenerator') as WorkingMemory;
@@ -95,22 +105,64 @@ export class ValidationProcess {
         transactionId: 'tx-3-3',
         timestamp: new Date()
       });
+       // Execute the validating agent
+       result = await this.validatingAgent.execute(input);
   } else  if(this.targetAgent === 'ConversationAgent') {
        const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
        console.log('FINAL IN VALIDATION ', ctx.lastTransactionResult)
        const code = ctx.lastTransactionResult;
-       const input = {d3jsOutput: code} 
-       result.result = code;
+       const input = {d3jsOutput: code}
         this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
         lastTransactionResult: input,
         transactionId: 'tx-1',
         timestamp: new Date()
       });
+       result = {
+         agentName: this.validatingAgent.getName(),
+         result: code,
+         success: true,
+         timestamp: new Date()
+       };
+  } else if (this.targetAgent === 'ValidatingAgent'){
+    if(ctx.hasError){
+         this.validatingAgent.setTaskDescription(toolValidationErrorPrompt);
+         this.validatingAgent.deleteContext();
+         console.log('PYTHON CODE ', ctx.codeInErrorResult)
+         console.log('PYTHON CODE ERROR', ctx.lastTransactionResult)
+           console.log('VAL CODE IN ERROR XXXX', ctx.agentInError);
+         result.result = fixedByValidationProcessDataProfilerPython;//await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
+         result.success = false;
+         this.contextManager.updateContext(this.validatingAgent.getName(), {
+        lastTransactionResult: result.result,
+        transactionId: this.validatingAgent.getId(),
+        timestamp: new Date()
+      });
+    } else {
+         result = {
+           agentName: this.validatingAgent.getName(),
+           result: 'No error to validate',
+           success: true,
+           timestamp: new Date()
+         };
+    }
+  } else if(this.targetAgent === 'AgentStructureGenerator'){
+      const ctx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
+      const agentDefinitions = ctx.lastTransactionResult;
+      console.log('VALIDATION GENERATE AGENTS ',agentDefinitions)
+      console.log('VAL CODE ', ctx.lastTransactionResult);
+        console.log('VAL CODE IN ERROR ', ctx.agentInError);
+       this.validatingAgent.setTaskDescription( toolValidationCorrectionPrompt );
+         this.validatingAgent.deleteContext();
+         
+         result.result = fixedByValidationProcessDataProfilerPython;//await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
+         result.success = false;
+         this.contextManager.updateContext(this.validatingAgent.getName(), {
+        lastTransactionResult: result.result,
+        transactionId: this.validatingAgent.getId(),
+        timestamp: new Date()
+      });
   }
 
-  return {
-      ...result,
-      success: true
-    };
+    return result
   }
 }
