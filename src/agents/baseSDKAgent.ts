@@ -48,11 +48,8 @@ export abstract class BaseSDKAgent {
         console.log(`╚═══════════════════════════════════════════════════════════════╝\n`);
         let result = '';
         let turnCount = 0;
-        if(this.agentName === 'AgentStructureGenerator'){
 
-           /*    const q = query({ prompt, options: this.options });
-
-      
+        const q = query({ prompt, options: this.options });
 
         for await (const message of q) {
             turnCount++;
@@ -69,12 +66,9 @@ export abstract class BaseSDKAgent {
             throw new Error(`${this.agentName} failed to generate result`);
         }
 
-
         console.log('═'.repeat(67));
-        console.log(`✅ ${this.agentName} complete\n`);*/
-        }
-    
-        console.log('UPDATER RESULT ',result)
+        console.log(`✅ ${this.agentName} complete\n`);
+        console.log('UPDATER RESULT ', result)
 
         return result;
     }

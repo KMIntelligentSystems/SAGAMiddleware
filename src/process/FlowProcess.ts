@@ -60,7 +60,7 @@ export class FlowProcess {
       };
     }
 
-    console.log(`📝 Agent definitions: ${JSON.stringify(ctx.lastTransactionResult).substring(0, 150)}...`);
+    console.log(`📝 Agent definitions: ${JSON.stringify(ctx)}...`);
 
     // Clear flow defining agent context
     this.flowDefiningAgent.deleteContext();

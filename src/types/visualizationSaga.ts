@@ -236,7 +236,7 @@ If there are issues with the code, then address the issues. You must only return
 export const toolValidationErrorPrompt = `You will receive Python code containing an error. You will also receive the error message. FIx the code to remove the error. Output clean Python code`
 
 export const toolValidationCorrectionPrompt = `You will receive three items: 1. A set of autonomous agents which contain executable Python code; 2. A corrected Python code for one of the agents; 3. The name of the agent whose code is in error.
-Your task is to substitute the correct code for the agent's code in error. Be sure to place the correct code between the delimiters: [AGENT: agent id]correct code[/AGENT]`
+Your task is to substitute the correct code for the agent's code in error. Be sure to place the correct code between the delimiters: [AGENT: agent id]correct code[/AGENT]. Remember to return all the other agent definitions in tact as well as the updated agent`
 
 
 export const sagaPrompt = `Role and Purpose

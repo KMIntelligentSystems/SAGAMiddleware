@@ -271,7 +271,7 @@ export class SagaWorkflow {
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
         to be amended in the JSON object that does not follow the rules.`,
         taskDescription:  toolValidationPrompt,// dataValidatingAgentPrompt,
-        taskExpectedOutput: 'Return correct and clean Python code '
+        taskExpectedOutput: 'Return expected output as intructed '
       },
        {
         agentName: 'GeneratingAgent',

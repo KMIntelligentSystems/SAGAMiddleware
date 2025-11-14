@@ -26,7 +26,7 @@ export class AgentStructureGenerator extends BaseSDKAgent {
         try {
             const prompt = this.buildPrompt(input);
      console.log('AGENT STRUCTURE ', input)
-            const output =  fs.readFileSync('C:/repos/SAGAMiddleware/data/histoAgentGenResult.txt', 'utf-8');//await this.executeQuery(prompt);// TransactionGroupingFormProfileResult
+            const output =  await this.executeQuery(prompt);// TransactionGroupingFormProfileResult s.readFileSync('C:/repos/SAGAMiddleware/data/histoAgentGenResult.txt', 'utf-8');//
             this.setContext(output);
              return {
                 agentName: ' AgentStructureGenerator',
@@ -54,6 +54,20 @@ export class AgentStructureGenerator extends BaseSDKAgent {
 
 USER REQUEST:
 ${input}
+
+EXECUTION ENVIRONMENT:
+The agents you generate will execute in an MCP Python Server with auto-persistence:
+- Dictionaries named 'output', 'result', or 'results' are automatically saved after each agent completes
+- Dictionary keys become available as global variables in the next agent's execution
+- Example: If Agent1 creates output = {'prices': [1,2,3], 'count': 100},
+  then Agent2 can directly access 'prices' and 'count' as global variables
+
+When generating agent instructions:
+- Instruct agents to store their outputs in a dictionary named 'output', 'result', or 'results'
+- Tell agents what global variables they can expect from previous agents in the FLOW
+- Make data flow between agents explicit through these persisted variables
+- First agent in FLOW should create initial data in output dictionary
+- Subsequent agents should use global variables from previous agents and create their own output dictionary
 
 YOUR TASK:
 Generate agent structures in this exact format:

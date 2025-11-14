@@ -191,14 +191,13 @@ sagaTransactions.forEach(e => {
 
           try {
             // Actually execute the tool calling agent
-            result.result = dataProfilerError//await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
+            result = await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; //dataProfilerError//
 
             console.log('TOOL CALL ' + linearTx.agentName, result)
             console.log('TOOL CALL SUCCESS FLAG: ', result.success)
 
             if (!result.success) {
-              console.log('RESULT ERROR EXEC 1', linearTx.agentName )
-                console.log('RESULT ERROR EXEC CODE', linearTx )
+           
               this.coordinator.contextManager.updateContext(this.targetAgent, {
                  lastTransactionResult: result.result,
                 codeInErrorResult: linearTx,

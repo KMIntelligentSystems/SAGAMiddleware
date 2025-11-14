@@ -7,7 +7,7 @@ export const histoFlowDefineingAgentResult = `{
     '<html>\n' +
     '  <body>\n' +
     '    <flow>data-profiler -> bin-optimizer -> histogram-generator -> excel-exporter -> report-generator</flow>\n' +
-    '    {"toolUsers": ["DataProfilingAgent", "HistogramGenerationAgent", "ExcelExportAgent", "ReportGenerationAgent"]}\n' +
+    '    {"toolUsers": ["DataProfilingAgent", "BinOptimizationAgent", "HistogramGenerationAgent", "ExcelExportAgent", "ReportGenerationAgent"]}\n' +
     '  </body>\n' +
     '</html>',
   success: true,

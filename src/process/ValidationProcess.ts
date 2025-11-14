@@ -53,14 +53,8 @@ export class ValidationProcess {
 
     const taskDescription = this.userQuery;
   // Get target agent's last result
-    const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+    const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
 
-    console.log('🔍 DEBUG - Context retrieved:', {
-      contextExists: !!ctx,
-      hasLastTransactionResult: !!(ctx?.lastTransactionResult),
-      lastTransactionResultType: typeof ctx?.lastTransactionResult,
-      lastTransactionResultLength: typeof ctx?.lastTransactionResult === 'string' ? ctx.lastTransactionResult.length : 'not a string'
-    });
 
     if (!ctx || !ctx.lastTransactionResult) {
       console.error(`❌ No result found for ${this.validatingAgent.getName()}`);
@@ -130,7 +124,7 @@ export class ValidationProcess {
          console.log('PYTHON CODE ', ctx.codeInErrorResult)
          console.log('PYTHON CODE ERROR', ctx.lastTransactionResult)
            console.log('VAL CODE IN ERROR XXXX', ctx.agentInError);
-         result.result = fixedByValidationProcessDataProfilerPython;//await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
+         result.result = await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
          result.success = false;
          this.contextManager.updateContext(this.validatingAgent.getName(), {
         lastTransactionResult: result.result,
@@ -146,18 +140,22 @@ export class ValidationProcess {
          };
     }
   } else if(this.targetAgent === 'AgentStructureGenerator'){
-      const ctx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
-      const agentDefinitions = ctx.lastTransactionResult;
+      const agentCtx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
+      const agentDefinitions = agentCtx.lastTransactionResult;
       console.log('VALIDATION GENERATE AGENTS ',agentDefinitions)
       console.log('VAL CODE ', ctx.lastTransactionResult);
         console.log('VAL CODE IN ERROR ', ctx.agentInError);
        this.validatingAgent.setTaskDescription( toolValidationCorrectionPrompt );
          this.validatingAgent.deleteContext();
          
-         result.result = fixedByValidationProcessDataProfilerPython;//await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
+         result = await this.validatingAgent.execute({'AGENT DEFINITIONS: ': agentCtx, 'PYTHON CODE:': ctx.lastTransactionResult, 'AGENT:': ctx.agentInError})//fs.readFileSync('C:/repos/SAGAMiddleware/data/UpdatedAgentStructurePythonCoders.txt', 'utf-8'); //
          result.success = false;
-         this.contextManager.updateContext(this.validatingAgent.getName(), {
+         console.log('ERROR FIX ', result.result)
+         this.contextManager.updateContext(this.targetAgent, {
         lastTransactionResult: result.result,
+        codeInErrorResult: ctx.lastTransactionResult,
+        agentInError: ctx.agentInError,
+        hasError: true,
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });

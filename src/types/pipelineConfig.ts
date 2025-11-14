@@ -10,7 +10,7 @@ export interface SDKAgentStep {
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
-    outputKey: string; // Key to store result in context
+    outputKey?: string; // Key to store result in context
     processConfig: {
         processType: string;
         controlFlow: ProcessFlowStep[];
@@ -44,13 +44,10 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             transactionType: 'DataProfiler',
             name: 'DataProfilingStep',
             description: 'Analyze CSV data and generate technical specifications',
-            outputKey: 'profiledPrompt',
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                    { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' },
-                   
-                  //  { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'TransactionGroupingAgent' }
+                    { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' }
                 ]
             }
         },
@@ -58,8 +55,6 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             transactionType: 'AgentStructureGenerator',
             name: 'AgentGenerationStep',
             description: 'Generate agent structures in [AGENT:...] format',
-            inputFrom: 'profiledPrompt',
-            outputKey: 'agentStructures',
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
@@ -71,8 +66,6 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             transactionType: 'AgentExecutor',
             name: 'AgentExecutorStep',
             description: 'Generate agent structures in [AGENT:...] format',
-            inputFrom: 'profiledPrompt',
-            outputKey: 'agentStructures',
             processConfig: {
                 processType: 'subAgent',
                 controlFlow: [

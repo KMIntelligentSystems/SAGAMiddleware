@@ -51,9 +51,17 @@ export class AgentGeneratorProcess {
    */
   async execute(): Promise<any> {//ransactionSetCollection
     console.log(`\n🏭 AgentGeneratorProcess: Creating agents from ${this.targetAgent.getName()} definitions`);//FlowDefiningAgent
-
-    // Get agent definitions from target agent
-   
+   if(this.targetAgent.getName() ==='FlowDefiningAgent'){
+    const ctx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
+    console.log('AGENT GEN PROCESS HAS ERROR ', ctx)
+    if(ctx.hasError){
+      this.contextManager.updateContext('FlowDefiningAgent', {
+        codeInErrorResult: ctx.lastTransactionResult,
+        agentInError: ctx.agentInError,
+        hasError: true,
+      })
+    }
+   }
 
     // Get flow information from flow defining agent
     const flowCtx = this.contextManager.getContext(
@@ -76,23 +84,7 @@ export class AgentGeneratorProcess {
     }
 
     // Use AgentParser to create TransactionSetCollection
-    // Note: AgentParser will need to be updated to handle singletons
-   /* const transactionSetCollection = AgentParser.parseAndCreateAgents(
-      agentDefinitionsText,
-      flowData,
-      this.coordinator
-    );
-
-    console.log(`✅ Created TransactionSetCollection: ${transactionSetCollection.id}`);
-    console.log(`   Sets: ${transactionSetCollection.sets.length}`);*/
-
-    // Log all transactions from all sets
-   /* transactionSetCollection.sets.forEach(set => {
-      console.log(`   Set: ${set.id}`);
-      set.transactions.forEach(tx => {
-        console.log(`     - ${tx.name} (${tx.agentName}, ${tx.id})`);
-      });
-    });*/
+  
 
     return [];//transactionSetCollection;
   }
