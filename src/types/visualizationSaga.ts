@@ -122,6 +122,8 @@ Following your understanding of the flows, your final output will have this form
 Remember the ids are in [AGENT name, id] and you only examine as far as each agent's end tag: [/AGENT]. Anything outside these tags is irrelvant for your purposes.
 2. Your second task is to nominate those agents which are tool users and provide their names in the following format:
 {"toolUsers": [agent names]}. NOTE: singletons are not tool users. In this case return {"toolUsers": []}
+**NOTE**
+Agents which have Python code will be considered tool users as their code must run in a Python MCP environmemnt
 `;
 //cyclic task 
 //Checks that user query has correctly been parsed as [AGENT: etc]

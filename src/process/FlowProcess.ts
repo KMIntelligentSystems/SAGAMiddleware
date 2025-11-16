@@ -81,7 +81,8 @@ export class FlowProcess {
     };
 
       if(this.flowDefiningAgent.getName() === 'FlowDefiningAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){
-           result.result =  histoFlowDefineingAgentResult//await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult
+        //Get real rlows and tool users
+           result.result =  histoFlowDefineingAgentResult//await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult 
           
        const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
       const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)
@@ -89,7 +90,7 @@ export class FlowProcess {
        //  result.result = flowDefiningAgentResult;
          const transactionSetCollection = AgentParser.parseAndCreateAgents(
                   agentDefinitionsText,
-                   histoFlowDefineingAgentResult//result.result //flowDefiningAgentResult
+                  result.result //flowDefiningAgentResult histoFlowDefineingAgentResult
         );
         // Stringify with proper formatting to ensure transactions are included
         const serialized = JSON.stringify(transactionSetCollection, null, 2);

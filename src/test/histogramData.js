@@ -1,18 +1,21 @@
 export const histoRequirementsResultJSON = `{"CSV_FILE_PATH": "C:/repos/SAGAMiddleware/data/prices.csv"}
-{"REQUIREMENTS": ["Data profiling.", "Excel export, UTF-8 BOM, 2 header rows, 5-min intervals", "The task is to provide a histogram based on the distribution of the prices in the CSV file.", "Examine the data to provide an optional approach to the bin sizes.", "Provide a detailed analysis for a coding agent."]}`;
+{"REQUIREMENTS": ["Data profiling.", "Excel export, UTF-8 BOM, 2 header rows, 5-min intervals", "The task is to provide a histogram based on the distribution of the prices in the CSV file.", "Examine the data to provide an optimal approach to the bin sizes.", "Provide a detailed analysis for a coding agent."]}`;
 
 export const histoFlowDefineingAgentResult = `{
   agentName: 'FlowDefiningAgent',
-  result: '<!DOCTYPE html>\n' +
-    '<html>\n' +
-    '  <body>\n' +
-    '    <flow>data-profiler -> bin-optimizer -> histogram-generator -> excel-exporter -> report-generator</flow>\n' +
-    '    {"toolUsers": ["DataProfilingAgent", "BinOptimizationAgent", "HistogramGenerationAgent", "ExcelExportAgent", "ReportGenerationAgent"]}\n' +
-    '  </body>\n' +
-    '</html>',
-  success: true,
-  timestamp: 2025-11-11T19:43:59.330Z
-}
+  result:  <!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Agent Flow</title>
+</head>
+<body>
+  <flow>A1 -> A2 -> A3</flow>
+  <script type="application/json" id="toolUsers">
+    {"toolUsers": ["Data Profiler and Statistical Analyzer", "Bin Strategy Calculator", "Histogram Generator, D3.js Output"]}
+  </script>
+</body>
+</html>
 `
 export const dataProfilerError = `{
   "content": [
@@ -122,3 +125,16 @@ def main():
 
 if __name__ == '__main__':
     main()`
+export const pythonSuccessResult = `{
+  "content": [
+    {
+      "type": "text",
+      "text": "[MCP-SERVER] Auto-loaded previous result (dict) with keys: ['strategies', 'recommended', 'recommendation_reason', 'statistics', 'prices', 'distribution_characteristics']\r\nData profiling complete: 9995 valid prices analyzed\r\nPrice range: 11.00 to 17242.00\r\nMean: 179.39, Median: 103.00, Std: 420.97\r\n[MCP-SERVER] Persisted dictionary 'output' with keys: ['prices', 'statistics', 'data_quality']"
+    }
+  ],
+  "success": true,
+  "stdout": "[MCP-SERVER] Auto-loaded previous result (dict) with keys: ['strategies', 'recommended', 'recommendation_reason', 'statistics', 'prices', 'distribution_characteristics']\r\nData profiling complete: 9995 valid prices analyzed\r\nPrice range: 11.00 to 17242.00\r\nMean: 179.39, Median: 103.00, Std: 420.97\r\n[MCP-SERVER] Persisted dictionary 'output' with keys: ['prices', 'statistics', 'data_quality']",
+  "stderr": "",
+  "filename": "script_1763248878043.py"
+}
+`

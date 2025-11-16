@@ -72,7 +72,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                     { agent: 'AgentStructureGenerator', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent'  },
-                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'ValidatingAgent'  }
+                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent'  }
                 ]
             }
         }
@@ -96,7 +96,7 @@ export const PYTHON_CODE_UPDATE_PIPELINE: PipelineConfig = {
                     { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'AgentStructureGenerator'  },
                     { agent: 'AgentStructureGenerator', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent'  },
-                  //  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'ValidatingAgent'  }
+                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodeGenerator'  }
                 ]
             }
         }

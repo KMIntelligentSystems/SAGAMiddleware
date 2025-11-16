@@ -281,7 +281,7 @@ export class PipelineExecutor {
         controlFlowResult: AgentResult,
         pipelineExecutionState?: PipelineExecutionState
     ): any {
-        console.log('LAST RESULT ', controlFlowResult)
+     //   console.log('LAST RESULT ', controlFlowResult)
 
         // Different SDK agents have different input formats
         switch (step.transactionType) {

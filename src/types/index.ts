@@ -89,6 +89,7 @@ export interface AgentResult {
   success: boolean;
   error?: string;
   timestamp: Date;
+  persistedData?: any;
 }
 
 

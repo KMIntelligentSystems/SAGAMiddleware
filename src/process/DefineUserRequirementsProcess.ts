@@ -84,6 +84,7 @@ console.log('CONVERSATION ',conversationContext )
  
     if(this.agent.getName() === 'TransactionGroupingAgent'){
       this.agent.setTaskDescription(userRequestPrompt);
+      //Takes user request and extracts out CSV_FILE and REQUIREMENTS
       result.result =  histoRequirementsResultJSON //await this.agent.execute({'USER REQUEST': conversationContext});  //userRequirementsResultJSON;//
       console.log('🔍 Before extraction, result.result:', result.result);
       const extracted = this.extractDataFromResult(result);

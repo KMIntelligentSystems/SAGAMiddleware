@@ -688,7 +688,8 @@ Focus: Only array extraction
       const result = state.lastControlFlowResult as AgentResult;
        console.log('END ', state.lastControlFlowResult)
       if(!state.lastControlFlowResult.success){
-         state = await pipelineExecutor.executePipeline( PYTHON_CODE_UPDATE_PIPELINE,data.message, undefined);
+        console.log('HERE SAGA WORKFLOW ERROR')
+      //   state = await pipelineExecutor.executePipeline( PYTHON_CODE_UPDATE_PIPELINE,data.message, undefined);
       }
       state = await pipelineExecutor.executePipeline( D3_VISUALIZATION_PIPELINE,data.message, state); 
       console.log('STATE CONTEXT 1', state)

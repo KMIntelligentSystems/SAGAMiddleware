@@ -9,7 +9,8 @@ import { TransactionSetCollection, TransactionSet, SagaTransaction } from '../ty
 import {  D3JSCoordinatingAgentFinalResult, D3JSCodeingAgentReuslt, graphAnalyzerResult_1, visCodeWriterResult, codeExecutorResult,pythonLogCodeResult, agentConstructorPythonOutput,agentConstructorPythonExecutionError, dataLoaderPython,
    dataFilterPython, dataTransformerPython, dataAggregatorPython, dataExporterPython, dataExporterPythonresult
 } from '../test/testData.js'
-import { dataProfilerError } from '../test/histogramData.js'
+import { dataProfilerError, pythonSuccessResult  } from '../test/histogramData.js'
+import { mcpClientManager } from '../mcp/mcpClient.js';
 import * as fs from 'fs'
 
 /**,agentConstructorPythonExecutionError
@@ -95,7 +96,6 @@ sagaTransactions.forEach(e => {
     }
 
     // Store execution result
-  
     return result;
   }
  // MCPExecutePythonCaller output:
@@ -153,7 +153,7 @@ sagaTransactions.forEach(e => {
       let prevResult = '';
        let result: AgentResult = {agentName: '',
       result: '',
-      success: false,
+      success: true,
       timestamp: new Date()
     };
       let cleanCode = '';
@@ -183,7 +183,7 @@ sagaTransactions.forEach(e => {
           if(inError && inErrorAgent === linearTx.agentName){
                 cleanCode = this.cleanPythonCode( correctedCode).trim();
                 console.log('CLEAN CODE EXEC ', cleanCode)
-                await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
+              //  await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
           } else {
                cleanCode = this.cleanPythonCode(JSON.stringify(linearTx)).trim();
           }
@@ -191,7 +191,7 @@ sagaTransactions.forEach(e => {
 
           try {
             // Actually execute the tool calling agent
-            result = await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; //dataProfilerError//
+          result.result = pythonSuccessResult //await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult; //dataProfilerError//dataProfilerError//
 
             console.log('TOOL CALL ' + linearTx.agentName, result)
             console.log('TOOL CALL SUCCESS FLAG: ', result.success)
@@ -203,18 +203,14 @@ sagaTransactions.forEach(e => {
                 codeInErrorResult: linearTx,
                 agentInError: linearTx.agentName,
                 hasError: true,
+                success: false,
                 transactionId: this.agent.getId(),
                 timestamp: new Date()
               });
               result.error = result.result
               break;
             } else {
-              this.coordinator.contextManager.updateContext(this.targetAgent, {
-                  lastTransactionResult: result.result,//pythonLogCodeResult,
-                  hasError: false,                 
-                  transactionId: this.agent.getId(),  
-                  timestamp: new Date()
-         });
+            
             }
           } catch (error) {
             console.error(`❌ Tool execution failed:`, error);
@@ -226,21 +222,96 @@ sagaTransactions.forEach(e => {
             };
             break;
           }
-        } 
+        }
       }
-       
+
         console.log('RESULT_2', result.result)
          console.log('RESULT_2_1', result.success)
-          // Execute with enhanced context - propagate the actual success flag from tool execution
-          return {agentName: '',
-        result: result,
-        success: result.success, // Use the actual success flag from the tool result
-        timestamp: new Date(
 
-        )};
+          // After all agents complete, retrieve the persisted dictionary
+          if (result.success) {
+            const persistedData = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse.txt', 'utf-8');//await this.retrievePersistedDictionary();
+            if (persistedData) {
+              console.log('📊 Persisted dictionary retrieved successfully');
+              console.log('Dictionary keys:', Object.keys(persistedData));
+              // Attach the persisted data to the result
+            //  console.log('PERSISTED ', persistedData)
+            //  result.persistedData = persistedData;
+              this.coordinator.contextManager.updateContext(this.targetAgent, {
+                  lastTransactionResult: persistedData,
+                  hasError: false,   
+                  success: true,              
+                  transactionId: this.agent.getId(),  
+                  timestamp: new Date()
+         });
+            result.result = persistedData;
+            }
+          }
+
+          // Execute with enhanced context - propagate the actual success flag from tool execution
+      return result;
     }
-    
-  
+
+    /**
+     * Retrieve the persisted dictionary from the MCP server's pickle file
+     */
+    private async retrievePersistedDictionary(): Promise<any> {
+      try {
+        const pythonCode = `
+import pickle
+import json
+import os
+
+pickle_path = 'c:/repos/codeGen-mcp-server/workspace/latest_result.pkl'
+if os.path.exists(pickle_path):
+    with open(pickle_path, 'rb') as f:
+        data = pickle.load(f)
+    print(json.dumps(data))
+else:
+    print(json.dumps({"error": "No persisted data found"}))
+`;
+
+        const toolCall = {
+          name: 'execute_python',
+          arguments: {
+            code: pythonCode
+          }
+        };
+
+      // Find which server has execute_python tool (same pattern as genericAgent)
+      const connectedServers = mcpClientManager.getConnectedServers();
+      console.log('Connected servers for dictionary retrieval:', connectedServers);
+
+      let result = null;
+      for (const serverName of connectedServers) {
+        try {
+          const tools = await mcpClientManager.listTools(serverName);
+          const tool = tools.find(t => t.name === 'execute_python');
+
+          if (tool) {
+            console.log(`Found execute_python on server ${serverName}`);
+            result = await mcpClientManager.callTool(serverName, toolCall);
+            break;
+          }
+        } catch (error) {
+          console.log(`Server ${serverName} does not have execute_python tool`);
+          continue;
+        }
+      }
+
+      if (!result) {
+        console.log('No server with execute_python tool found');
+        return null;
+      }
+
+
+       
+      } catch (error) {
+        console.error('Error retrieving persisted dictionary:', error);
+        return null;
+      }
+    }
+
     private cleanPythonCode(rawCode: string): string {
       let cleaned = rawCode.trim();
 

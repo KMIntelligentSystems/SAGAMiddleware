@@ -53,7 +53,7 @@ export class ValidationProcess {
 
     const taskDescription = this.userQuery;
   // Get target agent's last result
-    const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
+    /*const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
 
 
     if (!ctx || !ctx.lastTransactionResult) {
@@ -65,19 +65,7 @@ export class ValidationProcess {
         timestamp: new Date(),
         error: `No lastTransactionResult found for ${this.targetAgent}`
       };
-    }
-
-  
-    // Extract target agent's original task from user query
-  /*  const conversationContext = this.parseConversationResultForAgent(
-      this.userQuery,
-      this.targetAgent.getName()
-    );*/
-
-    const outputPreview = typeof ctx.lastTransactionResult === 'string'
-      ? ctx.lastTransactionResult.substring(0, 100)
-      : JSON.stringify(ctx.lastTransactionResult).substring(0, 100);
-    console.log(`📝 Target agent output: ${outputPreview}...`);
+    }*/
 
     // Execute validation based on target agent
 
@@ -118,6 +106,7 @@ export class ValidationProcess {
          timestamp: new Date()
        };
   } else if (this.targetAgent === 'ValidatingAgent'){
+    const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
     if(ctx.hasError){
          this.validatingAgent.setTaskDescription(toolValidationErrorPrompt);
          this.validatingAgent.deleteContext();
@@ -126,20 +115,17 @@ export class ValidationProcess {
            console.log('VAL CODE IN ERROR XXXX', ctx.agentInError);
          result.result = await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
          result.success = false;
-         this.contextManager.updateContext(this.validatingAgent.getName(), {
+      
+    } else {
+         
+    }
+       this.contextManager.updateContext(this.validatingAgent.getName(), {
         lastTransactionResult: result.result,
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });
-    } else {
-         result = {
-           agentName: this.validatingAgent.getName(),
-           result: 'No error to validate',
-           success: true,
-           timestamp: new Date()
-         };
-    }
   } else if(this.targetAgent === 'AgentStructureGenerator'){
+      const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
       const agentCtx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
       const agentDefinitions = agentCtx.lastTransactionResult;
       console.log('VALIDATION GENERATE AGENTS ',agentDefinitions)
@@ -156,6 +142,14 @@ export class ValidationProcess {
         codeInErrorResult: ctx.lastTransactionResult,
         agentInError: ctx.agentInError,
         hasError: true,
+        transactionId: this.validatingAgent.getId(),
+        timestamp: new Date()
+      });
+  }  else if(this.targetAgent === 'D3JSCoordinatingAgent'){
+    console.log('D3 JS COOODE', result.result)
+        const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
+        this.contextManager.updateContext(this.targetAgent, {
+        lastTransactionResult: ctx.lastTransactionResult,
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });

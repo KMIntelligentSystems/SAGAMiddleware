@@ -14,7 +14,7 @@ import * as fs from 'fs'
 
 
 export interface D3CodeInput {
-    filepath: string;
+    data: string;
     userRequirements: string;
 }
 
@@ -30,7 +30,7 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
     async execute(input: D3CodeInput): Promise<AgentResult> {
        
         input = this.getInput();
-         console.log('FILE ', input.filepath)
+      //   console.log('DATA ', input.data)
         console.log(input.userRequirements)
         if (!this.validateInput(input)) {
              return {
@@ -75,8 +75,8 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
 USER REQUIREMENTS:
 ${input.userRequirements}
 
-CONTEXT DATA (contains CSV file path from MCP server):
-${input.filepath}
+CONTEXT DATA:
+${input.data}
 
 YOUR TASK:
 Generate complete D3.js code based on the user requirements. You must:
@@ -107,39 +107,48 @@ The HTML will be rendered in Playwright which can access local files via file://
         return (
             input &&
             typeof input.userRequirements === 'string' &&
-            typeof input.filepath === 'string' &&
+            typeof input.data === 'string' &&
             input.userRequirements.length > 0 &&
-            input.filepath.length > 0
+            input.data.length > 0
         );
     }
 
     protected getInput(): D3CodeInput{
         const ctx = this.contextManager.getContext('D3JSCodeGenerator') as WorkingMemory;
         const actualResult = ctx.lastTransactionResult;
+        console.log('ACTUAL RESULT ', actualResult)
+
         let parsedResult;
         if (typeof actualResult === 'string') {
             try {
                 parsedResult = JSON.parse(actualResult);
             } catch (e) {
-                    console.warn('Could not parse control flow result as JSON, using as-is');
-                }
+                console.warn('Could not parse control flow result as JSON, using as-is');
+                parsedResult = actualResult;
             }
+        } else {
+            // If it's already an object, use it directly
+            parsedResult = actualResult;
+        }
 
-                // Extract filepath and userRequirements from the parsed result
-                const filepath = parsedResult.filePath || parsedResult.filepath || '';
-                const userRequirements = parsedResult.userRequirements
-                    ? (typeof parsedResult.userRequirements === 'string'
-                        ? parsedResult.userRequirements
-                        : JSON.stringify(parsedResult.userRequirements, null, 2))
-                    : JSON.stringify(parsedResult, null, 2);
+        // Extract data and userRequirements from the parsed result
+        const data = parsedResult?.data || '' as string;
+        const userRequirements = parsedResult?.userRequirements
+            ? (typeof parsedResult.userRequirements === 'string'
+                ? parsedResult.userRequirements
+                : JSON.stringify(parsedResult.userRequirements, null, 2))
+            : JSON.stringify(parsedResult, null, 2);
 
-                console.log('📋 Prepared D3JSCodeGenerator input:', { filepath, userRequirements: userRequirements.substring(0, 100) + '...' });
+        console.log('📋 Prepared D3JSCodeGenerator input:', {
+            data: typeof data === 'string' ? data.substring(0, 100) : String(data).substring(0, 100),
+            userRequirements: userRequirements.substring(0, 100) + '...'
+        });
 
-                return {
-                    filepath,
-                    userRequirements
+        return {
+            data,
+            userRequirements
+        };
     }
-}
 
   /**
      * Handle visualization rendering with Playwright

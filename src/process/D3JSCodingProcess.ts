@@ -99,16 +99,16 @@ console.log('CONVERSATION CTX', conversationContext)
     console.log('LAST CONTROL FLOW RESULT',this.lastControlFlowResult )//user requirements + file path
 
     if(this.targetAgentName === 'D3JSCodeGenerator'){
+      console.log('D3 JS CODE PROCESS AGENT', this.agent.getName())
           const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-          console.log('CONTECT LAST TRANS RES', ctx.lastTransactionResult)//esult: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\r\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
+          console.log('CONTECT LAST TRANS RES', ctx.lastTransactionResult.substring(0,100))//esult: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\r\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
            this.agent.deleteContext();
           this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis);
           this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
           this.agent.receiveContext({ 'LAST CONTROL FLOW RESULT: ' :this.lastControlFlowResult }); 
-          //Disentangles the reqs and filepath for use by code generator
-          result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+          const finalResult = {data: ctx.lastTransactionResult, userRequirements: conversationContext}
           this.contextManager.updateContext(this.targetAgentName, {
-            lastTransactionResult: result.result
+            lastTransactionResult: finalResult
           })
     } else if (this.targetAgentName === 'D3JSCodeValidator'){
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
