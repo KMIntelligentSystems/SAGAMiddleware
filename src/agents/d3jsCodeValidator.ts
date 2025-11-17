@@ -40,6 +40,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             }
 
             input = ctx.lastTransactionResult as D3ValidationInput;
+            console.log('CODE VALIDATOR ', ctx.lastTransactionResult)
 
             if (!input.requirements || typeof input.requirements !== 'string' || input.requirements.length === 0) {
                 return {
@@ -52,7 +53,8 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             }
 
             const prompt = this.buildPrompt(input);
-            output = fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');//await this.executeQuery(prompt);
+            output =await this.executeQuery(prompt);//fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');// fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');//
+         //   this.setContext(output)
             this.contextManager.updateContext('D3JSCodeValidator', {
                 lastTransactionResult: output
             })

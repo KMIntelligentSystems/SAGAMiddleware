@@ -10,7 +10,8 @@ import { AgentResult, WorkingMemory } from '../types/index.js';
 import { D3VisualizationClient, D3RenderResult } from '../mcp/d3VisualizationClient.js';
 import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 
-import * as fs from 'fs'
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 export interface D3CodeInput {
@@ -38,16 +39,17 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
                 result: '',
                 success: false,
                 timestamp: new Date(),
-                error: 'Invalid input: filepath and userRequirements are required'
+                error: 'Invalid input: filepath and userRequirements are requiredxxx'
             };
         }
 
         try {
             const prompt = this.buildPrompt(input);
-            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSCodeResult.txt', 'utf-8');//await this.executeQuery(prompt);
-           
-            const svgResult = this.handlePlaywrightTesting(output)
-            this.setContext({'D3JS_CODE:': output, 'SVG_FILE_PATH:':svgResult });
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSHistoCodeResult.txt', 'utf-8');//await this.executeQuery(prompt);//fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSHistoCodeResult.txt', 'utf-8');//
+
+            const svgResult = await this.handlePlaywrightTesting(output)
+            console.log('SVG PATH', svgResult)
+            this.setContext({'D3JS_CODE:': output, 'SVG_FILE_PATH:':svgResult, 'DATA_ANALYSIS :': input.data });
            return {
                 agentName: ' D3JSCodeGenerator',
                 result: output,
@@ -56,12 +58,13 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
             };
             
         } catch (error) {
+          console.log('ERROR  ', error)
             return {
                 agentName: ' D3JSCodeGenerator',
                 result: '',
                 success: false,
                 timestamp: new Date(),
-                error: 'Invalid input: filepath and userRequirements are required'
+                error: 'Invalid input: filepath and userRequirements are requiredyyy'
             };
         }
     }
@@ -158,7 +161,11 @@ The HTML will be rendered in Playwright which can access local files via file://
         let renderResult;
        try {
             renderResult = await this.renderD3Visualization(
-                d3Code
+                d3Code,
+                'D3JSCodeGenerator',
+                undefined,
+                undefined,
+                'prices.csv'  // CSV filename for route interception
             );
 
             if (renderResult.success) {
@@ -222,20 +229,20 @@ The HTML will be rendered in Playwright which can access local files via file://
         try {
           const result = { success: true, screenshotPath: '', svgPath: 'C:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodingAgent-output.svg'}
           
-          /*await this.d3Client.renderD3({
+          await this.d3Client.renderD3({
             d3Code,
             csvData,
             csvFilename,
             screenshotName: `${baseName}.png`,
             svgName: `${baseName}.svg`,
-            outputPath: path.join(process.cwd(), 'output', 'd3-visualizations')
+            outputPath: 'C:/repos/SAGAMiddleware/output/d3-visualizations'
           });
     
           if (result.success) {
             console.log(`✅ D3 visualization rendered successfully`);
             console.log(`  📸 PNG: ${result.screenshotPath}`);
             console.log(`  💾 SVG: ${result.svgPath}`);
-    console.log('D3CODE',d3Code)
+
             // Store visualization paths in context for the agent
             if (agentName) {
               this.contextManager.updateContext(agentName, {
@@ -244,7 +251,7 @@ The HTML will be rendered in Playwright which can access local files via file://
                 timestamp: new Date()
               });
             }
-          }*/
+          }
            this.contextManager.updateContext('D3JSCodeGenerator', {
                 d3jsCodeResult: d3Code,
                 userRequirements: this.getInput().userRequirements,

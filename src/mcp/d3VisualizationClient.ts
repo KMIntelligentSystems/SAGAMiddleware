@@ -37,6 +37,7 @@ export class D3VisualizationClient {
 
   /**
    * Render D3 visualization using Playwright MCP server
+   * 
    */
   async renderD3(options: D3VisualizationOptions): Promise<D3RenderResult> {
     try {
@@ -58,22 +59,46 @@ export class D3VisualizationClient {
       console.log(`✅ Connected to ${this.serverName}`);
 
       // Step 1: Set up route interception for CSV files BEFORE loading HTML
-      if (options.csvData && options.csvFilename) {
+      if (options.csvFilename) {
         console.log(`📡 Setting up route interception for CSV file: ${options.csvFilename}`);
+
+        // Read CSV file from disk if path provided, or use provided data
+        let csvContent: string;
+        if (options.csvData) {
+          csvContent = options.csvData;
+          console.log(`📂 Using provided CSV data (${csvContent.length} bytes)`);
+        } else {
+          // Try to read from the csvFilename path
+          const csvPath = path.isAbsolute(options.csvFilename)
+            ? options.csvFilename
+            : path.join(process.cwd(), 'data', options.csvFilename);
+
+          if (fs.existsSync(csvPath)) {
+            csvContent = fs.readFileSync(csvPath, 'utf-8');
+            console.log(`📂 Read CSV file from: ${csvPath} (${csvContent.length} bytes)`);
+          } else {
+            console.warn(`⚠️ CSV file not found at: ${csvPath}`);
+            throw new Error(`CSV file not found: ${csvPath}`);
+          }
+        }
+
+        // Use wildcard pattern to match the CSV file regardless of path
+        const filename = path.basename(options.csvFilename);
+        const urlPattern = `**/${filename}`;
 
         await this.mcpClient.callTool(this.serverName, {
           name: 'playwright_route',
           arguments: {
-            url: options.csvFilename,  // Pattern to match (e.g., 'Output_one_hour_normalized_daily_avg.csv')
-            body: options.csvData,     // CSV data content
+            url: urlPattern,
+            body: csvContent,
             contentType: 'text/csv'
           }
         });
 
-        console.log(`✅ Route interception set up for: ${options.csvFilename}`);
+        console.log(`✅ Route interception set up for: ${urlPattern}`);
       }
 
-      // Step 2: Load the HTML document (which will trigger CSV loading via d3.csv())
+      // Step 2: Load the HTML document
       console.log('📄 Loading D3 HTML document via playwright_set_content...');
 
       await this.mcpClient.callTool(this.serverName, {

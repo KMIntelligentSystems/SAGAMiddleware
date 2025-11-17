@@ -101,7 +101,7 @@ console.log('CONVERSATION CTX', conversationContext)
     if(this.targetAgentName === 'D3JSCodeGenerator'){
       console.log('D3 JS CODE PROCESS AGENT', this.agent.getName())
           const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-          console.log('CONTECT LAST TRANS RES', ctx.lastTransactionResult.substring(0,100))//esult: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\r\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
+          console.log('CONTECT LAST TRANS RES', ctx.lastTransactionResult.substring(0,200))//esult: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\r\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
            this.agent.deleteContext();
           this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis);
           this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
@@ -112,13 +112,23 @@ console.log('CONVERSATION CTX', conversationContext)
           })
     } else if (this.targetAgentName === 'D3JSCodeValidator'){
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-        //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+         const codeResult = ctx.lastTransactionResult
+          this.contextManager.updateContext(this.targetAgentName, {
+            lastTransactionResult: codeResult
+          })
     } else if (this.targetAgentName === 'D3JSCodeUpdater'){
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
          console.log('CONVERSATION AGENT CTX ',  ctx.lastTransactionResult)
          const input = {existingCode: ctx.lastTransactionResult.d3jsOutput, userComment: ctx.userComment}
          this.contextManager.updateContext(this.targetAgentName, {
           lastTransactionResult: input
+         })
+        //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+    } else if (this.targetAgentName === 'ValidatingAgent'){
+         const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+         console.log('CONVERSATION AGENT CTX VALIDATION',  ctx.lastTransactionResult)
+         this.contextManager.updateContext(this.targetAgentName, {
+          lastTransactionResult: ctx.lastTransactionResult
          })
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }

@@ -5,8 +5,8 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
-import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt  } from '../types/visualizationSaga.js'
-import { fixedByValidationProcessDataProfilerPython } from '../test/histogramData.js'
+import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt  } from '../types/visualizationSaga.js'
+import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis } from '../test/histogramData.js'
 import * as fs from 'fs'; 
 
 /**
@@ -75,20 +75,18 @@ export class ValidationProcess {
       success: true,
       timestamp: new Date()
     };
-
+ 
   if(this.targetAgent === 'D3JSCodeValidator') {
-       const ctx = this.contextManager.getContext('D3JSCodeGenerator') as WorkingMemory;
-       console.log('FIRST ',ctx.d3jsCodeResult)
-       console.log('requirements:', ctx.userRequirements)
-       console.log('THIRD',ctx.lastVisualizationSVG)
-       const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
-        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
-        lastTransactionResult: input,
+       const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+      
+    //   const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
+        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent  
+        lastTransactionResult: ctx.lastTransactionResult,
         transactionId: 'tx-3-3',
         timestamp: new Date()
       });
        // Execute the validating agent
-       result = await this.validatingAgent.execute(input);
+     //  result = await this.validatingAgent.execute(input);
   } else  if(this.targetAgent === 'ConversationAgent') {
        const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
        console.log('FINAL IN VALIDATION ', ctx.lastTransactionResult)
@@ -105,7 +103,8 @@ export class ValidationProcess {
          success: true,
          timestamp: new Date()
        };
-  } else if (this.targetAgent === 'ValidatingAgent'){
+  } else if (this.targetAgent === 'ValidatingAgent' /*&& this.validatingAgent.getName() === 'FlowDefiningAgent'*/){
+    console.log('IN VALIDATION TEST ')
     const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
     if(ctx.hasError){
          this.validatingAgent.setTaskDescription(toolValidationErrorPrompt);
@@ -116,15 +115,14 @@ export class ValidationProcess {
          result.result = await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
          result.success = false;
       
-    } else {
-         
-    }
+    } 
        this.contextManager.updateContext(this.validatingAgent.getName(), {
         lastTransactionResult: result.result,
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });
-  } else if(this.targetAgent === 'AgentStructureGenerator'){
+  }
+   else if(this.targetAgent === 'AgentStructureGenerator'){
       const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
       const agentCtx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
       const agentDefinitions = agentCtx.lastTransactionResult;
@@ -146,11 +144,15 @@ export class ValidationProcess {
         timestamp: new Date()
       });
   }  else if(this.targetAgent === 'D3JSCoordinatingAgent'){
-    console.log('D3 JS COOODE', result.result)
-        const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
-        this.contextManager.updateContext(this.targetAgent, {
-        lastTransactionResult: ctx.lastTransactionResult,
-        transactionId: this.validatingAgent.getId(),
+      const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
+       const persistedPythonResult = ctx.lastTransactionResult;
+       this.validatingAgent.setTaskDescription( histogramInterpretationPrompt)
+       this.validatingAgent.deleteContext();
+       result.result = pythonHistoAnalysis//await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': persistedPythonResult});
+    //   const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
+        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
+        lastTransactionResult: result.result,
+        transactionId: 'tx-3-3',
         timestamp: new Date()
       });
   }

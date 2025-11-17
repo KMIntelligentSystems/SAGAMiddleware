@@ -72,7 +72,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                     { agent: 'AgentStructureGenerator', process: 'AgentGeneratorProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent'  },
-                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent'  }
+                  //  { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent'  }
                 ]
             }
         }
@@ -96,7 +96,7 @@ export const PYTHON_CODE_UPDATE_PIPELINE: PipelineConfig = {
                     { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'AgentStructureGenerator'  },
                     { agent: 'AgentStructureGenerator', process: 'FlowProcess', targetAgent: 'FlowDefiningAgent'  },
                     { agent: 'FlowDefiningAgent', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent'  },
-                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodeGenerator'  }
+                 //   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent'  }
                 ]
             }
         }
@@ -120,8 +120,8 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                    { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator'  },
-                  //  { agent: 'D3JSCodeGenerator', process: 'D3JSCodingProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                   { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
+                     { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator' }
                 ],
                 testWithPlaywright: true 
             }
@@ -135,7 +135,9 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                    { agent: 'D3JSCodeGenerator', process: 'ValidationProcess', targetAgent: 'D3JSCodeValidator' }
+                     { agent: 'D3JSCodeGenerator', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent'  },
+                     { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodeValidator'  },
+                   
                 ],
                // Re-test with Playwright if code was corrected
             }

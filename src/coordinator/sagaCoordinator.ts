@@ -488,7 +488,12 @@ sleep(ms: number) {
         console.log('PROCESS TYPE', step.process)
         console.log(' AGENT ', step.agent)
         console.log(input)
-          process = this.instantiateProcess(step.process, step.agent, JSON.stringify(input),step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
+        if(step.agent === 'D3JSCoordinatingAgent'){
+           process = this.instantiateProcess(step.process, step.agent, JSON.stringify(input),step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
+        }else  if(step.agent === 'D3JSCodeGenerator'){
+           process = this.instantiateProcess(step.process, step.agent, JSON.stringify(input),step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
+        }
+         
           //
       }else if (step.process === 'DefineUserRequirementsProcess' && step.agent === 'TransactionGroupingAgent'){
           const agent = this.agents.get('TransactionGroupingAgent') as GenericAgent;

@@ -144,6 +144,10 @@ export const pythonCodeValidatingAgentPrompt = `You will validate python code. Y
 If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.
 If there are no problems, simply return: {success: true}`
 
+export const histogramInterpretationPrompt = `You will receive in your context a detailed analysis of data to be represented in a histogram visualized in d3 js code.
+Examine the JSON to extract bin numbers and size as best fits the data. Be clear in your analysis that it is for a d3 js coding agent.
+Therefore, as well as an in-depth analysis you will provide clear guidance for the coding agent`
+
 export const d3CodeValidatingAgentPrompt = `You will validate d3 js code. You will examine the code to determine:
 1. Are there any syntax errors
 2. Is the code complete, for example, there is a beginning <html> and a concluding </html> tag
