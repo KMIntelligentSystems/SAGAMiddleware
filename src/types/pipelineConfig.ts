@@ -135,7 +135,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                     { agent: 'D3JSCodeGenerator', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent'  },
+                     { agent: 'D3JSCodeGenerator', process: 'ValidationProcess', targetAgent: 'ValidatingAgent'  },
                      { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodeValidator'  },
                    
                 ],

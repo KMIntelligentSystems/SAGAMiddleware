@@ -47,9 +47,10 @@ export class D3JSCodeGenerator extends BaseSDKAgent {
             const prompt = this.buildPrompt(input);
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSHistoCodeResult.txt', 'utf-8');//await this.executeQuery(prompt);//fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSHistoCodeResult.txt', 'utf-8');//
 
-            const svgResult = await this.handlePlaywrightTesting(output)
+            const svgResult = 'C:/repos/SAGAMiddleware/output/d3-visualizations/D3JSCodeGenerator-1763378423764.svg'//await this.handlePlaywrightTesting(output)
             console.log('SVG PATH', svgResult)
-            this.setContext({'D3JS_CODE:': output, 'SVG_FILE_PATH:':svgResult, 'DATA_ANALYSIS :': input.data });
+           // const valOutput = '[AGENT: ValidatingAgent tx-2]' + output + '[/AGENT]'
+            this.setContext({D3JS_CODE: output, SVG_FILE_PATH: svgResult, DATA_ANALYSIS : input.data });
            return {
                 agentName: ' D3JSCodeGenerator',
                 result: output,
@@ -119,7 +120,7 @@ The HTML will be rendered in Playwright which can access local files via file://
     protected getInput(): D3CodeInput{
         const ctx = this.contextManager.getContext('D3JSCodeGenerator') as WorkingMemory;
         const actualResult = ctx.lastTransactionResult;
-        console.log('ACTUAL RESULT ', actualResult)
+        console.log('ACTUAL RESULT ', actualResult)//bins etc
 
         let parsedResult;
         if (typeof actualResult === 'string') {

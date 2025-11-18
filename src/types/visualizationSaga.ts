@@ -155,6 +155,9 @@ export const d3CodeValidatingAgentPrompt = `You will validate d3 js code. You wi
 If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.
 If there are no problems, simply return: {success: true}`;
 
+export const svgAndDataAnalysisValidationPrompt = `You will receive two pieces of information: 1. SVG rendering of d3 js code; 2. Analysis of the data that the d3 js code is rendering.
+Examine the analysis closely. Examine the SVG to determine if the rendering is meeting the requirements of the analysis. Provide a report`
+
 export const csvAnalysisRefectingAgentPrompt_ = `You will be given a summary of data and instructions that are intended to provide enough information to a coding agent to create a 2-d graph of data.
 The data is provided as a csv file. But the coding agent whose task is to build the code to generate the graph cannot be provided the csv file at build time because of size constraints.
 Therefore, a report is provided by another agent to assist the coding agent. Your task is to challenge and question the report in terms of being clear, logical and concise. Examine the report and think how well 

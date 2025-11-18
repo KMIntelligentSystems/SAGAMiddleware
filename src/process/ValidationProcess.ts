@@ -5,7 +5,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
-import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt  } from '../types/visualizationSaga.js'
+import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt, svgAndDataAnalysisValidationPrompt  } from '../types/visualizationSaga.js'
 import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis } from '../test/histogramData.js'
 import * as fs from 'fs'; 
 
@@ -78,10 +78,17 @@ export class ValidationProcess {
  
   if(this.targetAgent === 'D3JSCodeValidator') {
        const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
-      
     //   const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
-        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent  
-        lastTransactionResult: ctx.lastTransactionResult,
+        const d3jsCode = ctx.lastTransactionResult.D3JS_CODE
+          console.log('DATA ANALYSIS', ctx.lastTransactionResult.D3JS_CODE)
+        const svgOutput = fs.readFileSync(ctx.lastTransactionResult.SVG_FILE_PATH, 'utf-8');
+        this.validatingAgent.setTaskDescription(svgAndDataAnalysisValidationPrompt);
+        this.validatingAgent.deleteContext();
+        result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/Report on SVG rendering.txt', 'utf-8');//await this.validatingAgent.execute({SVG: svgOutput, ANALYSIS: ctx.lastTransactionResult.DATA_ANALYSIS })
+        
+        const input = {d3jsCode: d3jsCode, analysis: result.result}
+        this.contextManager.updateContext(this.targetAgent, { 
+        lastTransactionResult: input,
         transactionId: 'tx-3-3',
         timestamp: new Date()
       });
@@ -115,12 +122,19 @@ export class ValidationProcess {
          result.result = await this.validatingAgent.execute({'PYTHON CODE: ': ctx.codeInErrorResult, 'PYTHON CODE ERROR:': ctx.lastTransactionResult})
          result.success = false;
       
-    } 
        this.contextManager.updateContext(this.validatingAgent.getName(), {
         lastTransactionResult: result.result,
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });
+    } else {
+           const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+  //How is this working D3JSCodeGenerator.getNsme()
+            this.contextManager.updateContext(this.targetAgent, {
+              lastTransactionResult: ctx.lastTransactionResult
+            })
+       
+    }
   }
    else if(this.targetAgent === 'AgentStructureGenerator'){
       const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;

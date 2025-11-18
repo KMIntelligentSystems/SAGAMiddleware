@@ -211,11 +211,20 @@ export class PipelineExecutor {
             }
 
             console.log(`✅ SDK Agent execution complete`);
-            this.coordinator.contextManager.updateContext(step.transactionType, {
+            /*
+                These contexts get updated:
+                DataProfiler
+                AgentStructureGenerator
+                D3JSCodeGenerator
+            */
+           if(step.transactionType != 'D3JSCodeGenerator' ){
+                  this.coordinator.contextManager.updateContext(step.transactionType, {
                 lastTransactionResult: sdkResult.result,
                 transactionId: step.transactionType,
                 timestamp: new Date()
             });
+           }
+       
             console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
         } else {
             // If processType is not 'agent', create a result from control flow only
