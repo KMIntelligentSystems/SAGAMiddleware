@@ -62,7 +62,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             }
 
             const prompt = this.buildPrompt(input);
-            output =await this.executeQuery(prompt);//fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');// fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');//
+            output =fs.readFileSync('C:/repos/SAGAMiddleware/data/D3JSHistoCodeValidatedResult.txt', 'utf-8');//await this.executeQuery(prompt);//fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');// fs.readFileSync('C:/repos/main/chart5_2.html', 'utf-8');//
          //   this.setContext(output)
             this.contextManager.updateContext('D3JSCodeValidator', {
                 lastTransactionResult: output

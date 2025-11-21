@@ -16,7 +16,7 @@
  */
 
 import { BaseSDKAgent } from './baseSDKAgent.js';
-import { AgentResult } from '../types/index.js';
+import { AgentResult, WorkingMemory } from '../types/index.js';
 import * as fs from 'fs'
 
 export interface DataProfileInput {
@@ -33,7 +33,9 @@ export class DataProfiler extends BaseSDKAgent {
      * Execute data profiling
      */
     async execute(input: DataProfileInput): Promise<AgentResult> {
-   
+        // Get input from context manager
+        input = this.getInput();
+
         if (!this.validateInput(input)) {
             return {
                 agentName: 'DataProfiler',
@@ -86,6 +88,21 @@ export class DataProfiler extends BaseSDKAgent {
             input.filepath.length > 0 &&
             input.userRequirements.length > 0
         );
+    }
+
+    /**
+     * Get input from context manager
+     */
+    protected getInput(): DataProfileInput {
+        const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
+        const actualResult = ctx?.lastTransactionResult;
+console.log('INPUT DATAPROFILER ', actualResult)
+        if (!actualResult) {
+            throw new Error('DataProfiler context not initialized. Ensure DefineUserRequirementsProcess has run first.');
+        }
+
+        // The context should already contain the properly structured DataProfileInput
+        return actualResult as DataProfileInput;
     }
 
     /**

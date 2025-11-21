@@ -177,18 +177,13 @@ export class PipelineExecutor {
         // Determine input for control flow execution
         const userQuery = this.determineStepInput(step, previousResult, pipelineExecutionState);
 
-        // Execute the control flow through the coordinator
-        // Pass composite input with previous results if this is a chained pipeline
-        console.log(`🔄 Starting control flow with ${step.processConfig.controlFlow.length} steps`);
-        console.log(`🔍 Debug - state.lastControlFlowResult:`, this.state?.lastControlFlowResult ? 'exists' : 'undefined');
-        console.log(`🔍 Debug - state.lastSDKResult:`, this.state?.lastSDKResult ? 'exists' : 'undefined');
-        console.log(`🔍 Debug - state.lastSDKResult.result:`, this.state?.lastSDKResult?.result ? (typeof this.state.lastSDKResult.result === 'string' ? this.state.lastSDKResult.result.substring(0, 100) + '...' : 'object') : 'undefined');
-
+        // Pass only userQuery and previousControlFlowResult
+        // SDK agent results are already stored in contextManager by the processes
         const compositeInput = {
             userQuery,
-            previousControlFlowResult: this.state?.lastControlFlowResult,
-            previousSDKResult: this.state?.lastSDKResult?.result  // Extract just the result, not the whole AgentResult
+            previousControlFlowResult: this.state?.lastControlFlowResult
         };
+        console.log(`🔄 COMPOSITE INPUT ${JSON.stringify(compositeInput)}`);
         const controlFlowResult = await this.coordinator.executeControlFlow(compositeInput);
 
         console.log(`✅ Control flow execution complete`, controlFlowResult);
@@ -201,10 +196,9 @@ export class PipelineExecutor {
         {
             const sdkAgent = this.instantiateAgent(step.transactionType);
 
-            // Prepare input for SDK agent from control flow result
-            const sdkInput = this.prepareSDKAgentInput(step, controlFlowResult, pipelineExecutionState);
-
-            sdkResult = await sdkAgent.execute(sdkInput);
+            // SDK agents read their input from contextManager via getInput()
+            // The control flow process has already populated the context with required data
+            sdkResult = await sdkAgent.execute({} as any);
 
             if (!sdkResult.success) {
                 throw new Error(`SDK Agent ${step.transactionType} failed: ${sdkResult.error}`);
@@ -224,7 +218,7 @@ export class PipelineExecutor {
                 timestamp: new Date()
             });
            }
-       
+
             console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
         } else {
             // If processType is not 'agent', create a result from control flow only
@@ -281,108 +275,6 @@ export class PipelineExecutor {
         return compositeResult;
     }
 
-    /**
-     * Prepare input for SDK agent execution
-     * SDK agents have different input requirements than control flow
-     */
-    private prepareSDKAgentInput(
-        step: SDKAgentStep,
-        controlFlowResult: AgentResult,
-        pipelineExecutionState?: PipelineExecutionState
-    ): any {
-     //   console.log('LAST RESULT ', controlFlowResult)
-
-        // Different SDK agents have different input formats
-        switch (step.transactionType) {
-            case 'DataProfiler':
-                // DataProfiler needs filepath + userRequirements
-                const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory
-                console.log('CTX ', ctx.lastTransactionResult)
-                return {
-                    filepath: ctx.lastTransactionResult.filepath,//this.extractFilePath(controlFlowResult, pipelineExecutionState),
-                    userRequirements: ctx.lastTransactionResult.userRequirements//controlFlowResult.result
-                };
-
-            case 'D3JSCodeGenerator': {
-                // D3JSCodeGenerator needs structured input with filepath and userRequirements
-                // Control flow result has nested structure: result.result contains the actual data
-                const actualResult = controlFlowResult.result?.result || controlFlowResult.result;
-
-                // Parse the result if it's a JSON string
-                let parsedResult = actualResult;
-                if (typeof actualResult === 'string') {
-                    try {
-                        parsedResult = JSON.parse(actualResult);
-                    } catch (e) {
-                        console.warn('Could not parse control flow result as JSON, using as-is');
-                    }
-                }
-
-                // Extract filepath and userRequirements from the parsed result
-                const filepath = parsedResult.filePath || parsedResult.filepath || '';
-                const userRequirements = parsedResult.userRequirements
-                    ? (typeof parsedResult.userRequirements === 'string'
-                        ? parsedResult.userRequirements
-                        : JSON.stringify(parsedResult.userRequirements, null, 2))
-                    : JSON.stringify(parsedResult, null, 2);
-
-                console.log('📋 Prepared D3JSCodeGenerator input:', { filepath, userRequirements: userRequirements.substring(0, 100) + '...' });
-
-                return {
-                    filepath,
-                    userRequirements
-                };
-            }
-
-            case 'D3JSCodeUpdater': {
-                // D3JSCodeUpdater needs existingCode and userComment
-             /*   const actualResult = controlFlowResult.result?.result || controlFlowResult.result;
-
-                // Parse the result if it's a JSON string
-                let parsedResult = actualResult;
-                if (typeof actualResult === 'string') {
-                    try {
-                        parsedResult = JSON.parse(actualResult);
-                    } catch (e) {
-                        console.warn('Could not parse control flow result as JSON, using as-is');
-                    }
-                }
-
-                // Extract required fields from the parsed result
-                const existingCode = parsedResult.existingCode || parsedResult.code || '';
-                const userComment = parsedResult.userComment || parsedResult.comment || '';
-
-                console.log('📋 Prepared D3JSCodeUpdater input:', {
-                    userComment: userComment.substring(0, 100) + '...',
-                    existingCodeLength: existingCode.length
-                });*/
-                const ctx = this.coordinator.contextManager.getContext( 'D3JSCodeUpdater') as WorkingMemory;
-                console.log('UPDATER ',  ctx.lastTransactionResult)
-                const existingCode =  ctx.lastTransactionResult.existingCode;
-                const userComment =  ctx.lastTransactionResult.userComment
-                return {
-                  existingCode,
-                  userComment
-                };
-            }
-
-            case 'AgentStructureGenerator':{
-                  const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory
-                console.log('CTX ', ctx.lastTransactionResult)
-                const req =   JSON.stringify(ctx.lastTransactionResult)
-                return req;
-            }
-
-            case 'D3JSCodeValidator':
-                // These agents take string input
-                return typeof controlFlowResult.result === 'string'
-                    ? controlFlowResult.result
-                    : JSON.stringify(controlFlowResult.result);
-
-            default:
-                return controlFlowResult.result;
-        }
-    }
 
     getFinalResult(): any{
         return this.finalResult;

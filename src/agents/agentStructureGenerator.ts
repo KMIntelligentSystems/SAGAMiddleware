@@ -6,7 +6,7 @@
  */
 
 import { BaseSDKAgent } from './baseSDKAgent.js';
-import { AgentResult } from '../types/index.js';
+import { AgentResult, WorkingMemory } from '../types/index.js';
 import * as fs from 'fs';
 
 export interface AgentStructureInput {
@@ -22,17 +22,19 @@ export class AgentStructureGenerator extends BaseSDKAgent {
      * Execute agent structure generation
      */
     async execute(input: string): Promise<AgentResult> {
-      
+        // Get input from context manager
+        input = this.getInput();
+
         try {
             const prompt = this.buildPrompt(input);
-     console.log('AGENT STRUCTURE ', input)
+            console.log('AGENT STRUCTURE ', input)
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/agentGeneratorResult.txt', 'utf-8');//await this.executeQuery(prompt);// TransactionGroupingFormProfileResult  fs.readFileSync('C:/repos/SAGAMiddleware/data/agentGeneratorResult.txt', 'utf-8');//
              return {
                 agentName: ' AgentStructureGenerator',
                 result: output,
                 success: true,
                 timestamp: new Date(),
-               
+
             };
         } catch (error) {
                   return {
@@ -124,6 +126,21 @@ Generate the agent structures with COMPLETE EXECUTABLE CODE now.`;
             typeof input.prompt === 'string' &&
             input.prompt.length > 0
         );
+    }
+
+    /**
+     * Get input from context manager
+     */
+    protected getInput(): string {
+        const ctx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
+        const actualResult = ctx?.lastTransactionResult;
+
+        if (!actualResult) {
+            throw new Error('AgentStructureGenerator context not initialized. Ensure DefineUserRequirementsProcess has run first.');
+        }
+
+        // The context should contain the structured prompt as a string
+        return typeof actualResult === 'string' ? actualResult : JSON.stringify(actualResult);
     }
 
     /**

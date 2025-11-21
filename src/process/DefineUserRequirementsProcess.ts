@@ -92,7 +92,7 @@ console.log('CONVERSATION ',conversationContext )
       result.result = extracted as any; // Store DataProfileInput object in result
       console.log('🔍 Final result.result:', result.result);
       if(this.targetAgent){
-          this.contextManager.updateContext(this.targetAgent, {
+          this.contextManager.updateContext(this.targetAgent, {//DataProfiler'
           lastTransactionResult: result.result,
           transactionId: this.agent.getId(),
            timestamp: new Date()

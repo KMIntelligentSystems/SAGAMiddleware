@@ -179,69 +179,7 @@ if(definition.agentType === 'tool'){
     return selectedServers;
   }
 
-  /**
-   * Parse conversation result to extract content for a specific agent
-   * Extracts content between [AGENT: agentName, id]...[/AGENT] tags
-   */
-  parseConversationResultForAgent(conversationResult: any, agentName: string): string {
-    try {
-      let resultText = '';
-      if (typeof conversationResult === 'string') {
-        resultText = conversationResult;
-      } else if (conversationResult.message) {
-        // Handle JSON object with message property (e.g., { threadId, message })
-        resultText = conversationResult.message;
-      } else if (conversationResult.result) {
-        resultText = conversationResult.result;
-      } else {
-        console.log(`⚠️  Conversation result format not recognized:`, conversationResult);
-        return '';
-      }
 
-      // Escape special regex characters in agentName to prevent regex syntax errors
-      const escapedAgentName = agentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-      // Extract content between bracket tags for this agent
-      // Updated regex to handle both formats:
-      // [AGENT: agentName id] or [AGENT:agentName id] (with or without space after colon)
-      // Also allows comma or space separation: [AGENT: agentName, id] or [AGENT:agentName id]
-      const startTagPattern = new RegExp(`\\[AGENT:\\s*${escapedAgentName}(?:[,\\s]+[^\\]]+)?\\]`, 'i');
-      const endTag = `[/AGENT]`;
-
-      const startTagMatch = resultText.match(startTagPattern);
-      let startIndex = -1;
-      let startTagLength = 0;
-
-      if (startTagMatch) {
-        startIndex = startTagMatch.index!;
-        startTagLength = startTagMatch[0].length;
-        console.log(`✅ Found opening tag: "${startTagMatch[0]}" at index ${startIndex}`);
-      } else {
-        console.log(`🔍 No [AGENT: ${agentName}] tag found in text:`);
-        console.log(`   Text preview: ${resultText.substring(0, 200)}...`);
-        console.log(`   Pattern used: ${startTagPattern}`);
-        return '';
-      }
-
-      const endIndex = resultText.indexOf(endTag, startIndex);
-
-      if (startIndex !== -1 && endIndex !== -1) {
-        console.log(`✅ Found closing tag at index ${endIndex}`);
-        let content = resultText.substring(startIndex + startTagLength, endIndex).trim();
-        console.log(`📝 Extracted content (${content.length} chars): ${content.substring(0, 100)}...`);
-        content = content.replace(/^\d+\.\s*/, '').replace(/^\./, '').trim();
-        return content;
-      } else {
-        console.log(`❌ Closing tag [/AGENT] not found after index ${startIndex}`);
-        console.log(`   Remaining text: ${resultText.substring(startIndex, startIndex + 300)}...`);
-      }
-
-      return '';
-    } catch (error) {
-      console.warn(`Failed to parse for agent ${agentName}:`, error);
-      return '';
-    }
-  }
 
   // ========================================
   // SAGA METHODS
@@ -431,7 +369,7 @@ sleep(ms: number) {
    * Execute the control flow
    * Iterates through control flow list and executes each process in sequence
    */
-  async executeControlFlow(input: { userQuery: string; previousControlFlowResult?: any; previousSDKResult?: any }): Promise<AgentResult> {
+  async executeControlFlow(input: { userQuery: string; previousControlFlowResult?: any }): Promise<AgentResult> {
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
 
@@ -439,15 +377,6 @@ sleep(ms: number) {
     if (input.previousControlFlowResult) {
       console.log('📥 Previous control flow result available for GenericAgents');
       this.contextManager.setContext('PREVIOUS_CONTROL_FLOW', input.previousControlFlowResult);
-    }
-
-    // If previous SDK result exists, store it in context for processes to access
-    if (input.previousSDKResult) {
-      console.log('📥 Previous SDK result available for processes');
-      console.log('🔍 Debug - Storing in PREVIOUS_SDK_RESULT:', typeof input.previousSDKResult === 'string' ? input.previousSDKResult.substring(0, 100) + '...' : 'object');
-      this.contextManager.setContext('PREVIOUS_SDK_RESULT', input.previousSDKResult);
-    } else {
-      console.log('⚠️  No previous SDK result provided to executeControlFlow');
     }
 
     let validatedResult = '';
@@ -472,38 +401,28 @@ sleep(ms: number) {
       }
 
       // Instantiate process
-      let process;
-       if (step.process === 'FlowProcess') {
-        process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent);
-      } else if (step.process === 'GenReflectProcess') {//SVGValidationPrompt
-        process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent, undefined, this.svgPath);
-      } else if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent'){
-       //   const ctx = this.contextManager.getContext('D3JSCoordinatingAgent');
-        //  const codingAgent = this.agents.get('D3JSCodingAgent');
+      // Determine userQuery based on special cases
+      let userQueryForProcess = input.userQuery;
+      let svgFilePath: string | undefined = undefined;
 
-          process = this.instantiateProcess(step.process, step.agent, d3CodeValidatingAgentPrompt, step.targetAgent);
-          //
-      }  else if (step.process === 'D3JSCodingProcess'){
-        console.log('aaaaaaaaaaaaaa ',  step.agent)
-        console.log('PROCESS TYPE', step.process)
-        console.log(' AGENT ', step.agent)
-        console.log(input)
-        if(step.agent === 'D3JSCoordinatingAgent'){
-           process = this.instantiateProcess(step.process, step.agent, JSON.stringify(input),step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
-        }else  if(step.agent === 'D3JSCodeGenerator'){
-           process = this.instantiateProcess(step.process, step.agent, JSON.stringify(input),step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
-        }
-         
-          //
-      }else if (step.process === 'DefineUserRequirementsProcess' && step.agent === 'TransactionGroupingAgent'){
-          const agent = this.agents.get('TransactionGroupingAgent') as GenericAgent;
-      //    agent?.receiveContext({'YOUR TASKS: ': profiledPrompt})
-          process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent); //When error D3JSCodeCorrectionPrompt  D3JSCodingAgentPrompt = userQuery
-          //
+      // Special case handling
+      if (step.process === 'GenReflectProcess') {
+        svgFilePath = this.svgPath;
+      } else if (step.process === 'ValidationProcess' && step.targetAgent === 'D3JSCodingAgent') {
+        userQueryForProcess = d3CodeValidatingAgentPrompt;
+      } else if (step.process === 'D3JSCodingProcess' &&
+                 (step.agent === 'D3JSCoordinatingAgent' || step.agent === 'D3JSCodeGenerator')) {
+        userQueryForProcess = JSON.stringify(input);
       }
-      else{
-        process = this.instantiateProcess(step.process, step.agent, input.userQuery, step.targetAgent);
-      }
+
+      const process = this.instantiateProcess(
+        step.process,
+        step.agent,
+        userQueryForProcess,
+        step.targetAgent,
+        undefined,
+        svgFilePath
+      );
 
       if (!process) {
         console.error(`❌ Failed to instantiate process at step ${i + 1}`);
