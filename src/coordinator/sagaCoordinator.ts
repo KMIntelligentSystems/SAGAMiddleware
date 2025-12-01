@@ -111,18 +111,21 @@ export class SagaCoordinator extends EventEmitter {
       console.log(`🔧 Tool agent ${definition.name} has no specific tools defined, providing all MCP servers`);
     }
     
+    // Configure LLM for this agent if not already set
+    if (!definition.llmConfig) {
+      definition.llmConfig = {
+        provider: 'gemini',  // Options: 'openai', 'anthropic', 'gemini', 'deepseek', 'ollama'
+        model: definition.agentType === 'tool' ? 'gemini-2.0-flash-exp' : 'gemini-2.0-flash-exp',
+        temperature: 1,
+        maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
+        apiKey: process.env.GEMINI_API_KEY
+      };
+    }
+
     // THEN create GenericAgent with the enhanced definition
     const agent = new GenericAgent(definition);
     this.agents.set(definition.name, agent);
     this.agentDefinitions.set(definition.name, definition);
- 
-    const llmConfig: LLMConfig = {
-            provider: 'openai',//'anthropic',
-            model: definition.agentType === 'tool' ? 'gpt-4o-mini' : 'gpt-4', //gpt-5 gpt-4o-mini claude-3-7-sonnet-20250219
-            temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
-            maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
-            apiKey: process.env.OPENAI_API_KEY
-    }
 
     /*
 if(definition.agentType === 'tool'){

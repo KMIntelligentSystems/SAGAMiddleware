@@ -186,6 +186,33 @@ export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
 };
 
 /**
+ * Pipeline Context - Explicit context for pipeline execution
+ * This provides clear, typed context propagation between pipelines
+ */
+export interface PipelineContext {
+    // Request identifiers
+    threadId: string;
+    workflowId: string;
+    correlationId: string;
+
+    // User input
+    userMessage: string;
+    operationType: 'create_code' | 'update_code' | 'profile_approved' | 'profile_rejected';
+
+    // Previous pipeline state (for chaining pipelines)
+    previousState?: PipelineExecutionState;
+
+    // Additional metadata
+    metadata: {
+        source: string;
+        timestamp: Date;
+        retryCount?: number;
+        tags?: string[];
+        [key: string]: any;
+    };
+}
+
+/**
  * Pipeline execution state
  */
 export interface PipelineExecutionState {
@@ -195,6 +222,10 @@ export interface PipelineExecutionState {
     lastControlFlowResult?: any;
     lastSDKResult?: any;
     startTime: Date;
+    endTime?: Date;
     errors: string[];
     completed: boolean;
+
+    // Store the original pipeline context for reference
+    pipelineContext?: PipelineContext;
 }

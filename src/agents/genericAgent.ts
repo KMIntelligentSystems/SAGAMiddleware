@@ -275,12 +275,16 @@ export class GenericAgent {
 
   private async invokeLLM(prompt: string): Promise<AgentResult> {
     const config = this.definition.llmConfig;
-    
+
     switch (config.provider) {
       case 'openai':
         return await this.invokeOpenAI(prompt, config);
       case 'anthropic':
-       return await this.invokeAnthropic(prompt, config);
+        return await this.invokeAnthropic(prompt, config);
+      case 'gemini':
+        // Initialize GoogleGenAI client for Gemini (already imported at top)
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+        return await this.invokeGemini(prompt, config, ai);
       default:
         throw new Error(`Unsupported LLM provider: ${config.provider}`);
     }
@@ -441,15 +445,16 @@ export class GenericAgent {
     return response.choices[0].message.content || "";*/
   
   }
+
 //https://github.com/googleapis/js-genai/blob/main/sdk-samples/chat_afc.ts
     private async invokeGemini(prompt: string, config: LLMConfig, ai: GoogleGenAI): Promise<AgentResult> {
     const { OpenAI } = await import('openai');
     
     const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: process.env.GEMINI_API_KEY
     });
 const chat = await ai.chats.create({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-pro-preview',
     config: {
       tools: [],//mcpToTool(weatherClient, multiplyClient)
       toolConfig: {

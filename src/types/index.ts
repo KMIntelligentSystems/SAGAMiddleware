@@ -44,7 +44,7 @@ export interface AgentDefinition {
 }
 
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'deepseek' | 'ollama';
+  provider: 'openai' | 'anthropic' | 'deepseek' | 'ollama' | 'gemini';
   model: string;
   temperature?: number;
   maxTokens?: number;

@@ -5,9 +5,9 @@
  * Manages the flow: SDK Agent -> SAGA Process -> Next SDK Agent
  */
 
-import { PipelineConfig, PipelineExecutionState, SDKAgentStep } from '../types/pipelineConfig.js';
+import { PipelineConfig, PipelineExecutionState, SDKAgentStep, PipelineContext } from '../types/pipelineConfig.js';
 import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
-import { DataProfiler } from '../agents/dataProfiler.js';
+import { DataProfiler } from '../agents/DataProfiler.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
@@ -25,39 +25,76 @@ export class PipelineExecutor {
     }
 
     /**
-     * Execute a complete pipeline
+     * Extract or create PipelineContext from input parameters
+     * Supports both new PipelineContext format and legacy string input
+     */
+    private extractPipelineContext(
+        inputOrContext: string | PipelineContext,
+        legacyState?: PipelineExecutionState
+    ): PipelineContext {
+        // If it's already a PipelineContext object, return it
+        if (typeof inputOrContext === 'object' && 'threadId' in inputOrContext) {
+            return inputOrContext;
+        }
+
+        // Legacy mode: convert string input to PipelineContext
+        const userMessage = typeof inputOrContext === 'string' ? inputOrContext : '';
+
+        return {
+            threadId: 'legacy-thread',
+            workflowId: 'legacy-workflow',
+            correlationId: `correlation-${Date.now()}`,
+            userMessage: userMessage,
+            operationType: 'create_code',
+            previousState: legacyState,
+            metadata: {
+                source: 'legacy-mode',
+                timestamp: new Date(),
+                tags: ['legacy-conversion']
+            }
+        };
+    }
+
+    /**
+     * Execute a complete pipeline with explicit context
+     * Supports both new PipelineContext (preferred) and legacy input/state parameters
      */
     async executePipeline(
         pipeline: PipelineConfig,
-        input: string,
+        inputOrContext: string | PipelineContext,
         pipelineExecutionState?: PipelineExecutionState
     ): Promise<PipelineExecutionState> {
         console.log(`🚀 Starting Pipeline: ${pipeline.name}`);
         console.log(`   Description: ${pipeline.description}`);
         console.log(`   Steps: ${pipeline.steps.length}`);
 
+        // Determine if we're using new PipelineContext or legacy parameters
+        const pipelineContext = this.extractPipelineContext(inputOrContext, pipelineExecutionState);
+
+        console.log('🔍 Context Details:');
+        console.log(`   Thread ID: ${pipelineContext.threadId}`);
+        console.log(`   Workflow ID: ${pipelineContext.workflowId}`);
+        console.log(`   Operation Type: ${pipelineContext.operationType}`);
+        console.log(`   Has Previous State: ${pipelineContext.previousState ? 'YES' : 'NO'}`);
+
         // Initialize execution state with fresh context
         // SDK agents are stateless - only the last result matters
-        // If pipelineExecutionState is provided, extract lastControlFlowResult
-        console.log('🔍 Debug - Initializing new pipeline state');
-        console.log('🔍 Debug - pipelineExecutionState provided:', pipelineExecutionState ? 'YES' : 'NO');
-        console.log('🔍 Debug - pipelineExecutionState.lastSDKResult:', pipelineExecutionState?.lastSDKResult ? (typeof pipelineExecutionState.lastSDKResult === 'string' ? pipelineExecutionState.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
-
         this.state = {
             pipelineName: pipeline.name,
             currentStepIndex: 0,
             context: {
-                input
+                input: pipelineContext.userMessage
             },
-            lastControlFlowResult: pipelineExecutionState?.lastControlFlowResult,
-            lastSDKResult: pipelineExecutionState?.lastSDKResult,
+            lastControlFlowResult: pipelineContext.previousState?.lastControlFlowResult,
+            lastSDKResult: pipelineContext.previousState?.lastSDKResult,
             startTime: new Date(),
             errors: [],
-            completed: false
+            completed: false,
+            pipelineContext: pipelineContext
         };
 
-        console.log('🔍 Debug - New state.lastSDKResult:', this.state.lastSDKResult ? (typeof this.state.lastSDKResult === 'string' ? this.state.lastSDKResult.substring(0, 100) + '...' : 'object') : 'undefined');
-          let result: AgentResult | null = null;
+        console.log('🔍 Debug - Initialized pipeline state with context');
+        let result: AgentResult | null = null;
 
         // Execute each step
         for (let i = 0; i < pipeline.steps.length; i++) {
@@ -111,6 +148,7 @@ export class PipelineExecutor {
             this.finalResult = ctx.lastTransactionResult;
         }
         this.state.completed = this.state.errors.length === 0;
+        this.state.endTime = new Date();
 
         // Store the final control flow result in the state
         // Note: result now contains the control flow AgentResult from the last step
@@ -121,11 +159,18 @@ export class PipelineExecutor {
             console.log('⚠️  No result to store in state');
         }
 
+        // Calculate execution duration
+        const duration = this.state.endTime.getTime() - this.state.startTime.getTime();
+
         console.log(`\n${'='.repeat(70)}`);
         if (this.state.completed) {
             console.log(`✅ Pipeline Complete: ${pipeline.name}`);
+            console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
+            console.log(`   Thread ID: ${this.state.pipelineContext?.threadId}`);
+            console.log(`   Correlation ID: ${this.state.pipelineContext?.correlationId}`);
         } else {
             console.log(`❌ Pipeline Failed: ${pipeline.name}`);
+            console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
             console.log(`   Errors: ${this.state.errors.length}`);
             this.state.errors.forEach((err, idx) => {
                 console.log(`   ${idx + 1}. ${err}`);

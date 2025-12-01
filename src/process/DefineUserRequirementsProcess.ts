@@ -6,7 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
 import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult, userRequirementsResultJSON } from '../test/testData.js'
 import { dataValidatingAgentPrompt, userRequestPrompt } from '../types/visualizationSaga.js'
-import { DataProfileInput } from '../agents/dataProfiler.js'
+import { DataProfileInput } from '../agents/DataProfiler.js'
 import {  histoRequirementsResultJSON } from '../test/histogramData.js'
 import * as fs from 'fs'
 
@@ -85,7 +85,7 @@ console.log('CONVERSATION ',conversationContext )
     if(this.agent.getName() === 'TransactionGroupingAgent'){
       this.agent.setTaskDescription(userRequestPrompt);
       //Takes user request and extracts out CSV_FILE and REQUIREMENTS
-      result.result =  histoRequirementsResultJSON //await this.agent.execute({'USER REQUEST': conversationContext});  //userRequirementsResultJSON;//
+      result =  await this.agent.execute({'USER REQUEST': conversationContext});  //userRequirementsResultJSON;//histoRequirementsResultJSON //
       console.log('🔍 Before extraction, result.result:', result.result);
       const extracted = this.extractDataFromResult(result);
       console.log('🔍 After extraction, extracted:', JSON.stringify(extracted, null, 2));
@@ -207,38 +207,63 @@ console.log('CONVERSATION ',conversationContext )
     timestamp: Date;
   }): DataProfileInput | null {
     try {
-      const lines = agentResult.result.split('\n').filter(line => line.trim());
+      console.log('🔍 Extracting data from result:', agentResult.result);
+
+      // Remove markdown code blocks if present
+      let cleanedResult = agentResult.result.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+
+      const lines = cleanedResult.split('\n').filter(line => line.trim());
       let csvFilePath: string | null = null;
       let requirements: any | null = null;
 
+      // Try to parse each line as JSON
       for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || trimmedLine.startsWith('//')) continue;
+
         try {
-          const parsed = JSON.parse(line);
+          const parsed = JSON.parse(trimmedLine);
 
           if (parsed.CSV_FILE_PATH) {
             csvFilePath = parsed.CSV_FILE_PATH;
+            console.log('✅ Found CSV_FILE_PATH:', csvFilePath);
           }
 
           if (parsed.REQUIREMENTS) {
             requirements = parsed.REQUIREMENTS;
+            console.log('✅ Found REQUIREMENTS:', requirements);
           }
         } catch (e) {
           // Skip lines that aren't valid JSON
-          console.warn(`Skipping non-JSON line: ${line.substring(0, 50)}...`);
+          console.warn(`⚠️  Skipping non-JSON line: ${trimmedLine.substring(0, 50)}...`);
+        }
+      }
+
+      // If we didn't find them separated, try parsing the entire result as one JSON
+      if (!csvFilePath || !requirements) {
+        try {
+          const parsed = JSON.parse(cleanedResult);
+          if (parsed.CSV_FILE_PATH) csvFilePath = parsed.CSV_FILE_PATH;
+          if (parsed.REQUIREMENTS) requirements = parsed.REQUIREMENTS;
+        } catch (e) {
+          console.error('❌ Could not parse entire result as JSON');
         }
       }
 
       if (!csvFilePath || !requirements) {
-        console.error('Missing required fields: CSV_FILE_PATH or REQUIREMENTS');
+        console.error('❌ Missing required fields - CSV_FILE_PATH:', !!csvFilePath, 'REQUIREMENTS:', !!requirements);
+        console.error('📄 Raw result:', agentResult.result);
         return null;
       }
 
+      console.log('✅ Successfully extracted both fields');
       return {
         filepath: csvFilePath,
         userRequirements: JSON.stringify(requirements)
       };
     } catch (error) {
-      console.error('Failed to extract data from result:', error);
+      console.error('❌ Failed to extract data from result:', error);
+      console.error('📄 Raw result:', agentResult.result);
       return null;
     }
   }

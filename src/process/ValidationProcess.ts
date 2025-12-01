@@ -84,7 +84,7 @@ export class ValidationProcess {
         const svgOutput = fs.readFileSync(ctx.lastTransactionResult.SVG_FILE_PATH, 'utf-8');
         this.validatingAgent.setTaskDescription(svgAndDataAnalysisValidationPrompt);
         this.validatingAgent.deleteContext();
-        result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/Report on SVG rendering.txt', 'utf-8');//await this.validatingAgent.execute({SVG: svgOutput, ANALYSIS: ctx.lastTransactionResult.DATA_ANALYSIS })
+        result = await this.validatingAgent.execute({SVG: svgOutput, ANALYSIS: ctx.lastTransactionResult.DATA_ANALYSIS })//fs.readFileSync('C:/repos/SAGAMiddleware/data/Report on SVG rendering.txt', 'utf-8');//
         
         const input = {d3jsCode: d3jsCode, analysis: result.result}
         this.contextManager.updateContext(this.targetAgent, { 

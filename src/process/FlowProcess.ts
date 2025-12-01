@@ -82,7 +82,7 @@ export class FlowProcess {
 
       if(this.flowDefiningAgent.getName() === 'FlowDefiningAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){
         //Get real rlows and tool users
-           result.result =  histoFlowDefineingAgentResult//await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult 
+           result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult  histoFlowDefineingAgentResult//
           
        const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
       const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)

@@ -1,7 +1,7 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
-import { DataProfiler } from '../agents/dataProfiler.js';
+import { DataProfiler } from '../agents/DataProfiler.js';
 import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { SagaState, HumanInLoopConfig,
@@ -19,7 +19,7 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
-import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE ,  PYTHON_CODE_UPDATE_PIPELINE} from '../types/pipelineConfig.js'
+import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE ,  PYTHON_CODE_UPDATE_PIPELINE, PipelineContext} from '../types/pipelineConfig.js'
 
 import * as fs from 'fs'
 
@@ -654,6 +654,51 @@ Focus: Only array extraction
   }
 
   /**
+   * Create a PipelineContext from message data
+   * Helper method to standardize context creation
+   */
+  private createPipelineContext(
+    message: any,
+    operationType: 'create_code' | 'update_code' | 'profile_approved' | 'profile_rejected'
+  ): PipelineContext {
+    const { data } = message;
+
+    return {
+      threadId: data.threadId || 'unknown-thread',
+      workflowId: data.workflowId || `workflow-${Date.now()}`,
+      correlationId: data.correlationId || `corr-${Date.now()}`,
+      userMessage: data.message || '',
+      operationType: operationType,
+      metadata: {
+        source: message.source || 'unknown',
+        timestamp: new Date(),
+        tags: ['visualization', 'saga-workflow', operationType]
+      }
+    };
+  }
+
+  /**
+   * Create a derived PipelineContext for chained pipeline execution
+   * Preserves identifiers but updates state and metadata
+   */
+  private createDerivedContext(
+    baseContext: PipelineContext,
+    previousState: any,
+    phase: string,
+    additionalTags: string[] = []
+  ): PipelineContext {
+    return {
+      ...baseContext,
+      previousState: previousState,
+      metadata: {
+        ...baseContext.metadata,
+        phase: phase,
+        tags: [...(baseContext.metadata.tags || []), ...additionalTags]
+      }
+    };
+  }
+
+  /**
    * Handle OpenAI thread request from browser
    */
   private async handleOpenAIThreadRequest(message: any): Promise<void> {
@@ -677,34 +722,108 @@ Focus: Only array extraction
       
       // Store thread globally for retention
       this.currentThreadId = threadId;
-       this.currentUserMessage = data.message;
+      this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
-    //  const initialPrompt = this.coordinator.parseConversationResultForAgent(data.message, 'TransactionGroupingAgent')
+      // Create explicit pipeline context using helper method
+      const pipelineContext = this.createPipelineContext(message, opType as any);
 
-      const pipelineExecutor: PipelineExecutor = new  PipelineExecutor(this.coordinator);
-      let state = await pipelineExecutor.executePipeline(DATA_PROFILING_PIPELINE,data.message, undefined);// D3_VISUALIZATION_PIPELINE
-   
-      const result = state.lastControlFlowResult as AgentResult;
-       console.log('END ', state.lastControlFlowResult)
-      if(!state.lastControlFlowResult.success){
-        console.log('HERE SAGA WORKFLOW ERROR')
-      //   state = await pipelineExecutor.executePipeline( PYTHON_CODE_UPDATE_PIPELINE,data.message, undefined);
+      console.log('📋 Created Pipeline Context:', {
+        threadId: pipelineContext.threadId,
+        workflowId: pipelineContext.workflowId,
+        operationType: pipelineContext.operationType
+      });
+
+      const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
+
+      // PHASE 1: Execute DATA_PROFILING_PIPELINE with explicit context
+      console.log('\n🔄 PHASE 1: Data Profiling Pipeline');
+      let profilingState = await pipelineExecutor.executePipeline(
+        DATA_PROFILING_PIPELINE,
+        pipelineContext
+      );
+
+      const result = profilingState.lastControlFlowResult as AgentResult;
+      console.log('✅ Data Profiling Complete:', {
+        success: result?.success,
+        hasResult: !!result?.result
+      });
+
+      // Check for errors in profiling phase
+      if (!profilingState.lastControlFlowResult?.success) {
+        console.error('❌ Data profiling failed');
+        console.error('   Error:', profilingState.lastControlFlowResult?.error);
+
+        // TODO: Implement compensation pipeline here (Option 1)
+        // For now, we log the error and continue
+        // Future: await pipelineExecutor.executePipeline(PYTHON_CODE_UPDATE_PIPELINE, ...);
+
+        // Return early - don't proceed to visualization if profiling failed
+        return;
       }
-      state = await pipelineExecutor.executePipeline( D3_VISUALIZATION_PIPELINE,data.message, state); 
-      console.log('STATE CONTEXT 1', state)
+
+      // PHASE 2: Execute D3_VISUALIZATION_PIPELINE with previous state
+      console.log('\n🔄 PHASE 2: D3 Visualization Pipeline');
+
+      // Create derived context with previous state
+      const visualizationContext = this.createDerivedContext(
+        pipelineContext,
+        profilingState,
+        'visualization',
+        ['phase-2']
+      );
+
+      let visualizationState = await pipelineExecutor.executePipeline(
+        D3_VISUALIZATION_PIPELINE,
+        visualizationContext
+      );
+
+      console.log('✅ Visualization Complete:', {
+        completed: visualizationState.completed,
+        errors: visualizationState.errors.length
+      });
+
       const finalResult = pipelineExecutor.getFinalResult();
-                 console.log('PIPE LINE ', finalResult)
-//await this.sendDataProfileToUser(finalResult, threadId, data.workflowId, data.correlationId);
-if(opType === 'profile_approved'){
-  console.log('PROFILE APPROVED ', data.message)
-} else if (opType === 'profile_rejected'){
-   console.log('PROFILE REJECTED ', data.message)
-   this.coordinator.contextManager.updateContext('ConversationAgent', {
-    userComment: data.message
-   });
-   state = await pipelineExecutor.executePipeline( D3_CODE_UPDATE_PIPELINE,data.message, undefined);
-}
+      console.log('📊 Final Pipeline Result:', finalResult ? 'Available' : 'None');
+
+      // PHASE 3: Handle user review responses
+      if (opType === 'profile_approved') {
+        console.log('✅ PROFILE APPROVED by user');
+        // TODO: Send success notification to user
+        // await this.sendDataProfileToUser(finalResult, threadId, data.workflowId, data.correlationId);
+
+      } else if (opType === 'profile_rejected') {
+        console.log('❌ PROFILE REJECTED by user, executing code update pipeline');
+        console.log('   User feedback:', data.message);
+
+        // Update context with user feedback
+        this.coordinator.contextManager.updateContext('ConversationAgent', {
+          userComment: data.message
+        });
+
+        // Create context for update pipeline with user feedback
+        const updateContext = this.createDerivedContext(
+          pipelineContext,
+          visualizationState,
+          'code-update',
+          ['update', 'user-feedback', 'user-rejection']
+        );
+
+        // Override operation type and message for update
+        updateContext.operationType = 'update_code';
+        updateContext.userMessage = data.message;
+
+        // Execute code update pipeline
+        const updateState = await pipelineExecutor.executePipeline(
+          D3_CODE_UPDATE_PIPELINE,
+          updateContext
+        );
+
+        console.log('✅ Code Update Complete:', {
+          completed: updateState.completed,
+          errors: updateState.errors.length
+        });
+      }
    
     } catch (error) {
       console.error('❌ Error handling OpenAI thread request:', error);
