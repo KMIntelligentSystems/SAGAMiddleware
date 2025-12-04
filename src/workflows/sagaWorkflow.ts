@@ -1,9 +1,5 @@
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { createMCPServerConfig, connectToMCPServer} from '../index.js';
-import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
-import { DataProfiler } from '../agents/DataProfiler.js';
-import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
-import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { SagaState, HumanInLoopConfig,
 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
@@ -19,7 +15,8 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
-import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE ,  PYTHON_CODE_UPDATE_PIPELINE, PipelineContext} from '../types/pipelineConfig.js'
+import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE ,  PYTHON_CODE_UPDATE_PIPELINE} from '../types/pipelineConfig.js'
+import { claudeMDResuilt } from '../test/histogramData.js'
 
 import * as fs from 'fs'
 
@@ -636,6 +633,7 @@ Focus: Only array extraction
       console.log('MESSAGE TYPE', message.type)
        console.log('MESSAGE SOURCE', message.source)
        if ((message.type === 'create_code' ||  message.type === 'update_code' || message.type === 'profile_approved' || message.type === 'profile_rejected') && message.source === 'react-app') {
+       message.data = {message: claudeMDResuilt};
         console.log(`🧵 Received create_code from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'update_code' && message.source === 'react-app') {
@@ -653,50 +651,6 @@ Focus: Only array extraction
     console.log('🎧 Listening for browser graph requests via service bus...');
   }
 
-  /**
-   * Create a PipelineContext from message data
-   * Helper method to standardize context creation
-   */
-  private createPipelineContext(
-    message: any,
-    operationType: 'create_code' | 'update_code' | 'profile_approved' | 'profile_rejected'
-  ): PipelineContext {
-    const { data } = message;
-
-    return {
-      threadId: data.threadId || 'unknown-thread',
-      workflowId: data.workflowId || `workflow-${Date.now()}`,
-      correlationId: data.correlationId || `corr-${Date.now()}`,
-      userMessage: data.message || '',
-      operationType: operationType,
-      metadata: {
-        source: message.source || 'unknown',
-        timestamp: new Date(),
-        tags: ['visualization', 'saga-workflow', operationType]
-      }
-    };
-  }
-
-  /**
-   * Create a derived PipelineContext for chained pipeline execution
-   * Preserves identifiers but updates state and metadata
-   */
-  private createDerivedContext(
-    baseContext: PipelineContext,
-    previousState: any,
-    phase: string,
-    additionalTags: string[] = []
-  ): PipelineContext {
-    return {
-      ...baseContext,
-      previousState: previousState,
-      metadata: {
-        ...baseContext.metadata,
-        phase: phase,
-        tags: [...(baseContext.metadata.tags || []), ...additionalTags]
-      }
-    };
-  }
 
   /**
    * Handle OpenAI thread request from browser
@@ -717,7 +671,7 @@ Focus: Only array extraction
       
      if (!threadId) {
         console.error('❌ No threadId provided in create_code');
-        return;
+     //   return;
       }
       
       // Store thread globally for retention
@@ -725,22 +679,13 @@ Focus: Only array extraction
       this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
-      // Create explicit pipeline context using helper method
-      const pipelineContext = this.createPipelineContext(message, opType as any);
-
-      console.log('📋 Created Pipeline Context:', {
-        threadId: pipelineContext.threadId,
-        workflowId: pipelineContext.workflowId,
-        operationType: pipelineContext.operationType
-      });
-
       const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
 
-      // PHASE 1: Execute DATA_PROFILING_PIPELINE with explicit context
+      // PHASE 1: Execute DATA_PROFILING_PIPELINE
       console.log('\n🔄 PHASE 1: Data Profiling Pipeline');
       let profilingState = await pipelineExecutor.executePipeline(
         DATA_PROFILING_PIPELINE,
-        pipelineContext
+        data.message || ''
       );
 
       const result = profilingState.lastControlFlowResult as AgentResult;
@@ -765,23 +710,16 @@ Focus: Only array extraction
       // PHASE 2: Execute D3_VISUALIZATION_PIPELINE with previous state
       console.log('\n🔄 PHASE 2: D3 Visualization Pipeline');
 
-      // Create derived context with previous state
-      const visualizationContext = this.createDerivedContext(
-        pipelineContext,
-        profilingState,
-        'visualization',
-        ['phase-2']
-      );
-
-      let visualizationState = await pipelineExecutor.executePipeline(
+   /*   let visualizationState = await pipelineExecutor.executePipeline(
         D3_VISUALIZATION_PIPELINE,
-        visualizationContext
+        data.message || '',
+        profilingState
       );
 
       console.log('✅ Visualization Complete:', {
         completed: visualizationState.completed,
         errors: visualizationState.errors.length
-      });
+      });*/
 
       const finalResult = pipelineExecutor.getFinalResult();
       console.log('📊 Final Pipeline Result:', finalResult ? 'Available' : 'None');
@@ -801,28 +739,17 @@ Focus: Only array extraction
           userComment: data.message
         });
 
-        // Create context for update pipeline with user feedback
-        const updateContext = this.createDerivedContext(
-          pipelineContext,
-          visualizationState,
-          'code-update',
-          ['update', 'user-feedback', 'user-rejection']
-        );
-
-        // Override operation type and message for update
-        updateContext.operationType = 'update_code';
-        updateContext.userMessage = data.message;
-
         // Execute code update pipeline
-        const updateState = await pipelineExecutor.executePipeline(
+      /*  const updateState = await pipelineExecutor.executePipeline(
           D3_CODE_UPDATE_PIPELINE,
-          updateContext
+          data.message || '',
+          visualizationState
         );
 
         console.log('✅ Code Update Complete:', {
           completed: updateState.completed,
           errors: updateState.errors.length
-        });
+        });*/
       }
    
     } catch (error) {

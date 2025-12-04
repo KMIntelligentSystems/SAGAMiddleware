@@ -6,9 +6,6 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult } from '../types/index.js';
 import { groupingAgentFailedResult, groupingAgentResult, visualizationGroupingAgentsResult, graphAnalyzerResult_1, d3jsCodeUpdateResult, userRequirementsResultJSON } from '../test/testData.js'
 import { dataValidatingAgentPrompt, userRequestPrompt } from '../types/visualizationSaga.js'
-import { DataProfileInput } from '../agents/DataProfiler.js'
-import {  histoRequirementsResultJSON } from '../test/histogramData.js'
-import * as fs from 'fs'
 
 /**
  * DefineUserRequirementsProcess
@@ -53,25 +50,10 @@ export class DefineUserRequirementsProcess {
  
 console.log('DEFINE ', this.userQuery)
     // Parse user query to extract this agent's task
-    const conversationContext = this.parseConversationResultForAgent(
-      this.userQuery,
-      this.agent.getName()
-    );
+  
 
-    if (!conversationContext) {
-      console.warn(`⚠️  No task found for ${this.agent.getName()} in user query`);
-      return {
-        agentName: this.agent.getName(),
-        result: '',
-        success: false,
-        timestamp: new Date(),
-        error: `No [AGENT: ${this.agent.getName()}] section found in user query`
-      };
-    }
 
-    console.log(`📝 Extracted task for ${this.agent.getName()} (${conversationContext.length} chars)`);
-   
-console.log('CONVERSATION ',conversationContext )
+console.log('CONVERSATION ',this.userQuery )
     // Execute agent
 
    
@@ -83,32 +65,36 @@ console.log('CONVERSATION ',conversationContext )
     };
  
     if(this.agent.getName() === 'TransactionGroupingAgent'){
-      this.agent.setTaskDescription(userRequestPrompt);
-      //Takes user request and extracts out CSV_FILE and REQUIREMENTS
-      result =  await this.agent.execute({'USER REQUEST': conversationContext});  //userRequirementsResultJSON;//histoRequirementsResultJSON //
-      console.log('🔍 Before extraction, result.result:', result.result);
-      const extracted = this.extractDataFromResult(result);
-      console.log('🔍 After extraction, extracted:', JSON.stringify(extracted, null, 2));
-      result.result = extracted as any; // Store DataProfileInput object in result
-      console.log('🔍 Final result.result:', result.result);
+      // NEW APPROACH: Pass the complete conversation context as workflowDescription
+      // The DataProfiler will extract filepath and analyze the workflow itself
+      console.log('📝 Passing complete workflow description to DataProfiler');
+
+      // Create DataProfileInput with the complete workflow description
+      const workflowInput = {
+        workflowDescription: this.userQuery  // Complete workflow plan like claudeMDResuilt
+      };
+
+      result.result = workflowInput;
+      console.log('🔍 Created workflowInput:', JSON.stringify(workflowInput, null, 2).substring(0, 300) + '...');
+
       if(this.targetAgent){
-          this.contextManager.updateContext(this.targetAgent, {//DataProfiler'
+          this.contextManager.updateContext(this.targetAgent, {//DataProfiler
           lastTransactionResult: result.result,
           transactionId: this.agent.getId(),
            timestamp: new Date()
       })
       }
-    
+
     } else if(this.agent.getName() === 'AgentStructureGenerator'){
       if(this.targetAgent){
           this.contextManager.updateContext(this.targetAgent, {
-          lastTransactionResult: JSON.stringify( conversationContext),
+          lastTransactionResult: JSON.stringify( this.userQuery),
           transactionId: this.agent.getId(),
            timestamp: new Date()
       })
       }
     } else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
-     result.result =JSON.stringify( conversationContext);//graphAnalyzerResult_1;
+     result.result =JSON.stringify( this.userQuery);//graphAnalyzerResult_1;
          
     } 
    
@@ -191,80 +177,5 @@ console.log('CONVERSATION ',conversationContext )
    */
   getAgent(): GenericAgent {
     return this.agent;
-  }
-
-  /**
-   * Extract CSV_FILE_PATH and REQUIREMENTS from agent result
-   * Parses the result string which may contain multiple JSON objects separated by newlines
-   *
-   * @param agentResult - The agent result object containing the result string
-   * @returns Object containing csvFilePath and requirements, or null if extraction fails
-   */
-  extractDataFromResult(agentResult: {
-    agentName: string;
-    result: string;
-    success: boolean;
-    timestamp: Date;
-  }): DataProfileInput | null {
-    try {
-      console.log('🔍 Extracting data from result:', agentResult.result);
-
-      // Remove markdown code blocks if present
-      let cleanedResult = agentResult.result.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-
-      const lines = cleanedResult.split('\n').filter(line => line.trim());
-      let csvFilePath: string | null = null;
-      let requirements: any | null = null;
-
-      // Try to parse each line as JSON
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (!trimmedLine || trimmedLine.startsWith('//')) continue;
-
-        try {
-          const parsed = JSON.parse(trimmedLine);
-
-          if (parsed.CSV_FILE_PATH) {
-            csvFilePath = parsed.CSV_FILE_PATH;
-            console.log('✅ Found CSV_FILE_PATH:', csvFilePath);
-          }
-
-          if (parsed.REQUIREMENTS) {
-            requirements = parsed.REQUIREMENTS;
-            console.log('✅ Found REQUIREMENTS:', requirements);
-          }
-        } catch (e) {
-          // Skip lines that aren't valid JSON
-          console.warn(`⚠️  Skipping non-JSON line: ${trimmedLine.substring(0, 50)}...`);
-        }
-      }
-
-      // If we didn't find them separated, try parsing the entire result as one JSON
-      if (!csvFilePath || !requirements) {
-        try {
-          const parsed = JSON.parse(cleanedResult);
-          if (parsed.CSV_FILE_PATH) csvFilePath = parsed.CSV_FILE_PATH;
-          if (parsed.REQUIREMENTS) requirements = parsed.REQUIREMENTS;
-        } catch (e) {
-          console.error('❌ Could not parse entire result as JSON');
-        }
-      }
-
-      if (!csvFilePath || !requirements) {
-        console.error('❌ Missing required fields - CSV_FILE_PATH:', !!csvFilePath, 'REQUIREMENTS:', !!requirements);
-        console.error('📄 Raw result:', agentResult.result);
-        return null;
-      }
-
-      console.log('✅ Successfully extracted both fields');
-      return {
-        filepath: csvFilePath,
-        userRequirements: JSON.stringify(requirements)
-      };
-    } catch (error) {
-      console.error('❌ Failed to extract data from result:', error);
-      console.error('📄 Raw result:', agentResult.result);
-      return null;
-    }
   }
 }

@@ -5,9 +5,9 @@
  * Manages the flow: SDK Agent -> SAGA Process -> Next SDK Agent
  */
 
-import { PipelineConfig, PipelineExecutionState, SDKAgentStep, PipelineContext } from '../types/pipelineConfig.js';
+import { PipelineConfig, PipelineExecutionState, SDKAgentStep } from '../types/pipelineConfig.js';
 import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
-import { DataProfiler } from '../agents/DataProfiler.js';
+import { DataProfiler } from '../agents/dataProfiler.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
@@ -25,75 +25,31 @@ export class PipelineExecutor {
     }
 
     /**
-     * Extract or create PipelineContext from input parameters
-     * Supports both new PipelineContext format and legacy string input
-     */
-    private extractPipelineContext(
-        inputOrContext: string | PipelineContext,
-        legacyState?: PipelineExecutionState
-    ): PipelineContext {
-        // If it's already a PipelineContext object, return it
-        if (typeof inputOrContext === 'object' && 'threadId' in inputOrContext) {
-            return inputOrContext;
-        }
-
-        // Legacy mode: convert string input to PipelineContext
-        const userMessage = typeof inputOrContext === 'string' ? inputOrContext : '';
-
-        return {
-            threadId: 'legacy-thread',
-            workflowId: 'legacy-workflow',
-            correlationId: `correlation-${Date.now()}`,
-            userMessage: userMessage,
-            operationType: 'create_code',
-            previousState: legacyState,
-            metadata: {
-                source: 'legacy-mode',
-                timestamp: new Date(),
-                tags: ['legacy-conversion']
-            }
-        };
-    }
-
-    /**
-     * Execute a complete pipeline with explicit context
-     * Supports both new PipelineContext (preferred) and legacy input/state parameters
+     * Execute a complete pipeline
      */
     async executePipeline(
         pipeline: PipelineConfig,
-        inputOrContext: string | PipelineContext,
+        input: string,
         pipelineExecutionState?: PipelineExecutionState
     ): Promise<PipelineExecutionState> {
         console.log(`🚀 Starting Pipeline: ${pipeline.name}`);
         console.log(`   Description: ${pipeline.description}`);
         console.log(`   Steps: ${pipeline.steps.length}`);
 
-        // Determine if we're using new PipelineContext or legacy parameters
-        const pipelineContext = this.extractPipelineContext(inputOrContext, pipelineExecutionState);
-
-        console.log('🔍 Context Details:');
-        console.log(`   Thread ID: ${pipelineContext.threadId}`);
-        console.log(`   Workflow ID: ${pipelineContext.workflowId}`);
-        console.log(`   Operation Type: ${pipelineContext.operationType}`);
-        console.log(`   Has Previous State: ${pipelineContext.previousState ? 'YES' : 'NO'}`);
-
-        // Initialize execution state with fresh context
+        // Initialize execution state
         // SDK agents are stateless - only the last result matters
         this.state = {
             pipelineName: pipeline.name,
             currentStepIndex: 0,
             context: {
-                input: pipelineContext.userMessage
+                input: input
             },
-            lastControlFlowResult: pipelineContext.previousState?.lastControlFlowResult,
-            lastSDKResult: pipelineContext.previousState?.lastSDKResult,
+            lastControlFlowResult: pipelineExecutionState?.lastControlFlowResult,
+            lastSDKResult: pipelineExecutionState?.lastSDKResult,
             startTime: new Date(),
             errors: [],
-            completed: false,
-            pipelineContext: pipelineContext
+            completed: false
         };
-
-        console.log('🔍 Debug - Initialized pipeline state with context');
         let result: AgentResult | null = null;
 
         // Execute each step
@@ -166,8 +122,6 @@ export class PipelineExecutor {
         if (this.state.completed) {
             console.log(`✅ Pipeline Complete: ${pipeline.name}`);
             console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
-            console.log(`   Thread ID: ${this.state.pipelineContext?.threadId}`);
-            console.log(`   Correlation ID: ${this.state.pipelineContext?.correlationId}`);
         } else {
             console.log(`❌ Pipeline Failed: ${pipeline.name}`);
             console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
@@ -250,6 +204,25 @@ export class PipelineExecutor {
             }
 
             console.log(`✅ SDK Agent execution complete`);
+
+            // If this is a DataProfiler, retrieve and log created agents
+            if (step.transactionType === 'DataProfiler' && sdkAgent instanceof DataProfiler) {
+                const createdAgents = sdkAgent.getCreatedAgents();
+                console.log(`\n📊 DataProfiler created ${createdAgents.length} agents:`);
+                createdAgents.forEach((agentInfo, idx) => {
+                    console.log(`\n   ${idx + 1}. ${agentInfo.definition.name} (Order: ${agentInfo.order})`);
+                    console.log(`      Type: ${agentInfo.definition.agentType}`);
+                    console.log(`      LLM: ${agentInfo.definition.llmConfig.provider}/${agentInfo.definition.llmConfig.model}`);
+                    console.log(`      Dependencies: ${agentInfo.definition.dependencies?.map(d => d.agentName).join(', ') || 'none'}`);
+                    console.log(`      MCP Tools: ${agentInfo.definition.mcpTools?.join(', ') || 'none'}`);
+                    console.log(`      Task Preview: ${agentInfo.definition.taskDescription}`);
+                });
+                console.log(`\n`);
+                const serialized = JSON.stringify(createdAgents, null, 2);
+                this.coordinator.contextManager.updateContext('FlowDefiningAgent', {
+                    lastTransactionResult: serialized
+                })
+            }
             /*
                 These contexts get updated:
                 DataProfiler

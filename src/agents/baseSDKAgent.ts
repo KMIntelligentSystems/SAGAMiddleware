@@ -21,7 +21,7 @@ export abstract class BaseSDKAgent {
             permissionMode: 'bypassPermissions',
             maxTurns: maxTurns,
             cwd: process.cwd(),
-            model: 'claude-opus-4-5-20251101'//sonnet'
+            model:  'opus' //'claude-opus-4-5-20251101'//sonnet'
         };
         // Use injected context manager or create a new one
         this.contextManager = contextManager || new ContextManager();

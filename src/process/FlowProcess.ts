@@ -82,10 +82,10 @@ export class FlowProcess {
 
       if(this.flowDefiningAgent.getName() === 'FlowDefiningAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){
         //Get real rlows and tool users
-           result = await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult  histoFlowDefineingAgentResult//
+           result.result = histoFlowDefineingAgentResult//await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult  histoFlowDefineingAgentResult//
           
-       const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
-      const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)
+//const ctx = this.contextManager.getContext(this.targetAgent.getName()) as WorkingMemory;
+     /* const agentDefinitionsText  = JSON.stringify(ctx.lastTransactionResult)
      //   console.log('DEFINE AGENT TRANSACTION GROUPING AGENT',  agentDefinitionsText)
        //  result.result = flowDefiningAgentResult;
          const transactionSetCollection = AgentParser.parseAndCreateAgents(
@@ -102,7 +102,7 @@ export class FlowProcess {
     // Verify transactions are properly serialized
     transactionSetCollection.sets.forEach((set, idx) => {
       console.log(`   Set ${idx + 1} (${set.name}): ${set.transactions.length} transactions`);
-    });
+    });*/
   } else if(this.flowDefiningAgent.getName() === 'ValidatingAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){ 
        const valCtx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
        console.log('FLOW VALIDATION',JSON.stringify(valCtx))

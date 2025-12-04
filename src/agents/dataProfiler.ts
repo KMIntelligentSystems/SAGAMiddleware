@@ -16,17 +16,160 @@
  */
 
 import { BaseSDKAgent } from './baseSDKAgent.js';
-import { AgentResult, WorkingMemory } from '../types/index.js';
+import { AgentResult, WorkingMemory, AgentDefinition, LLMConfig } from '../types/index.js';
+import { GenericAgent } from './genericAgent.js';
+import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
 import * as fs from 'fs'
 
 export interface DataProfileInput {
-    filepath: string;
-    userRequirements: string;
+    workflowDescription: string;  // Complete workflow plan including filepath and requirements
+}
+
+export interface SubAgentSpec {
+    name: string;
+    description: string;
+    expectedOutput: string;
+}
+
+export interface CreatedAgentInfo {
+    agent?: GenericAgent;  // Optional - only created when needed
+    definition: AgentDefinition;
+    order: number;
 }
 
 export class DataProfiler extends BaseSDKAgent {
+    private createdAgents: CreatedAgentInfo[] = [];
+    private agentCreationOrder: number = 0;
+
     constructor(contextManager?: any) {
         super('DataProfiler', 15, contextManager);
+
+        // Add custom tool for creating GenericAgents
+        this.setupCreateAgentTool();
+    }
+
+    /**
+     * Setup custom MCP tool for creating GenericAgent instances
+     */
+    private setupCreateAgentTool(): void {
+        const createAgentTool = tool(
+            'create_generic_agent',
+            'Creates a GenericAgent instance for data processing. Call this tool for each agent you want to create in the processing pipeline.',
+            {
+                name: z.string().describe('Agent name (e.g., "DataLoaderAgent", "StatisticsAgent")'),
+                taskDescription: z.string().describe('Detailed task description - what this agent should do'),
+                taskExpectedOutput: z.string().describe('Expected output format and structure'),
+                agentType: z.enum(['tool', 'processing']).describe('Agent type: "tool" for agents using MCP tools, "processing" for pure text processing'),
+                llmProvider: z.enum(['openai', 'anthropic', 'gemini']).optional().describe('LLM provider. Default: "openai"'),
+                llmModel: z.string().optional().describe('Model name. Default: "gpt-4o-mini"'),
+                dependencies: z.array(z.string()).optional().describe('Names of other agents this agent depends on'),
+                mcpTools: z.array(z.string()).optional().describe('MCP tools this agent can use (e.g., ["execute_python"])')
+            },
+            async (args) => {
+                return this.handleCreateAgent(args);
+            }
+        );
+
+        // Create MCP server with the tool
+        const mcpServer = createSdkMcpServer({
+            name: 'agent-creator',
+            tools: [createAgentTool]
+        });
+
+        // Add MCP server to options - SDK expects the server instance directly
+        this.options.mcpServers = {
+            'agent-creator': mcpServer
+        } as any;
+    }
+
+    /**
+     * Handler for create_generic_agent tool
+     */
+    private async handleCreateAgent(args: any) {
+        try {
+            console.log(`\n🔧 Creating GenericAgent: ${args.name}`);
+
+            // Generate unique ID
+            const agentId = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+            // Build LLM config
+            const llmConfig: LLMConfig = {
+                provider: args.llmProvider || 'openai',
+                model: args.llmModel || 'gpt-4o-mini',
+                temperature: 0.3,
+                maxTokens: 4000
+            };
+
+            // Build dependencies
+            const dependencies = (args.dependencies || []).map((depName: string) => ({
+                agentName: depName,
+                required: true
+            }));
+
+            // Create AgentDefinition
+            const agentDefinition: AgentDefinition = {
+                id: agentId,
+                name: args.name,
+                backstory: `Agent created by DataProfiler for: ${args.taskDescription.substring(0, 100)}`,
+                taskDescription: args.taskDescription,
+                taskExpectedOutput: args.taskExpectedOutput,
+                llmConfig,
+                dependencies,
+                agentType: args.agentType,
+                mcpServers: args.agentType === 'tool' ? [
+                    {
+                        name: 'execution',
+                        command: 'npx',
+                        args: ['-y', '@anthropic-ai/mcp-server-execution'],
+                        transport: 'stdio' as const
+                    }
+                ] : undefined,
+                mcpTools: args.mcpTools || (args.agentType === 'tool' ? ['execute_python'] : undefined)
+            };
+
+            // Store agent definition in registry (don't instantiate GenericAgent yet to avoid MCP connection errors)
+            const agentInfo: CreatedAgentInfo = {
+                definition: agentDefinition,
+                order: this.agentCreationOrder++
+            };
+
+            this.createdAgents.push(agentInfo);
+
+            console.log(`✅ Created agent definition: ${args.name} (Order: ${agentInfo.order})`);
+
+            // Return success message to Claude
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Successfully created agent "${args.name}" (ID: ${agentId}, Order: ${agentInfo.order})`
+                }]
+            };
+        } catch (error) {
+            console.error(`❌ Error creating agent ${args.name}:`, error);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error creating agent: ${error instanceof Error ? error.message : String(error)}`
+                }],
+                isError: true
+            };
+        }
+    }
+
+    /**
+     * Get all created agents
+     */
+    public getCreatedAgents(): CreatedAgentInfo[] {
+        return [...this.createdAgents].sort((a, b) => a.order - b.order);
+    }
+
+    /**
+     * Clear created agents
+     */
+    public clearCreatedAgents(): void {
+        this.createdAgents = [];
+        this.agentCreationOrder = 0;
     }
 
     /**
@@ -34,22 +177,24 @@ export class DataProfiler extends BaseSDKAgent {
      */
     async execute(input: DataProfileInput): Promise<AgentResult> {
         // Get input from context manager
-        input = this.getInput();
+     //   input = this.getInput();
 
-        if (!this.validateInput(input)) {
+      /*  if (!this.validateInput(input)) {
             return {
                 agentName: 'DataProfiler',
                 result: '',
                 success: false,
                 timestamp: new Date(),
-                error: 'Invalid input: filepath and userRequirements are required'
+                error: 'Invalid input: workflowDescription is required'
             };
-        }
+        }*/
 
         try {
-            const prompt = this.buildPrompt(input);
-            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //
+            const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
+            const prompt = this.buildPrompt(ctx.lastTransactionResult);
+            const output = await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
            // console.log('DATA PROFILER ', output)
+            fs.writeFileSync('C:/repos/SAGAMiddleware/data/dataProfilerOutput.txt', output, 'utf-8');
             this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
 
             return {
@@ -71,11 +216,11 @@ export class DataProfiler extends BaseSDKAgent {
 
     /**
      * Build prompt for data profiling
+     * Generic prompt that wraps around user requirements without hardcoded assumptions
      */
     protected buildPrompt(input: DataProfileInput): string {
-       
-        return this.getHistogramPrompt(input)
-      }
+        return this.getGenericDataAnalysisPrompt(input);
+    }
 
     /**
      * Validate input for data profiling
@@ -83,10 +228,8 @@ export class DataProfiler extends BaseSDKAgent {
     protected validateInput(input: any): boolean {
         return (
             input &&
-            typeof input.filepath === 'string' &&
-            typeof input.userRequirements === 'string' &&
-            input.filepath.length > 0 &&
-            input.userRequirements.length > 0
+            typeof input.workflowDescription === 'string' &&
+            input.workflowDescription.length > 0
         );
     }
 
@@ -109,112 +252,112 @@ console.log('INPUT DATAPROFILER ', actualResult)
      * Legacy method for backward compatibility
      * @deprecated Use execute() instead
      */
-    async analyzeAndGeneratePrompt(filepath: string, userRequirements: string): Promise<string> {
-        const result = await this.execute({ filepath, userRequirements });
+    async analyzeAndGeneratePrompt(workflowDescription: string): Promise<string> {
+        const result = await this.execute({ workflowDescription });
         if (!result.success) {
             throw new Error(result.error || 'Failed to generate prompt from file analysis');
         }
         return result.result;
     }
 
+    /**
+     * Legacy file analysis prompt (deprecated)
+     * @deprecated This method used the old two-parameter interface. Use getGenericDataAnalysisPrompt instead.
+     */
     getFileAnalysisPrompt(input: DataProfileInput): string {
-        console.log('FILEPATH', input.filepath)
-        console.log('USER ',input.userRequirements)
+        console.log('⚠️ WARNING: getFileAnalysisPrompt is deprecated. Use getGenericDataAnalysisPrompt instead.');
+        console.log('WORKFLOW DESCRIPTION', input.workflowDescription);
 
-       return `You are analyzing a data processing task to generate specifications for agent creation.
-
-        FILE TO ANALYZE: ${input.filepath}
-
-        USER REQUIREMENTS:
-        ${input.userRequirements}
-
-        YOUR TASK:
-
-        1. **Read and analyze the file** at ${input.filepath}:
-        - Detect encoding (check for BOM character at start)
-        - Understand structure (header rows, columns, MultiIndex)
-        - Identify datetime columns and infer their exact format strings
-        - Detect any data mappings/categories in the header structure
-        - Note data characteristics (missing values, negatives, data types)
-
-        2. **Interpret user requirements**:
-        - What transformations are needed?
-        - What filters, aggregations, or outputs are requested?
-        - Infer implicit requirements from context
-
-        3. **Generate a comprehensive prompt** for an agent structure generator.
-
-        Your output should be a detailed prompt that will be used to create [AGENT: Name, ID] structures.
-
-        Include in your prompt:
-        - EXACT technical specifications from your file analysis (encoding, date format strings, column flattening methods)
-        - Clear transformation requirements derived from user's request
-        - Critical instructions for Python coding agents (grouping keys, output formats, error prevention)
-        - Specific examples of what to avoid (wrong date formats, wrong aggregation grouping, syntax errors)
-
-        The agent structure generator will use your prompt to create detailed instructions for cheap LLMs (gpt-4o-mini).
-        Be specific about technical details you discovered - don't make the next agent guess.
-
-        Output the complete prompt now.
-
-`;
-   
+        // This legacy method is no longer functional with the new interface
+        // Redirecting to the new generic prompt
+        return this.getGenericDataAnalysisPrompt(input);
     }
 
+    /**
+     * Generic data analysis prompt - wraps around user requirements
+     * Instructs Claude to use create_generic_agent tool to create agents
+     */
+    getGenericDataAnalysisPrompt(input: DataProfileInput): string {
+        console.log('WORKFLOW DESCRIPTION', input.workflowDescription);
+
+        return `You are creating GenericAgent instances for a data processing pipeline using the create_generic_agent tool.
+
+WORKFLOW PLAN:
+${input.workflowDescription}
+
+YOUR TASK:
+
+1. First, use read_file ONCE to examine the data file mentioned in the workflow plan.
+   - Identify the exact file path
+   - Note column names (case-sensitive)
+   - Understand data structure
+
+2. Then, for EACH agent in the workflow plan, call create_generic_agent tool ONCE per agent:
+
+   **name**: Agent name in CamelCase with "Agent" suffix (e.g., "DataProfilerAgent")
+
+   **taskDescription**:
+   - FOR TOOL AGENTS (agentType="tool"): COMPLETE, EXECUTABLE Python code (not instructions). Write the actual Python code string with \\n for newlines. Include all imports, exact file paths, error handling, and print JSON output.
+   - FOR PROCESSING AGENTS (agentType="processing"): Clear instructions for text/code generation tasks (like D3.js visualization, HTML, etc.)
+
+   Example taskDescription for TOOL agent (Python code as string):
+   "import pandas as pd\\nimport numpy as np\\nimport json\\n\\ndf = pd.read_csv('C:/exact/path/to/prices.csv')\\nprices = df['price']\\nresult = {'mean': float(np.mean(prices)), 'std': float(np.std(prices, ddof=1))}\\nprint(json.dumps(result))"
+
+   Example taskDescription for PROCESSING agent (instructions):
+   "Generate a complete HTML file with D3.js histogram. Use the preprocessed data from the previous agent. Include proper D3 scales, axes, and tooltips."
+
+   **taskExpectedOutput**: Describe the exact output format (JSON keys, data types for tool agents; HTML/text structure for processing agents)
+
+   **agentType**: "tool" for Python execution with execute_python, "processing" for text/HTML/D3.js generation (NO execute_python)
+
+   **dependencies**: [] for first agent, ["PreviousAgentName"] for others
+
+   **llmProvider**: "openai"
+
+   **llmModel**: "gpt-4o-mini"
+
+   **mcpTools**: ["execute_python"] for tool agents, [] for processing agents
+
+3. Create agents IN ORDER (Agent 1, then Agent 2, then Agent 3, etc.)
+
+4. Infer what each agent needs based on task keywords:
+
+   - If task mentions "statistical profile" or "analyze": include mean, median, std, quartiles, skewness, kurtosis, outlier detection
+   - If task mentions "bin" or "histogram parameters": include Sturges, Scott, Freedman-Diaconis calculations
+   - If task mentions "preprocess" or "format": include numpy.histogram() and bin structure generation
+   - If task mentions "visualization" or "D3.js": include complete HTML generation with d3.csv()
+
+5. After calling create_generic_agent for ALL agents in the workflow, output a summary:
+   "Created N agents: [list names]. Pipeline complete."
+
+6. STOP - Do not call any more tools after creating all agents.
+
+CRITICAL REQUIREMENTS:
+- Use read_file tool ONLY ONCE at the beginning
+- Call create_generic_agent ONCE per agent (do NOT call it multiple times for the same agent)
+- After creating all agents, output a summary message and STOP
+- Use EXACT file paths from the workflow (no placeholders)
+- Use EXACT column names from file inspection (case-sensitive)
+- Include complete Python instructions in taskDescription
+- Specify exact output format in taskExpectedOutput
+
+WORKFLOW:
+1. Read file ONCE with read_file tool
+2. For each agent in workflow plan: call create_generic_agent tool ONCE
+3. After creating all agents, output summary: "Created N agents: [names]. Pipeline complete."
+4. STOP - do not call any more tools`;
+    }
+
+    /**
+     * Legacy histogram-specific prompt (deprecated)
+     * @deprecated This method used the old two-parameter interface and hardcoded histogram assumptions. Use getGenericDataAnalysisPrompt instead.
+     */
     getHistogramPrompt(input: DataProfileInput): string {
-        console.log('FILEPATH', input.filepath)
-        console.log('USER ',input.userRequirements)
+        console.log('⚠️ WARNING: getHistogramPrompt is deprecated. Use getGenericDataAnalysisPrompt instead.');
+        console.log('WORKFLOW DESCRIPTION', input.workflowDescription);
 
-    return `You are analyzing a data processing task to generate specifications for agent creation.
-
-        FILE TO ANALYZE: ${input.filepath}
-
-        USER REQUIREMENTS:
-        ${input.userRequirements}
-
-        YOUR TASK:
-
-            You are a data analysis expert specializing in histogram generation for D3.js visualization.
-
-        Your task is to build a prompt for an agent structure generator to undertake the analysis of data in order to build a histogram for D3.js visualization.
-        Consider the following for the agent:
-
-        1. **Interpret user requirements**:
-        - What transformations are needed?
-        - What filters, aggregations, or outputs are requested?
-        - Infer implicit requirements from context
-
-        2. **Data analysis and output for D3.js**:
-        - Reads the CSV file
-        - Calculates statistical properties (min, max, mean, median, std, quartiles, IQR, skewness, kurtosis)
-        - Determines optimal bin sizes based on these statistics
-        - Considers multiple binning strategies (Sturges, Scott's rule, Freedman-Diaconis, Square Root)
-        - Generates the histogram data structure with bin edges, frequencies, and cumulative statistics
-        - **CRITICAL**: Outputs histogram data as a JSON-compatible structure (lists/dicts) for D3.js consumption
-        - **FINAL AGENT OUTPUT**: The last agent in the flow must print the complete histogram data structure as JSON
-        - This printed JSON output will be captured and passed to the D3.js visualization coordinator
-        - The output should include: bins (start, end, center), frequencies, percentages, cumulative stats, and metadata
-
-        3. **Generate a comprehensive prompt** for an agent structure generator.
-
-        ## Important:
-        The data is too large to analyze directly.
-        The end goal is D3.js visualization - all outputs must be JSON-compatible data structures.
-
-        Your output should be a detailed prompt that will be used to create [AGENT: Name, ID] structures.
-
-        Include in your prompt:
-        - Clear transformation requirements derived from user's request
-        - Critical instructions for Python coding agents (output formats must be JSON-compatible for D3.js)
-        - Specific examples of what to avoid (file exports, Excel/CSV writing, file I/O operations)
-        - Emphasis that final output should be histogram data structure suitable for D3.js
-        - **IMPORTANT**: The final agent must print JSON using: print(json.dumps(output)) or similar
-        - The JSON output format should be: {"bins": [...], "frequencies": [...], "metadata": {...}}
-        - This printed JSON is what gets captured and passed to D3.js coordinator
-
-        The agent structure generator will use your prompt to create detailed instructions for cheap LLMs (gpt-4o-mini).
-        Be specific about technical details you discovered - don't make the next agent guess.
-
-        Output the complete prompt now.`
+        // This legacy method is no longer functional with the new interface
+        // Redirecting to the new generic prompt which handles all visualization types
+        return this.getGenericDataAnalysisPrompt(input);
     }
 }

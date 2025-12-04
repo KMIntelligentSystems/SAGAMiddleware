@@ -2,7 +2,7 @@
 export { GenericAgent } from './genericAgent.js';
 
 // Export profiler classes
-export { DataProfiler } from './DataProfiler.js';
+export { DataProfiler } from './dataProfiler.js';
 export { D3JSCodeGenerator } from './d3jsCodeGenerator.js';
 export { D3JSCodeUpdater } from './d3jsCodeUpdater.js';
 export { D3JSCodeValidator } from './d3jsCodeValidator.js';
