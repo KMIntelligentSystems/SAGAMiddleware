@@ -14,6 +14,8 @@ import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { D3JSCodeUpdater } from '../agents/d3jsCodeUpdater.js';
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
+import { transformAgentDefinitionsToSagaTransactions } from '../utils/agentTransformers.js';
+import { TransactionSet } from '../types/visualizationSaga.js';
 
 export class PipelineExecutor {
     private coordinator: SagaCoordinator;
@@ -218,7 +220,37 @@ export class PipelineExecutor {
                     console.log(`      Task Preview: ${agentInfo.definition.taskDescription}`);
                 });
                 console.log(`\n`);
-                const serialized = JSON.stringify(createdAgents, null, 2);
+
+                // Transform CreatedAgentInfo[] to SagaTransaction[] for ExecuteGenericAgentsProcess
+                const sagaTransactions = transformAgentDefinitionsToSagaTransactions(createdAgents);
+
+                // Wrap in TransactionSet format expected by ExecuteGenericAgentsProcess
+                const transactionSet: TransactionSet = {
+                    id: 'data-profiler-agents',
+                    name: 'Data Profiler Generated Agents',
+                    description: 'Agents dynamically created by DataProfiler for data processing',
+                    transactions: sagaTransactions
+                };
+
+                // Wrap in TransactionSetCollection format
+                const transactionSetCollection = {
+                    id: 'data-profiler-collection',
+                    name: 'Data Profiler Agent Collection',
+                    description: 'Collection of agents from DataProfiler',
+                    sets: [transactionSet],
+                    executionOrder: ['data-profiler-agents'],
+                    metadata: {
+                        version: '1.0',
+                        created: new Date()
+                    }
+                };
+
+                console.log(`\n🔄 Transformed ${createdAgents.length} agents into ${sagaTransactions.length} SagaTransactions`);
+                sagaTransactions.forEach((tx, idx) => {
+                    console.log(`   ${idx + 1}. ${tx.name} (ID: ${tx.id}, Type: ${tx.agentType}, Dependencies: ${tx.dependencies.join(', ') || 'none'})`);
+                });
+
+                const serialized = JSON.stringify(transactionSetCollection, null, 2);
                 this.coordinator.contextManager.updateContext('FlowDefiningAgent', {
                     lastTransactionResult: serialized
                 })

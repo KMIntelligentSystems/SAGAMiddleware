@@ -80,7 +80,7 @@ export class FlowProcess {
       timestamp: new Date()
     };
 
-      if(this.flowDefiningAgent.getName() === 'FlowDefiningAgent' && this.targetAgent.getName() === 'FlowDefiningAgent'){
+      if(this.flowDefiningAgent.getName() === 'DataProfiler' && this.targetAgent.getName() === 'FlowDefiningAgent'){
         //Get real rlows and tool users
            result.result = histoFlowDefineingAgentResult//await this.flowDefiningAgent.execute({}); // flowDefiningAgentResult  histoFlowDefineingAgentResult//
           

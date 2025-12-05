@@ -51,18 +51,19 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                 ]
             }
         },
-        /*{
+        
+        {
          transactionType: 'AgentStructureGenerator',
             name: 'AgentGenerationStep',
             description: 'Generate agent structures in [AGENT:...] format',
             processConfig: {
                 processType: 'agent',
                 controlFlow: [
-                     { agent: 'DataProfiler', process: 'GenerateAgentAgentStructureProcess', targetAgent: 'AgentStructureGenerator' }
+                     { agent: 'DataProfiler', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent' }
                 ]
             }
         },
-        {
+        /*{
             transactionType: 'AgentExecutor',
             name: 'AgentExecutorStep',
             description: 'Generate agent structures in [AGENT:...] format',

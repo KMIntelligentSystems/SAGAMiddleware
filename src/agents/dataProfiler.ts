@@ -21,6 +21,7 @@ import { GenericAgent } from './genericAgent.js';
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import * as fs from 'fs'
+import { claudeBackendResult_1, claudeBackendResult_2, claudeBackendResult_3} from '../test/histogramData.js'
 
 export interface DataProfileInput {
     workflowDescription: string;  // Complete workflow plan including filepath and requirements
@@ -46,7 +47,8 @@ export class DataProfiler extends BaseSDKAgent {
         super('DataProfiler', 15, contextManager);
 
         // Add custom tool for creating GenericAgents
-        this.setupCreateAgentTool();
+        this.createTestAgents();
+     //   this.setupCreateAgentTool();
     }
 
     /**
@@ -164,6 +166,58 @@ export class DataProfiler extends BaseSDKAgent {
         return [...this.createdAgents].sort((a, b) => a.order - b.order);
     }
 
+    private createTestAgents(): void{
+         const agentDefinition_1: AgentDefinition = {
+        id: 'tx-ag_1',
+        name: 'DataFilter',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: claudeBackendResult_1,
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'tool'
+      };
+      const agentInfo_1: CreatedAgentInfo = {
+                definition: agentDefinition_1,
+                order: this.agentCreationOrder++
+            };
+
+            this.createdAgents.push(agentInfo_1);
+    
+      const agentDefinition_2: AgentDefinition = {
+        id: 'tx-ag_1',
+        name: 'HistogramParametersCalculatorAgent',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: claudeBackendResult_2,
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'tool'
+      };
+      const agentInfo_2: CreatedAgentInfo = {
+                definition: agentDefinition_2,
+                order: this.agentCreationOrder++
+            };
+
+            this.createdAgents.push(agentInfo_2);
+
+    const agentDefinition_3: AgentDefinition = {
+        id: 'tx-ag_1',
+        name: ' DataPreprocessorAgent',
+        backstory: `Dynamic agent created from SAGA transaction with ID`,
+        taskDescription: claudeBackendResult_3,
+        taskExpectedOutput: 'Structured response based on task requirements',
+        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        dependencies: [],
+        agentType: 'tool'
+      };
+      const agentInfo_3: CreatedAgentInfo = {
+                definition: agentDefinition_3,
+                order: this.agentCreationOrder++
+            };
+
+            this.createdAgents.push(agentInfo_2);
+    }
     /**
      * Clear created agents
      */
@@ -192,10 +246,10 @@ export class DataProfiler extends BaseSDKAgent {
         try {
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
             const prompt = this.buildPrompt(ctx.lastTransactionResult);
-            const output = await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
+            const output = ''//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
            // console.log('DATA PROFILER ', output)
-            fs.writeFileSync('C:/repos/SAGAMiddleware/data/dataProfilerOutput.txt', output, 'utf-8');
-            this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
+          //  fs.writeFileSync('C:/repos/SAGAMiddleware/data/dataProfilerOutput.txt', output, 'utf-8');
+         //   this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
 
             return {
                agentName: 'DataProfiler',
