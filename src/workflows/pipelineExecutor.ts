@@ -14,8 +14,6 @@ import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { D3JSCodeUpdater } from '../agents/d3jsCodeUpdater.js';
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { transformAgentDefinitionsToSagaTransactions } from '../utils/agentTransformers.js';
-import { TransactionSet } from '../types/visualizationSaga.js';
 
 export class PipelineExecutor {
     private coordinator: SagaCoordinator;
@@ -196,6 +194,7 @@ export class PipelineExecutor {
         if(step.processConfig.processType === 'agent')
         {
             const sdkAgent = this.instantiateAgent(step.transactionType);
+            console.log('EREREE', sdkAgent)
 
             // SDK agents read their input from contextManager via getInput()
             // The control flow process has already populated the context with required data
@@ -205,10 +204,19 @@ export class PipelineExecutor {
                 throw new Error(`SDK Agent ${step.transactionType} failed: ${sdkResult.error}`);
             }
 
-            console.log(`✅ SDK Agent execution complete`);
+            console.log(`✅ SDK Agent execution complete`, sdkResult.result);
 
             // If this is a DataProfiler, retrieve and log created agents
             if (step.transactionType === 'DataProfiler' && sdkAgent instanceof DataProfiler) {
+                   const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory;
+                   console.log('🔴 SagaCoordinator: DataProfiler context:', ctx ? 'EXISTS' : 'NULL');
+            console.log('🔴 SagaCoordinator: lastTransactionResult:', ctx?.lastTransactionResult ? 'HAS DATA' : 'NULL');
+            if (ctx?.lastTransactionResult) {
+              console.log('🔴 SagaCoordinator: Data preview:', typeof ctx.lastTransactionResult === 'string' ? ctx.lastTransactionResult.substring(0, 200) : 'NOT STRING');
+            }
+            /*    console.log('🟢 PipelineExecutor: DataProfiler execution complete, checking context...');
+                const contextCheck = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory;
+                console.log('🟢 PipelineExecutor: DataProfiler context exists?', contextCheck?.lastTransactionResult ? 'YES' : 'NO');
                 const createdAgents = sdkAgent.getCreatedAgents();
                 console.log(`\n📊 DataProfiler created ${createdAgents.length} agents:`);
                 createdAgents.forEach((agentInfo, idx) => {
@@ -218,42 +226,8 @@ export class PipelineExecutor {
                     console.log(`      Dependencies: ${agentInfo.definition.dependencies?.map(d => d.agentName).join(', ') || 'none'}`);
                     console.log(`      MCP Tools: ${agentInfo.definition.mcpTools?.join(', ') || 'none'}`);
                     console.log(`      Task Preview: ${agentInfo.definition.taskDescription}`);
-                });
-                console.log(`\n`);
-
-                // Transform CreatedAgentInfo[] to SagaTransaction[] for ExecuteGenericAgentsProcess
-                const sagaTransactions = transformAgentDefinitionsToSagaTransactions(createdAgents);
-
-                // Wrap in TransactionSet format expected by ExecuteGenericAgentsProcess
-                const transactionSet: TransactionSet = {
-                    id: 'data-profiler-agents',
-                    name: 'Data Profiler Generated Agents',
-                    description: 'Agents dynamically created by DataProfiler for data processing',
-                    transactions: sagaTransactions
-                };
-
-                // Wrap in TransactionSetCollection format
-                const transactionSetCollection = {
-                    id: 'data-profiler-collection',
-                    name: 'Data Profiler Agent Collection',
-                    description: 'Collection of agents from DataProfiler',
-                    sets: [transactionSet],
-                    executionOrder: ['data-profiler-agents'],
-                    metadata: {
-                        version: '1.0',
-                        created: new Date()
-                    }
-                };
-
-                console.log(`\n🔄 Transformed ${createdAgents.length} agents into ${sagaTransactions.length} SagaTransactions`);
-                sagaTransactions.forEach((tx, idx) => {
-                    console.log(`   ${idx + 1}. ${tx.name} (ID: ${tx.id}, Type: ${tx.agentType}, Dependencies: ${tx.dependencies.join(', ') || 'none'})`);
-                });
-
-                const serialized = JSON.stringify(transactionSetCollection, null, 2);
-                this.coordinator.contextManager.updateContext('FlowDefiningAgent', {
-                    lastTransactionResult: serialized
-                })
+                });*/
+               
             }
             /*
                 These contexts get updated:

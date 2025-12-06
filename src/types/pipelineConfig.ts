@@ -57,7 +57,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             name: 'AgentGenerationStep',
             description: 'Generate agent structures in [AGENT:...] format',
             processConfig: {
-                processType: 'agent',
+                processType: 'subAgent',
                 controlFlow: [
                      { agent: 'DataProfiler', process: 'ExecuteGenericAgentsProcess', targetAgent: 'ValidatingAgent' }
                 ]

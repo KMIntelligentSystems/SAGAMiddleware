@@ -42,6 +42,7 @@ import { D3JSCodingProcess } from '../process/D3JSCodingProcess.js';
 import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
 import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
 import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
+import { ExecuteGenericAgentsProcess_AgentDefinition } from '../process/ExecuteGenericAgentsProcess_AgentDefinition.js';
 import { GenReflectProcess } from '../process/GenReflectProcess.js';
 import { FlowGeneratingProcess } from '../process/FlowGeneratingProcess.js';
 import { GenerateAgentAgentStructureProcess } from '../process/GenerateAgentAgentStructureProcess.js'
@@ -50,6 +51,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -219,7 +222,7 @@ sleep(ms: number) {
     targetAgentName?: string,
     transactionSetCollection?: TransactionSetCollection,
     svgFilePath?: string
-  ): DefineUserRequirementsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | GenReflectProcess | FlowGeneratingProcess | GenerateAgentAgentStructureProcess |null {
+  ): DefineUserRequirementsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess |  ExecuteGenericAgentsProcess_AgentDefinition | GenReflectProcess | FlowGeneratingProcess | GenerateAgentAgentStructureProcess | null {
     const agent = this.agents.get(agentName);
     
     console.log('PROCESS TYPE', processType)
@@ -284,14 +287,15 @@ sleep(ms: number) {
 
  
       case 'ExecuteGenericAgentsProcess': {
-      
-        return new ExecuteGenericAgentsProcess(
-          agent,
-          this,
-         // transactionSetCollection,
-          targetAgentName as string
+       if(targetAgentName){
+          const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
+          return new ExecuteGenericAgentsProcess_AgentDefinition(
+          agent.getName(),
+          this.contextManager,
+          targetAgentName
         );
       } 
+    }
 
       case 'AgentGeneratorProcess': {
           if(targetAgentName){
@@ -395,13 +399,21 @@ sleep(ms: number) {
     for (let i = 0; i < this.controlFlowList.length; i++) {
       const step = this.controlFlowList[i];
       console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.process} ---`);
-
+//--- Step 1/1: DataProfiler → ExecuteGenericAgentsProcess ---
       // Update current agent state
-      this.currAgent = this.agents.get(step.agent) || null;
-
-      if (step.process === 'DataAnalysisProcess') {
-        step.targetAgent = lastDynamicAgentName;
+    
+      if (step.process === 'ExecuteGenericAgentsProcess') {
+            console.log('🔴 SagaCoordinator: ExecuteGenericAgentsProcess step reached');
+            console.log('🔴 SagaCoordinator: ContextManager instance:', this.contextManager ? 'EXISTS' : 'NULL');
+            const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
+            console.log('🔴 SagaCoordinator: DataProfiler context:', ctx ? 'EXISTS' : 'NULL');
+            console.log('🔴 SagaCoordinator: lastTransactionResult:', ctx?.lastTransactionResult ? 'HAS DATA' : 'NULL');
+            if (ctx?.lastTransactionResult) {
+              console.log('🔴 SagaCoordinator: Data preview:', typeof ctx.lastTransactionResult === 'string' ? ctx.lastTransactionResult.substring(0, 200) : 'NOT STRING');
+            }
       }
+         
+  this.currAgent = this.agents.get(step.agent) || null;
 
       // Instantiate process
       // Determine userQuery based on special cases

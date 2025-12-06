@@ -186,6 +186,7 @@ sagaTransactions.forEach(e => {
               //  await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
           } else {
                cleanCode = this.cleanPythonCode(JSON.stringify(linearTx)).trim();
+                               console.log('CLEAN CODE EXEC 1', cleanCode)
           }
        
 

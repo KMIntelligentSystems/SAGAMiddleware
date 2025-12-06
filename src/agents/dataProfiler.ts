@@ -22,6 +22,7 @@ import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import * as fs from 'fs'
 import { claudeBackendResult_1, claudeBackendResult_2, claudeBackendResult_3} from '../test/histogramData.js'
+import { agentConstructorPythonExecutionError } from '../test/testData.js';
 
 export interface DataProfileInput {
     workflowDescription: string;  // Complete workflow plan including filepath and requirements
@@ -47,7 +48,7 @@ export class DataProfiler extends BaseSDKAgent {
         super('DataProfiler', 15, contextManager);
 
         // Add custom tool for creating GenericAgents
-        this.createTestAgents();
+       // this.createTestAgents();
      //   this.setupCreateAgentTool();
     }
 
@@ -216,7 +217,7 @@ export class DataProfiler extends BaseSDKAgent {
                 order: this.agentCreationOrder++
             };
 
-            this.createdAgents.push(agentInfo_2);
+            this.createdAgents.push(agentInfo_3);
     }
     /**
      * Clear created agents
@@ -246,14 +247,22 @@ export class DataProfiler extends BaseSDKAgent {
         try {
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
             const prompt = this.buildPrompt(ctx.lastTransactionResult);
-            const output = ''//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
-           // console.log('DATA PROFILER ', output)
-          //  fs.writeFileSync('C:/repos/SAGAMiddleware/data/dataProfilerOutput.txt', output, 'utf-8');
-         //   this.setContext('[AGENT: DataProfiler tx-2-2' + output + '[/AGENT]');
+        //    try{
+           
+            this.createTestAgents();//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
+            
+            const agents = JSON.stringify(this.createdAgents)
 
+            console.log('🔵 DataProfiler: About to setContext with agents:', agents);
+           
+            this.setContext(agents);
+
+// } catch(error: any){
+    //            console.log('ERROR ', error)
+  //          }
             return {
                agentName: 'DataProfiler',
-                result: output,
+                result: agents,
                 success: true,
                 timestamp: new Date(),
             };
