@@ -42,7 +42,6 @@ import { D3JSCodingProcess } from '../process/D3JSCodingProcess.js';
 import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
 import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
 import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
-import { ExecuteGenericAgentsProcess_AgentDefinition } from '../process/ExecuteGenericAgentsProcess_AgentDefinition.js';
 import { GenReflectProcess } from '../process/GenReflectProcess.js';
 import { FlowGeneratingProcess } from '../process/FlowGeneratingProcess.js';
 import { GenerateAgentAgentStructureProcess } from '../process/GenerateAgentAgentStructureProcess.js'
@@ -117,11 +116,11 @@ export class SagaCoordinator extends EventEmitter {
     // Configure LLM for this agent if not already set
     if (!definition.llmConfig) {
       definition.llmConfig = {
-        provider: 'gemini',  // Options: 'openai', 'anthropic', 'gemini', 'deepseek', 'ollama'
-        model: definition.agentType === 'tool' ? 'gemini-2.0-flash-exp' : 'gemini-2.0-flash-exp',
+        provider:  'anthropic',  // Options: 'openai', 'anthropic', 'gemini', 'deepseek', 'ollama'
+        model: definition.agentType === 'tool' ? 'claude-opus-4-5' : 'claude-opus-4-5',
         temperature: 1,
         maxTokens: definition.agentType === 'tool' ? 2000 : 1500,
-        apiKey: process.env.GEMINI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY
       };
     }
 
@@ -222,7 +221,7 @@ sleep(ms: number) {
     targetAgentName?: string,
     transactionSetCollection?: TransactionSetCollection,
     svgFilePath?: string
-  ): DefineUserRequirementsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess |  ExecuteGenericAgentsProcess_AgentDefinition | GenReflectProcess | FlowGeneratingProcess | GenerateAgentAgentStructureProcess | null {
+  ): DefineUserRequirementsProcess | ValidationProcess | FlowProcess | AgentGeneratorProcess | D3JSCodingProcess | DataAnalysisProcess | DataSummarizingProcess | ExecuteGenericAgentsProcess | GenReflectProcess | FlowGeneratingProcess | GenerateAgentAgentStructureProcess | null {
     const agent = this.agents.get(agentName);
     
     console.log('PROCESS TYPE', processType)
@@ -289,12 +288,13 @@ sleep(ms: number) {
       case 'ExecuteGenericAgentsProcess': {
        if(targetAgentName){
           const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
-          return new ExecuteGenericAgentsProcess_AgentDefinition(
+          return new ExecuteGenericAgentsProcess(
           agent.getName(),
           this.contextManager,
-          targetAgentName
+          targetAgentName,
+          this.mcpServers
         );
-      } 
+      }
     }
 
       case 'AgentGeneratorProcess': {

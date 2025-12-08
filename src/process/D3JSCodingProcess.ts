@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { D3JSCoordinatingAgentAnalysis } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt } from '../types/visualizationSaga.js'
 import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
 import { d3jsCoordinatingAgentResultforCodeGenerator } from '../test//testData.js'
 
@@ -62,6 +62,8 @@ export class D3JSCodingProcess {
       this.previousResult = null;
     }
 
+    console.log('USER QUERY ', this.userQuery)
+
     // Get previous control flow result from context manager
     this.lastControlFlowResult = this.contextManager.getContext('PREVIOUS_CONTROL_FLOW');
   }
@@ -73,7 +75,7 @@ export class D3JSCodingProcess {
 
     console.log(`\n🎨 D3JSCodingProcess: Generating D3.js code with ${this.agent.getName()}`);
     // Parse user query to extract D3JSCodingAgent's task
-    const conversationContext = this.parseConversationResultForAgent(
+  /*  const conversationContext = this.parseConversationResultForAgent(
       this.userQuery,
       this.agent.getName())
 
@@ -88,7 +90,7 @@ console.log('CONVERSATION CTX', conversationContext)
         timestamp: new Date(),
         error: `No [AGENT: ${this.agent.getName()}] section found in user query`
       };
-    }
+    }*/
  let result: AgentResult = {
       agentName: 'cycle_start',
       result: 'TEST',
@@ -104,12 +106,12 @@ console.log('CONVERSATION CTX', conversationContext)
           console.log('CONTECT LAST TRANS RES', ctx.lastTransactionResult.substring(0,200))//esult: '"[MCP-SERVER] Loaded DataFrame as: _loaded_df - shape=(338, 4)\r\nC:/repos/SAGAMiddleware/data/processed_hourly.csv"',
            this.agent.deleteContext();
           this.agent.setTaskDescription(D3JSCoordinatingAgentAnalysis);
-          this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
+      //    this.agent.receiveContext({ 'REQUIREMENT: ' :conversationContext});
           this.agent.receiveContext({ 'LAST CONTROL FLOW RESULT: ' :this.lastControlFlowResult }); 
-          const finalResult = {data: ctx.lastTransactionResult, userRequirements: conversationContext}
-          this.contextManager.updateContext(this.targetAgentName, {
+      //    const finalResult = {data: ctx.lastTransactionResult, userRequirements: conversationContext}
+      /*    this.contextManager.updateContext(this.targetAgentName, {
             lastTransactionResult: finalResult
-          })
+          })*/
     } else if (this.targetAgentName === 'D3JSCodeValidator'){
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
          const codeResult = ctx.lastTransactionResult
@@ -124,19 +126,25 @@ console.log('CONVERSATION CTX', conversationContext)
           lastTransactionResult: input
          })
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
-    } else if (this.targetAgentName === 'ValidatingAgent'){
+    } else if (this.targetAgentName === 'ValidatingAgent_'){
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
          console.log('CONVERSATION AGENT CTX VALIDATION',  ctx.lastTransactionResult)
          this.contextManager.updateContext(this.targetAgentName, {
           lastTransactionResult: ctx.lastTransactionResult
          })
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
+    }else if (this.targetAgentName === 'D3JSCodingAgent'){
+         const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+          this.contextManager.updateContext(this.targetAgentName, {
+            lastTransactionResult: { 'USER QUERY: ': this.userQuery,'DATA TO ANALYZE: ' :ctx.lastTransactionResult }
+          })
+    } else if (this.targetAgentName === 'ValidatingAgent'){
+            const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+           this.agent.deleteContext();
+          this.agent.setTaskDescription(histogramInterpretationPrompt);
+          result = await this.agent.execute({'ASSESS: ':ctx.lastTransactionResult}); //gets assess from above (this.targetAgentName === 'D3JSCodingAgent'
+      //    const finalResult = {data: ctx.lastTransactionResult, userRequirements: conversationContext}
     }
-
-
-    console.log(`✅ D3.js code generated`);
-    console.log(`📄 Code preview: ${JSON.stringify(result.result)}`);
-
     return result;
   }
 

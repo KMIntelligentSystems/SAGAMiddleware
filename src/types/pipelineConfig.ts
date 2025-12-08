@@ -119,15 +119,16 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             inputFrom: 'agentStructures',
             outputKey: 'd3jsCode',
             processConfig: {
-                processType: 'agent',
+                processType: 'subAgent',
                 controlFlow: [
                    { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
-                   { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeGenerator' }
+                   { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodingAgent' },
+                   { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent' }
                 ],
                 testWithPlaywright: true 
             }
         },
-        {
+     /*   {
             transactionType: 'D3JSCodeValidator',
             name: 'D3CodeValidationStep',
             description: 'Validate D3.js code against requirements and SVG output',
@@ -156,7 +157,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
                 ],
                // Re-test with Playwright if code was corrected
             }
-        }
+        }*/
     ],
     onComplete: 'send_to_user'
 };

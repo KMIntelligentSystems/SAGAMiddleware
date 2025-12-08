@@ -6,7 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
 import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt, svgAndDataAnalysisValidationPrompt  } from '../types/visualizationSaga.js'
-import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis } from '../test/histogramData.js'
+import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis_1 } from '../test/histogramData.js'
 import * as fs from 'fs'; 
 
 /**
@@ -127,14 +127,14 @@ export class ValidationProcess {
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });
-    } else {
+    } /*else {
            const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
   //How is this working D3JSCodeGenerator.getNsme()
             this.contextManager.updateContext(this.targetAgent, {
               lastTransactionResult: ctx.lastTransactionResult
-            })
+      })
        
-    }
+    }*/
   }
    else if(this.targetAgent === 'AgentStructureGenerator'){
       const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
@@ -160,9 +160,10 @@ export class ValidationProcess {
   }  else if(this.targetAgent === 'D3JSCoordinatingAgent'){
       const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
        const persistedPythonResult = ctx.lastTransactionResult;
+  //     console.log('PERSIST ', persistedPythonResult)
        this.validatingAgent.setTaskDescription( histogramInterpretationPrompt)
        this.validatingAgent.deleteContext();
-       result.result = pythonHistoAnalysis//await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': persistedPythonResult});
+       result.result = pythonHistoAnalysis_1// =await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': persistedPythonResult}); // pythonHistoAnalysis//
     //   const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
         this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
         lastTransactionResult: result.result,

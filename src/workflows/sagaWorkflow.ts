@@ -543,11 +543,11 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'openai',
-        model: promptParams.model || (agentType === 'tool' ? 'gpt-5' : 'gpt-5'), //gpt-5 gpt-4o-mini
+        provider: 'openai', //'anthropic' 'openai'
+        model: 'gpt-5',//'gemini-3-pro-preview', //claude-opus-4-5
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
-        maxTokens: promptParams.maxTokens || (agentType === 'tool' ? 2000 : 1500),
-       // apiKey: process.env.OPENAI_API_KEY
+        maxTokens:  4096,
+       // apiKey: process.env.ANTHROPIC_API_KEY
       };
 
       // Create base context from llmPrompts
@@ -710,7 +710,7 @@ Focus: Only array extraction
       // PHASE 2: Execute D3_VISUALIZATION_PIPELINE with previous state
       console.log('\n🔄 PHASE 2: D3 Visualization Pipeline');
 
-   /*   let visualizationState = await pipelineExecutor.executePipeline(
+      let visualizationState = await pipelineExecutor.executePipeline(
         D3_VISUALIZATION_PIPELINE,
         data.message || '',
         profilingState
@@ -719,7 +719,7 @@ Focus: Only array extraction
       console.log('✅ Visualization Complete:', {
         completed: visualizationState.completed,
         errors: visualizationState.errors.length
-      });*/
+      });
 
       const finalResult = pipelineExecutor.getFinalResult();
       console.log('📊 Final Pipeline Result:', finalResult ? 'Available' : 'None');

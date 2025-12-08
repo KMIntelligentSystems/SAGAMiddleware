@@ -21,7 +21,7 @@ import { GenericAgent } from './genericAgent.js';
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import * as fs from 'fs'
-import { claudeBackendResult_1, claudeBackendResult_2, claudeBackendResult_3} from '../test/histogramData.js'
+import { claudeBackendResult_1, claudeBackendResult_2, claudeBackendResult_3, dataProfilerPrompt_1} from '../test/histogramData.js'
 import { agentConstructorPythonExecutionError } from '../test/testData.js';
 
 export interface DataProfileInput {
@@ -48,8 +48,7 @@ export class DataProfiler extends BaseSDKAgent {
         super('DataProfiler', 15, contextManager);
 
         // Add custom tool for creating GenericAgents
-       // this.createTestAgents();
-     //   this.setupCreateAgentTool();
+        this.setupCreateAgentTool();
     }
 
     /**
@@ -99,7 +98,7 @@ export class DataProfiler extends BaseSDKAgent {
             // Build LLM config
             const llmConfig: LLMConfig = {
                 provider: args.llmProvider || 'openai',
-                model: args.llmModel || 'gpt-4o-mini',
+                model: args.llmModel || 'gpt-5',
                 temperature: 0.3,
                 maxTokens: 4000
             };
@@ -174,7 +173,7 @@ export class DataProfiler extends BaseSDKAgent {
         backstory: `Dynamic agent created from SAGA transaction with ID`,
         taskDescription: claudeBackendResult_1,
         taskExpectedOutput: 'Structured response based on task requirements',
-        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        llmConfig: { model: 'gpt-5', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
         agentType: 'tool'
       };
@@ -191,7 +190,7 @@ export class DataProfiler extends BaseSDKAgent {
         backstory: `Dynamic agent created from SAGA transaction with ID`,
         taskDescription: claudeBackendResult_2,
         taskExpectedOutput: 'Structured response based on task requirements',
-        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        llmConfig: { model: 'gpt-5', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
         agentType: 'tool'
       };
@@ -208,7 +207,7 @@ export class DataProfiler extends BaseSDKAgent {
         backstory: `Dynamic agent created from SAGA transaction with ID`,
         taskDescription: claudeBackendResult_3,
         taskExpectedOutput: 'Structured response based on task requirements',
-        llmConfig: { model: 'gpt-4', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
+        llmConfig: { model: 'gpt-5', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
         agentType: 'tool'
       };
@@ -247,19 +246,12 @@ export class DataProfiler extends BaseSDKAgent {
         try {
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
             const prompt = this.buildPrompt(ctx.lastTransactionResult);
-        //    try{
-           
-            this.createTestAgents();//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
-            
-            const agents = JSON.stringify(this.createdAgents)
 
-            console.log('🔵 DataProfiler: About to setContext with agents:', agents);
-           
-            this.setContext(agents);
-
-// } catch(error: any){
-    //            console.log('ERROR ', error)
-  //          }
+           const output = ''//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
+        
+           this.createTestAgents();//
+           const agents = JSON.stringify(this.createdAgents)
+           this.setContext(agents);
             return {
                agentName: 'DataProfiler',
                 result: agents,
@@ -343,72 +335,34 @@ console.log('INPUT DATAPROFILER ', actualResult)
     getGenericDataAnalysisPrompt(input: DataProfileInput): string {
         console.log('WORKFLOW DESCRIPTION', input.workflowDescription);
 
-        return `You are creating GenericAgent instances for a data processing pipeline using the create_generic_agent tool.
+        return `Create a data processing pipeline from this workflow plan:
 
-WORKFLOW PLAN:
 ${input.workflowDescription}
 
-YOUR TASK:
+STEPS:
+1. Read the data file once to understand structure
+2. Create agents using create_generic_agent for each step in the workflow
+3. Output: "Created N agents: [names]. Pipeline complete." and STOP
 
-1. First, use read_file ONCE to examine the data file mentioned in the workflow plan.
-   - Identify the exact file path
-   - Note column names (case-sensitive)
-   - Understand data structure
+AGENT DATA FLOW:
+- First agent: Loads CSV file with pd.read_csv(path) - processes full dataset
+- Subsequent agents: Use _prev_result dictionary from previous agent
+  Example: stat_val = _prev_result['statistic_name']
 
-2. Then, for EACH agent in the workflow plan, call create_generic_agent tool ONCE per agent:
+PYTHON CODE RULES:
+- Import json at top: import json
+- Never simulate data (no np.random, no fake data)
+- Never reload CSV in dependent agents
+- Use safe variable names (field_val, not field)
+- Define variables before using in dicts
+- Must end with: print(json.dumps(result))
 
-   **name**: Agent name in CamelCase with "Agent" suffix (e.g., "DataProfilerAgent")
+ANALYSIS DEPTH (when applicable):
+- Be thorough and comprehensive in statistical analysis
+- Include multiple calculation strategies when appropriate
 
-   **taskDescription**:
-   - FOR TOOL AGENTS (agentType="tool"): COMPLETE, EXECUTABLE Python code (not instructions). Write the actual Python code string with \\n for newlines. Include all imports, exact file paths, error handling, and print JSON output.
-   - FOR PROCESSING AGENTS (agentType="processing"): Clear instructions for text/code generation tasks (like D3.js visualization, HTML, etc.)
-
-   Example taskDescription for TOOL agent (Python code as string):
-   "import pandas as pd\\nimport numpy as np\\nimport json\\n\\ndf = pd.read_csv('C:/exact/path/to/prices.csv')\\nprices = df['price']\\nresult = {'mean': float(np.mean(prices)), 'std': float(np.std(prices, ddof=1))}\\nprint(json.dumps(result))"
-
-   Example taskDescription for PROCESSING agent (instructions):
-   "Generate a complete HTML file with D3.js histogram. Use the preprocessed data from the previous agent. Include proper D3 scales, axes, and tooltips."
-
-   **taskExpectedOutput**: Describe the exact output format (JSON keys, data types for tool agents; HTML/text structure for processing agents)
-
-   **agentType**: "tool" for Python execution with execute_python, "processing" for text/HTML/D3.js generation (NO execute_python)
-
-   **dependencies**: [] for first agent, ["PreviousAgentName"] for others
-
-   **llmProvider**: "openai"
-
-   **llmModel**: "gpt-4o-mini"
-
-   **mcpTools**: ["execute_python"] for tool agents, [] for processing agents
-
-3. Create agents IN ORDER (Agent 1, then Agent 2, then Agent 3, etc.)
-
-4. Infer what each agent needs based on task keywords:
-
-   - If task mentions "statistical profile" or "analyze": include mean, median, std, quartiles, skewness, kurtosis, outlier detection
-   - If task mentions "bin" or "histogram parameters": include Sturges, Scott, Freedman-Diaconis calculations
-   - If task mentions "preprocess" or "format": include numpy.histogram() and bin structure generation
-   - If task mentions "visualization" or "D3.js": include complete HTML generation with d3.csv()
-
-5. After calling create_generic_agent for ALL agents in the workflow, output a summary:
-   "Created N agents: [list names]. Pipeline complete."
-
-6. STOP - Do not call any more tools after creating all agents.
-
-CRITICAL REQUIREMENTS:
-- Use read_file tool ONLY ONCE at the beginning
-- Call create_generic_agent ONCE per agent (do NOT call it multiple times for the same agent)
-- After creating all agents, output a summary message and STOP
-- Use EXACT file paths from the workflow (no placeholders)
-- Use EXACT column names from file inspection (case-sensitive)
-- Include complete Python instructions in taskDescription
-- Specify exact output format in taskExpectedOutput
-
-WORKFLOW:
-1. Read file ONCE with read_file tool
-2. For each agent in workflow plan: call create_generic_agent tool ONCE
-3. After creating all agents, output summary: "Created N agents: [names]. Pipeline complete."
-4. STOP - do not call any more tools`;
+Now create the agents.`
+;
     }
 
     /**

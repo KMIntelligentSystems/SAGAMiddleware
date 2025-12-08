@@ -275,7 +275,8 @@ export class GenericAgent {
 
   private async invokeLLM(prompt: string): Promise<AgentResult> {
     const config = this.definition.llmConfig;
-
+console.log('PROVIDER ', config.provider)
+console.log('MODEL ', config.model)
     switch (config.provider) {
       case 'openai':
         return await this.invokeOpenAI(prompt, config);
@@ -298,6 +299,7 @@ export class GenericAgent {
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
     });
+    console.log('TYPE ',this.definition.agentType)
 
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
     if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
@@ -448,12 +450,8 @@ export class GenericAgent {
 
 //https://github.com/googleapis/js-genai/blob/main/sdk-samples/chat_afc.ts
     private async invokeGemini(prompt: string, config: LLMConfig, ai: GoogleGenAI): Promise<AgentResult> {
-    const { OpenAI } = await import('openai');
-    
-    const client = new OpenAI({
-      apiKey: process.env.GEMINI_API_KEY
-    });
-const chat = await ai.chats.create({
+
+/*const chat = await ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
       tools: [],//mcpToTool(weatherClient, multiplyClient)
@@ -463,9 +461,20 @@ const chat = await ai.chats.create({
         },
       },
     },
-  });
+  });*/
+let resp;
+try {
+    resp = await ai.models.generateContent({
+      model: "gemini-2.5-pro", // Use the correct API model name
+      contents: prompt,
+    });
+
+    console.log('RESPONSE ',resp.text);
+  } catch (error) {
+    console.error("An error occurred during API call:", error);
+  }
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
-    if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
+   /* if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
       const tools = this.availableTools.map(tool => {
         // Fix schema for get_chunks tool
         console.log("TOOL NAME ",tool.name)
@@ -579,11 +588,11 @@ const chat = await ai.chats.create({
       
       // Set forceToolUse to false to allow more natural tool selection
       return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
-    }
+    }*/
 
     
 
-   const userMessage: OpenAI.ChatCompletionMessageParam = {
+ /*  const userMessage: OpenAI.ChatCompletionMessageParam = {
     role: "user",
     content: prompt,
   };
@@ -592,10 +601,10 @@ const chat = await ai.chats.create({
         model: config.model,
       //  temperature: 0.3,
      //   maxTokens: 3000,
-    });
+    });*/
    return  {
      agentName: this.getName(),
-     result: response.choices[0].message.content as string,
+     result: resp,
      success: true,
      timestamp: new Date()}
  
