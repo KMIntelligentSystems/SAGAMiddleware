@@ -188,11 +188,11 @@ export class PipelineExecutor {
         console.log(`✅ Control flow execution complete`, controlFlowResult);
 
         // PHASE 2: Execute SDK Agent (uses control flow output)
-        console.log(`\n🤖 Executing SDK Agent: ${step.transactionType}...`);
         let sdkResult: AgentResult;
 
         if(step.processConfig.processType === 'agent')
         {
+            console.log(`\n🤖 Executing SDK Agent: ${step.transactionType}...`);
             const sdkAgent = this.instantiateAgent(step.transactionType);
             console.log('EREREE', sdkAgent)
 
@@ -227,7 +227,7 @@ export class PipelineExecutor {
                     console.log(`      MCP Tools: ${agentInfo.definition.mcpTools?.join(', ') || 'none'}`);
                     console.log(`      Task Preview: ${agentInfo.definition.taskDescription}`);
                 });*/
-               
+
             }
             /*
                 These contexts get updated:
@@ -235,18 +235,28 @@ export class PipelineExecutor {
                 AgentStructureGenerator
                 D3JSCodeGenerator
             */
-           if(step.transactionType != 'D3JSCodeGenerator' ){
+        /*   if(step.transactionType != 'D3JSCodeGenerator' ){
                   this.coordinator.contextManager.updateContext(step.transactionType, {
                 lastTransactionResult: sdkResult.result,
                 transactionId: step.transactionType,
                 timestamp: new Date()
             });
-           }
+           }*/
 
             console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
+        } else if (step.processConfig.processType === 'subAgent') {
+            // Process type 'subAgent': Control flow executes Claude SDK sub-agents directly
+            // No separate SDK agent wrapper is needed
+            console.log(`✅ Sub-agent execution via control flow complete (processType: ${step.processConfig.processType})`);
+            sdkResult = {
+                agentName: step.transactionType,
+                result: controlFlowResult.result,
+                success: true,
+                timestamp: new Date()
+            };
         } else {
-            // If processType is not 'agent', create a result from control flow only
-            console.log(`⚠️  Process type is not 'agent', using control flow result only`);
+            // Unknown process type - this should not happen
+            console.warn(`⚠️  Unknown process type '${step.processConfig.processType}', using control flow result only`);
             sdkResult = {
                 agentName: step.transactionType,
                 result: controlFlowResult.result,

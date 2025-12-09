@@ -15,7 +15,7 @@ import { codeWriterTaskDescription, codeExecutorTaskDescription, codeWriterResul
 import {AgentParser } from '../agents/agentParser.js'
 import { PythonLogAnalyzer } from '../processing/pythonLogAnalyzer.js';
 import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
-import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE,  D3_CODE_UPDATE_PIPELINE ,  PYTHON_CODE_UPDATE_PIPELINE} from '../types/pipelineConfig.js'
+import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE } from '../types/pipelineConfig.js'
 import { claudeMDResuilt } from '../test/histogramData.js'
 
 import * as fs from 'fs'
@@ -335,9 +335,7 @@ export class SagaWorkflow {
          2. Ensure the code aligns with the requirements. Where possible implement the desideratum
          If there are no errors and the requirments are implemented then output the code as is.
        `,
-        taskExpectedOutput: `  Your output must be of this form:
-         {'CODE REPORT': [Your analysis of the code],
-          'CODE': [code ready to run in a browser]`
+        taskExpectedOutput: `Javascript d3 js`
       },
        {
         agentName: 'FlowDefiningAgent',
@@ -543,8 +541,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'openai', //'anthropic' 'openai'
-        model: 'gpt-5',//'gemini-3-pro-preview', //claude-opus-4-5
+        provider: 'anthropic', //'anthropic' 'openai' 'gemini'
+        model: 'claude-opus-4-5',//'gemini-3-pro-preview', //claude-opus-4-5
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  4096,
        // apiKey: process.env.ANTHROPIC_API_KEY

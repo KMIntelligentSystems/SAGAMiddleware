@@ -113,6 +113,8 @@ export abstract class BaseSDKAgent {
      * Set context in the shared context manager
      */
     setContext(value: any){
+        console.log('SDK NAME', this.getName())
+          console.log('SDK VALUE',value)
          this.contextManager.updateContext(this.agentName, {
             lastTransactionResult: value,
             transactionId: 'tx-2',

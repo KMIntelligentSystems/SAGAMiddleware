@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt } from '../types/visualizationSaga.js'
 import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
 import { d3jsCoordinatingAgentResultforCodeGenerator } from '../test//testData.js'
 
@@ -134,16 +134,34 @@ console.log('CONVERSATION CTX', conversationContext)
          })
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }else if (this.targetAgentName === 'D3JSCodingAgent'){
+      console.log('D3 JS COOOODING  ', this.agent.getName())
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+           console.log('HERE IN COOOODING',JSON.stringify(ctx.lastTransactionResult))
+         result = await this.agent.execute({ 'USER QUERY: ': this.userQuery,'DATA TO ANALYZE: ' :ctx.lastTransactionResult }); 
           this.contextManager.updateContext(this.targetAgentName, {
             lastTransactionResult: { 'USER QUERY: ': this.userQuery,'DATA TO ANALYZE: ' :ctx.lastTransactionResult }
           })
     } else if (this.targetAgentName === 'ValidatingAgent'){
+      console.log('VAAAALDDDATION   ', this.agent.getName())//D3JSCodingAgent
             const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+            console.log('HERE IN VAAAAAL',JSON.stringify(ctx.lastTransactionResult))//1.
            this.agent.deleteContext();
-          this.agent.setTaskDescription(histogramInterpretationPrompt);
-          result = await this.agent.execute({'ASSESS: ':ctx.lastTransactionResult}); //gets assess from above (this.targetAgentName === 'D3JSCodingAgent'
-      //    const finalResult = {data: ctx.lastTransactionResult, userRequirements: conversationContext}
+           if(this.agent.getName() === 'D3JSCodingAgent'){
+                const task = this.agent.getAgentDefinition().taskDescription;
+                if(task === histogramInterpretationPrompt){
+                    this.agent.setTaskDescription(histogramValidationPrompt);
+                    result = await this.agent.execute({ 'USER REQIREMENT: ':'Create D3 js histogram of prices from the csv file provided from the response from the MCP server. You must use d3.csv() method to handle the input file. The data represents prices. RELATIVE PATH: ./data/prices.csv **NOTE** Use relative path in html Outputs: Complete D3.js HTML histogram visualization', 'DATA TO ANALYZE: ' :ctx.lastTransactionResult }); 
+                }else {
+                    this.agent.setTaskDescription(histogramInterpretationPrompt);
+                    result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');//await this.agent.execute({ 'USER QUERY: ': this.userQuery,'DATA TO ANALYZE: ' :ctx.lastTransactionResult }); 
+                }
+
+           }
+
+            this.contextManager.updateContext(this.targetAgentName, {
+            lastTransactionResult: result.result,
+            previousTransactionResult: ctx.lastTransactionResult
+          })
     }
     return result;
   }

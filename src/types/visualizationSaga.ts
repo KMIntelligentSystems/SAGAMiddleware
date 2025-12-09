@@ -151,6 +151,37 @@ Provide ONLY the d3 js code to provide the visualization as HTML with the d3 js 
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
 
+export const histogramValidationPrompt = `You are expert in Javascript and the d3 js library. You are given d3 js ccoe which does not meet the requirements.
+You will examine the following to determine the issues:
+DATA TO ANALYZE:
+1. USER REQUIREMENT: Pay close attention to the path for the csv file. The contents of the csv file must be used.
+2. ANALYSIS: look carefully at the requirements for the code.
+3. CODE: look carefully at the code. Does it meet the requirements?
+4. APPRAISAL: look carefully at the issues raised for the display of the graph. Understand how the code must be fixed to meet the requirements and shortcomings highlighed by the appraisal
+Refactor the code to fix the iasues you have found.
+**IMPORTANT**
+Do not return a copy of the existing code.
+You must source the full dataset using the path provided in user requirements using d3.csv()
+Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
+`
+
+export const analysisFixPrompt =`You are receiving output from another agent in a non-standard format.
+
+INPUT: [paste the raw input]
+
+Your task: Extract and restructure the analysis content into clean JSON.
+
+Focus on:
+1. Extract the complete "result" text (ignore the concatenation syntax)
+2. Identify key recommendations and data points
+3. Output as proper JSON with these fields:
+   - analysis_text: the full extracted result
+   - key_points: array of main takeaways
+   - recommendations: structured recommendations for the d3.js agent
+   - bin_thresholds: the actual array of 30 threshold values
+
+Output only valid JSON.`
+
 export const d3CodeValidatingAgentPrompt = `You will validate d3 js code. You will examine the code to determine:
 1. Are there any syntax errors
 2. Is the code complete, for example, there is a beginning <html> and a concluding </html> tag

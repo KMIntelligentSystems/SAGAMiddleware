@@ -865,3 +865,38 @@ Calculate multiple strategies: Freedman-Diaconis, Scott's rule, Square-root, Stu
 
 Now analyze the data and generate the Python code for each agent in the workflow plan.`
 
+export const opusCodeValidatorResult = ` ## VALIDATION FAILED: Multiple critical visualization issues detected
+
+After analyzing the rendered D3 visualization against the data analysis requirements, I've identified several critical issues:
+
+### 1. **Empty Histogram - No Bars Visible**
+- The SVG shows all bars with height="0" or height="NaN"
+- The y-coordinate for all bars is set to 320 (bottom of chart), indicating zero height
+- This means the histogram is completely empty with no data visualization
+
+### 2. **Y-Axis Scale Issue**
+- The y-axis has no tick marks or labels
+- The scale domain appears to be improperly configured, resulting in NaN calculations for bar heights
+- The density calculations are not working correctly
+
+### 3. **Last Bin Rendering Error**
+- The last bin (30th) shows width="-1" and height="NaN"
+- This indicates an array indexing or calculation error with the threshold boundaries
+
+### 4. **Data Generation Issue**
+- While the code attempted to generate sample data matching the distribution (313 observations in 100-114 range), the histogram rendering completely failed
+- The bins are created but heights are not calculated properly
+
+### 5. **Missing Visual Representation**
+- The PNG output shows only axes and labels but no actual histogram bars
+- The data analysis specified specific bin counts and distributions that should be visible
+
+### Key Validation Failures:
+- ❌ No visual representation of the 29 variable-width bins
+- ❌ Cannot verify the density distribution or peak at bins 19-22
+- ❌ Unable to confirm the 92 count peak at Bin 21 (~9.27% of data)
+- ❌ The concentration in the 100-114 range is not visualized
+- ❌ Y-axis scale calculation failure prevents any meaningful density display
+
+**VALIDATION FAILED: Histogram bars have zero height due to y-scale/density calculation errors. No data visualization is rendered despite correct bin thresholds and data generation.**`
+

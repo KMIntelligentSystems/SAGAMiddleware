@@ -78,20 +78,13 @@ export class ValidationProcess {
  
   if(this.targetAgent === 'D3JSCodeValidator') {
        const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
-    //   const input = {requirements: ctx.userRequirements, d3jsCode:ctx.d3jsCodeResult, svgPath: ctx.lastVisualizationSVG }
-        const d3jsCode = ctx.lastTransactionResult.D3JS_CODE
-          console.log('DATA ANALYSIS', ctx.lastTransactionResult.D3JS_CODE)
-        const svgOutput = fs.readFileSync(ctx.lastTransactionResult.SVG_FILE_PATH, 'utf-8');
-        this.validatingAgent.setTaskDescription(svgAndDataAnalysisValidationPrompt);
-        this.validatingAgent.deleteContext();
-        result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/Report on SVG rendering.txt', 'utf-8');//await this.validatingAgent.execute({SVG: svgOutput, ANALYSIS: ctx.lastTransactionResult.DATA_ANALYSIS })//
+        const d3jsCode = ctx.lastTransactionResult;
+        const analysis = ctx. previousTransactionResult
         
-        const input = {d3jsCode: d3jsCode, analysis: result.result}
-        this.contextManager.updateContext(this.targetAgent, { 
-        lastTransactionResult: input,
-        transactionId: 'tx-3-3',
-        timestamp: new Date()
-      });
+        result.result = pythonHistoAnalysis_1//await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': analysis}); //
+        this.contextManager.updateContext(this.targetAgent, {
+            lastTransactionResult: { ANALYSIS: result.result, CODE: d3jsCode} 
+         })
        // Execute the validating agent
      //  result = await this.validatingAgent.execute(input);
   } else  if(this.targetAgent === 'ConversationAgent') {
@@ -127,15 +120,24 @@ export class ValidationProcess {
         transactionId: this.validatingAgent.getId(),
         timestamp: new Date()
       });
-    } /*else {
+    } else {
            const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
   //How is this working D3JSCodeGenerator.getNsme()
             this.contextManager.updateContext(this.targetAgent, {
               lastTransactionResult: ctx.lastTransactionResult
       })
        
-    }*/
-  }
+    }
+  }  else if(this.targetAgent === 'D3JSCodingAgent'){
+      const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+console.log('JSOOOS', JSON.stringify(ctx.lastTransactionResult))
+console.log('NAME', this.validatingAgent.getName())
+        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
+        lastTransactionResult: ctx.lastTransactionResult,
+        transactionId: 'tx-3-3',
+        timestamp: new Date()
+      });
+    }
    else if(this.targetAgent === 'AgentStructureGenerator'){
       const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
       const agentCtx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
@@ -160,7 +162,8 @@ export class ValidationProcess {
   }  else if(this.targetAgent === 'D3JSCoordinatingAgent'){
       const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
        const persistedPythonResult = ctx.lastTransactionResult;
-  //     console.log('PERSIST ', persistedPythonResult)
+  //     console.log('PERSIST ', persistedPythonResult) 'D3JSCodingAgent'
+
        this.validatingAgent.setTaskDescription( histogramInterpretationPrompt)
        this.validatingAgent.deleteContext();
        result.result = pythonHistoAnalysis_1// =await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': persistedPythonResult}); // pythonHistoAnalysis//
