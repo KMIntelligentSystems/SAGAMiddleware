@@ -142,6 +142,10 @@ export class D3JSCodeValidator extends BaseSDKAgent {
                 };
             }
 //USER_QUERY: this.userQuery, ANALYSIS: analysis, CODE
+            const userQuery = `Visualization: Create D3 js histogram of prices from the csv file . 
+            You must use d3.csv() method to handle the input file. The data represents prices.
+              RELATIVE PATH: ./data/prices.csv **NOTE** Use relative path in html 
+              Outputs: Complete D3.js HTML histogram visualization`
 
             input.pythonAnalysis = ctx.lastTransactionResult.ANALYSIS;
             input.d3jsCode = ctx.lastTransactionResult.CODE;
@@ -150,7 +154,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             const prompt = this.buildPrompt(input);
             const output = opusCodeValidatorResult //await this.executeQuery(prompt);
 
-            this.setContext({ANALYSIS: input.pythonAnalysis, CODE: input.d3jsCode, APPRAISAL: output, });
+            this.setContext({ APPRAISAL: output, CODE: input.d3jsCode });//CODE: input.d3jsCode,USER_REQUIREMENT: userQuery, ANALYSIS: input.pythonAnalysis,
             
 
             return {

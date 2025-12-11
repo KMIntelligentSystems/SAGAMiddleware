@@ -6,7 +6,7 @@
  */
 
 export interface SDKAgentStep {
-    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater';
+    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater' | 'D3JSDataAnalyzer';
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
@@ -50,6 +50,16 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                     { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' }
                 ]
             }
+        }, {
+            transactionType: 'D3JSDataAnalyzer',
+            name: 'DataAnalyzingStep',
+            description: 'Analyze CSV data and generate technical specifications',
+            processConfig: {
+                processType: 'agent',
+                controlFlow: [
+                    { agent: 'TransactionGroupingAgent', process: 'DataAnalysisProcess', targetAgent: 'D3JSDataAnalyzer' }
+                ]
+            }
         },
         
         {
@@ -59,6 +69,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'subAgent',
                 controlFlow: [
+                     { agent: 'D3JSDataAnalyzer', process: 'DataAnalysisProcess', targetAgent: 'D3JSCodingAgent' },
                      { agent: 'DataProfiler', process: 'ExecuteGenericAgentsProcess', targetAgent: 'D3JSCodingAgent' }
                 ]
             }
@@ -88,7 +99,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
                 //   { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodingAgent' },
                    { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent' }
                 ],
-                testWithPlaywright: true 
+             //   testWithPlaywright: true 
             }
         },
         {

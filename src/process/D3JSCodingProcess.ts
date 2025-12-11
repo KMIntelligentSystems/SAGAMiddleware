@@ -4,9 +4,10 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt, intermedateAnalysis, histogramValidationPrompt_1 } from '../types/visualizationSaga.js'
 import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
 import { d3jsCoordinatingAgentResultforCodeGenerator } from '../test//testData.js'
+import { geminiAnalysisSummary } from '../test/histogramData.js'
 
 import * as fs from 'fs'; 
 import * as path from 'path';
@@ -149,8 +150,8 @@ console.log('CONVERSATION CTX', conversationContext)
            if(this.agent.getName() === 'D3JSCodingAgent'){
                 const task = this.agent.getAgentDefinition().taskDescription;
                 if(task === histogramInterpretationPrompt){
-                    this.agent.setTaskDescription(histogramValidationPrompt);
-                    result = await this.agent.execute({ 'USER REQIREMENT: ':'Create D3 js histogram of prices from the csv file provided from the response from the MCP server. You must use d3.csv() method to handle the input file. The data represents prices. RELATIVE PATH: ./data/prices.csv **NOTE** Use relative path in html Outputs: Complete D3.js HTML histogram visualization', 'DATA TO ANALYZE: ' :ctx.lastTransactionResult }); 
+                    this.agent.setTaskDescription(histogramValidationPrompt/*intermedateAnalysishi stogramValidationPrompt*/);
+                    result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');//await this.agent.execute(ctx.lastTransactionResult); 
                 }else {
                     this.agent.setTaskDescription(histogramInterpretationPrompt);
                     result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');//await this.agent.execute({ 'USER QUERY: ': this.userQuery,'DATA TO ANALYZE: ' :ctx.lastTransactionResult }); 

@@ -268,7 +268,7 @@ export class SagaWorkflow {
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
         to be amended in the JSON object that does not follow the rules.`,
         taskDescription:  toolValidationPrompt,// dataValidatingAgentPrompt,
-        taskExpectedOutput: 'Return expected output as intructed '
+        taskExpectedOutput: 'Return expected output as instructed '
       },
        {
         agentName: 'GeneratingAgent',
@@ -541,8 +541,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'anthropic', //'anthropic' 'openai' 'gemini'
-        model: 'claude-opus-4-5',//'gemini-3-pro-preview', //claude-opus-4-5
+        provider: 'gemini', //'anthropic' 'openai' 'gemini'
+        model: 'gemini-3-pro-preview',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  4096,
        // apiKey: process.env.ANTHROPIC_API_KEY

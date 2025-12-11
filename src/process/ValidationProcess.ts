@@ -5,8 +5,8 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
-import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt, svgAndDataAnalysisValidationPrompt  } from '../types/visualizationSaga.js'
-import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis_1 } from '../test/histogramData.js'
+import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt, svgAndDataAnalysisValidationPrompt, analysisFixPrompt  } from '../types/visualizationSaga.js'
+import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis_1, openaiAnalyis, geminiAnalysis, geminiCodeValidationResult } from '../test/histogramData.js'
 import * as fs from 'fs'; 
 
 /**
@@ -80,8 +80,8 @@ export class ValidationProcess {
        const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
         const d3jsCode = ctx.lastTransactionResult;
         const analysis = ctx. previousTransactionResult
-        
-        result.result = pythonHistoAnalysis_1//await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': analysis}); //
+        this.validatingAgent.setTaskDescription(analysisFixPrompt)
+        result.result = geminiAnalysis// await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': analysis}); //pythonHistoAnalysis_1//openaiAnalyis //
         this.contextManager.updateContext(this.targetAgent, {
             lastTransactionResult: { ANALYSIS: result.result, CODE: d3jsCode} 
          })
@@ -131,6 +131,19 @@ export class ValidationProcess {
   }  else if(this.targetAgent === 'D3JSCodingAgent'){
       const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
 console.log('JSOOOS', JSON.stringify(ctx.lastTransactionResult))
+console.log('NAME', this.validatingAgent.getName())
+const task = 'The d3 js CODE in your context has issues. The APPRAISAL gives insights into the issues. Look closely at the issues and provide guidence for a d3 js coding agent to address the issues. Provide an in-depth analysis of the issues and the fixes. DO NOT provide the d3 js code. Your task is anlyzer not coder'
+this.validatingAgent.setTaskDescription(task);
+result.result = geminiCodeValidationResult//await this.validatingAgent.execute(ctx.lastTransactionResult);
+        this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
+        lastTransactionResult: result.result, //ctx.lastTransactionResult,
+        transactionId: 'tx-3-3',
+        timestamp: new Date()
+      });
+    }
+    else if(this.targetAgent === 'D3JSCodeUpdater'){
+      const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+console.log('JSOOOS 1', JSON.stringify(ctx.lastTransactionResult))
 console.log('NAME', this.validatingAgent.getName())
         this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
         lastTransactionResult: ctx.lastTransactionResult,

@@ -150,35 +150,164 @@ Examine the analysis to extract the necessary attributes and values as best fits
 Provide ONLY the d3 js code to provide the visualization as HTML with the d3 js script.
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
-
+//3. CODE: look carefully at the code. Does it meet the requirements?
 export const histogramValidationPrompt = `You are expert in Javascript and the d3 js library. You are given d3 js ccoe which does not meet the requirements.
 You will examine the following to determine the issues:
 DATA TO ANALYZE:
 1. USER REQUIREMENT: Pay close attention to the path for the csv file. The contents of the csv file must be used.
 2. ANALYSIS: look carefully at the requirements for the code.
-3. CODE: look carefully at the code. Does it meet the requirements?
-4. APPRAISAL: look carefully at the issues raised for the display of the graph. Understand how the code must be fixed to meet the requirements and shortcomings highlighed by the appraisal
+3. APPRAISAL: look carefully at the issues raised for the display of the graph. Understand how the code must be fixed to meet the requirements and shortcomings highlighed by the appraisal
 Refactor the code to fix the iasues you have found.
 **IMPORTANT**
-Do not return a copy of the existing code.
 You must source the full dataset using the path provided in user requirements using d3.csv()
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
+export const histogramValidationPrompt_1 = `You are a JavaScript coding expert. Generate a complete HTML file that meets the requirements.
+
+MANDATORY STEPS (execute in order):
+1. Load data from the file path specified in data_requirements.source using the method specified in data_requirements.loading_method
+2. Extract the fields specified in data_requirements.fields_to_use from the loaded data
+3. Use the exact arrays and values from must_use_from_analysis when processing the loaded data
+4. Follow all constraints in must_not_do
+5. Ensure your output satisfies all success_criteria
+
+CRITICAL RULES:
+- You MUST load data from the external source at runtime - do NOT hardcode data arrays
+- Data structures in must_use_from_analysis are PARAMETERS to apply to the loaded data, not replacement data
+- The file specified in data_requirements.source must be read using the specified loading_method
+- Verification: your code must load exactly data_requirements.expected_record_count records from the source file
+
+Output complete HTML code only, no explanations.
+**IMPORTANT**
+After generating code, verify it contains:
+- d3.csv() that loads the data
+- Extraction of price field into an array
+- Application of thresholds to that array to create bins
+- NO hardcoded bin count arrays
+
+When ANALYSIS provides bin boundaries or thresholds:
+- Extract the COMPLETE array of threshold values
+- Label it clearly: "bin_thresholds" or "binning_boundaries"
+- Distinguish from axis tick values (ticks are for display, thresholds are for computation)
+- If analysis mentions "29 bins", there should be 30 threshold values (n bins = n+1 edges)
+
+Look for patterns like:
+- "Threshold array"
+- "Bin edges"
+- "Boundaries"
+- Arrays with description mentioning "thresholds", "bins", "edges"
+`
+
+export const intermedateAnalysis = `You are a requirements extraction agent in a multi-agent system. Your job is to analyze mismatches between what was provided, what was attempted, and what failed, then output structured requirements for fixing the code.
+
+ANALYSIS PROCESS:
+
+1. EXAMINE USER_REQUIREMENT:
+   - Extract: data source path, loading method, output format
+   - Identify: what domain concept to visualize (e.g., "prices", "distribution")
+
+2. EXAMINE ANALYSIS:
+   - List all data structures provided (arrays, objects, values)
+   - Extract all numeric arrays with their exact values
+   - Extract all key-value pairs (counts, min/max, thresholds, etc.)
+   - Note any explicit recommendations or calculations described
+
+3. EXAMINE CODE:
+   - Identify: data loading method used
+   - Identify: what library methods were called (e.g., d3.histogram, d3.bin)
+   - Identify: what data transformations were attempted
+   - Identify: what automatic calculations were made (e.g., x.ticks(), d3.max())
+
+4. EXAMINE APPRAISAL:
+   - List each failure symptom (e.g., "height=0", "NaN values", "missing elements")
+   - Note what should exist but doesn't (e.g., "no bars visible", "no y-axis ticks")
+   - Extract any error messages or incorrect values
+
+5. FIND GAPS (Critical step):
+   - Where CODE generated data automatically BUT ANALYSIS provided exact data
+   - Where CODE calculated values BUT ANALYSIS provided pre-computed values
+   - Where CODE made assumptions BUT ANALYSIS specified requirements
+   - Where APPRAISAL failures point to CODE ignoring ANALYSIS data
+
+6. SYNTHESIZE REQUIREMENTS:
+   - must_use: exact arrays/values from ANALYSIS that CODE must consume
+   - must_not_do: CODE patterns that caused APPRAISAL failures
+   - implementation_gaps: map each APPRAISAL failure → CODE issue → ANALYSIS solution
+   - success_criteria: testable assertions from ANALYSIS data
+
+</task_description>
+
+<output_format>
+Return ONLY valid JSON with this structure:
+
+{
+  "data_requirements": {
+    "source": "path from USER_REQUIREMENT",
+    "loading_method": "method from USER_REQUIREMENT or CODE",
+    "fields_to_use": ["field names from ANALYSIS or CODE"],
+    "expected_record_count": "number from ANALYSIS if present"
+  },
+  
+  "data_structures_provided_by_analysis": {
+    "structure_name": {
+      "type": "describe structure (array, object, etc.)",
+      "exact_values": "array or value if present in ANALYSIS",
+      "fields": ["list field names if object"],
+      "count": "number of items if array"
+    }
+  },
+  
+  "implementation_gaps": [
+    {
+      "appraisal_failure": "quote from APPRAISAL",
+      "code_pattern_causing_failure": "describe what CODE did",
+      "analysis_provides_solution": "describe data from ANALYSIS not used",
+      "required_fix": "what must change"
+    }
+  ],
+  
+  "must_use_from_analysis": {
+    "exact_arrays": [
+      {
+        "name": "descriptive name",
+        "values": "array or reference to where it exists in ANALYSIS",
+        "purpose": "what this array should be used for"
+      }
+    ],
+    "exact_values": [
+      {
+        "name": "descriptive name", 
+        "value": "exact value from ANALYSIS",
+        "purpose": "what this value should be used for"
+      }
+    ]
+  },
+  
+  "must_not_do": [
+    "pattern from CODE that APPRAISAL shows failed"
+  ],
+  
+  "success_criteria": [
+    "testable assertion based on ANALYSIS data (e.g., 'must render exactly 29 bars', 'total count must equal 992')"
+  ]
+}
+</output_format>
+
+<critical_rules>
+- Do NOT make assumptions about visualization type or library specifics
+- Do NOT invent requirements - only extract from provided context
+- Do NOT interpret "why" something failed - only map what failed to what was available but unused
+- EXTRACT exact numeric arrays verbatim from ANALYSIS
+- MATCH data structures in ANALYSIS to operations in CODE
+- IDENTIFY where CODE auto-generates what ANALYSIS explicitly provides
+</critical_rules>`
 
 export const analysisFixPrompt =`You are receiving output from another agent in a non-standard format.
 
-INPUT: [paste the raw input]
+Your task: Summarize the salient information that will enable a coding agent to understand the structure of the required graph
+The coding agent will be provided with the full path of the data and so it is important to minimize the amount of raw data
 
-Your task: Extract and restructure the analysis content into clean JSON.
-
-Focus on:
-1. Extract the complete "result" text (ignore the concatenation syntax)
-2. Identify key recommendations and data points
-3. Output as proper JSON with these fields:
-   - analysis_text: the full extracted result
-   - key_points: array of main takeaways
-   - recommendations: structured recommendations for the d3.js agent
-   - bin_thresholds: the actual array of 30 threshold values
+Extract and restructure the analysis content into clean JSON to assist the coding agent which will have access to the full dataset.
 
 Output only valid JSON.`
 

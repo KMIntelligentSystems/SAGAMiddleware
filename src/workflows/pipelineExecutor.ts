@@ -12,6 +12,7 @@ import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
 import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 import { D3JSCodeUpdater } from '../agents/d3jsCodeUpdater.js';
+import { D3JSDataAnalyzer } from '../agents/d3jsDataAnalyzer.js';
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 
@@ -153,6 +154,8 @@ export class PipelineExecutor {
                 return new D3JSCodeUpdater(contextManager);
             case 'D3JSCodeValidator':
                 return new D3JSCodeValidator(contextManager);
+             case 'D3JSDataAnalyzer':
+                return new D3JSDataAnalyzer(contextManager);
             default:
                 throw new Error(`Unknown transaction type: ${transactionType}`);
         }
