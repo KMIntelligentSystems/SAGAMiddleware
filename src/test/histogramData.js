@@ -527,14 +527,15 @@ HERE IN PIPE VAL  {
 }
 `
 
+
 export const claudeMDResuilt = `## Workflow Plan: Data Profiling & D3.js Histogram for Prices Dataset
 
 **Dataset Analysis:**
 - File: C:/repos/SAGAMiddleware/data/prices.csv
-- Rows: ~1000 (single column dataset)
+- Rows: ~10,000 (single column dataset)
 - Key columns: price (numeric values)
-- Distribution: Right-skewed with outliers (range ~23-9502, most values 50-500)
-- Complexity: Medium (contains extreme outliers that need handling)
+- Distribution: Right-skewed with extreme outliers (range ~11-17242, most values 50-500)
+- Complexity: High (contains extreme outliers that significantly affect visualization)
 
 **Recommended Workflow: 4 Agents**
 
@@ -543,11 +544,11 @@ Load price data from C:/repos/SAGAMiddleware/data/prices.csv and generate compre
 → Outputs: Statistical summary and data quality assessment
 
 ### Agent 2: Histogram Parameters Calculator
-Analyze the price distribution statistics to determine optimal histogram parameters including appropriate bin count, bin ranges, and outlier handling strategy for effective visualization.
+Analyze the price distribution statistics to determine optimal histogram parameters including appropriate bin count, bin ranges, and outlier handling strategy for effective visualization of the 10,000 data points.
 → Outputs: Optimal bin configuration and data transformation recommendations
 
 ### Agent 3: Data Preprocessor
-Clean and prepare the price data by handling outliers, applying any necessary transformations, and formatting data structure optimized for D3.js consumption.
+Clean and prepare the price data by handling extreme outliers (values >10,000), applying any necessary transformations, and formatting data structure optimized for D3.js consumption.
 → Outputs: Clean, D3-ready price dataset with preprocessing metadata
 
 ### Agent 4: Visualization
@@ -556,7 +557,13 @@ Create D3 js histogram of prices from the csv file provided from the response fr
 
 **Execution:** Sequential (1→2→3→4)
 
-**Validation:** Statistical profile accuracy, optimal binning for skewed distribution, data preprocessing integrity, D3.js visualization functionality
+**Validation:** 
+- Agent 1: Verify statistical summary captures extreme value range (11-17242)
+- Agent 2: Confirm bin strategy handles high-value outliers appropriately
+- Agent 3: Validate data cleaning preserves distribution characteristics
+- Agent 4: Test D3.js visualization renders properly with 10K data points
+
+---
 `
 export const claudeBackendResult_1 = `   
      import pandas as pd\nimport numpy as np\nimport json\nfrom scipy import stats\n\n# Load price data\ndf = pd.read_csv('C:/repos/SAGAMiddleware/data/prices.csv')\nprices = df['price'].dropna()\n\n# Calculate comprehensive statistics\nq1 = float(np.percentile(prices, 25))\nq3 = float(np.percentile(prices, 75))\niqr = q3 - q1\nlower_fence = q1 - 1.5 * iqr\nupper_fence = q3 + 1.5 * iqr\noutliers = prices[(prices < lower_fence) | (prices > upper_fence)]\n\nresult = {\n    'min': float(prices.min()),\n    'max': float(prices.max()),\n    'mean': float(prices.mean()),\n    'median': float(prices.median()),\n    'std': float(prices.std(ddof=1)),\n    'q1': q1,\n    'q3': q3,\n    'iqr': iqr,\n    'skewness': float(stats.skew(prices)),\n    'kurtosis': float(stats.kurtosis(prices)),\n    'count': int(len(prices)),\n    'outlier_count': int(len(outliers)),\n    'outlier_percentage': float(len(outliers) / len(prices) * 100),\n    'lower_fence': lower_fence,\n    'upper_fence': upper_fence,\n    'range': float(prices.max() - prices.min()),\n    'cv': float(prices.std(ddof=1) / prices.mean()),\n    'percentiles': {\n        '5': float(np.percentile(prices, 5)),\n        '10': float(np.percentile(prices, 10)),\n        '90': float(np.percentile(prices, 90)),\n        '95': float(np.percentile(prices, 95))\n    }\n}\n\nprint(json.dumps(result, indent=2))
@@ -992,550 +999,589 @@ Your entire response must be valid, runnable HTML code that can be saved directl
 
 The fixed code must address ALL issues identified in the APPRAISAL while maintaining all USER_QUERY requirements.`
 
-export const openaiAnalyis = ` {
-  "histogram_data": [
-    {
-      "bin_label": "Bin 1",
-      "bin_start": 46.887618140501345,
-      "bin_end": 48.80535929512965,
-      "count": 2,
-      "percentage": 0.20161290322580644
-    },
-    {
-      "bin_label": "Bin 2",
-      "bin_start": 48.80535929512965,
-      "bin_end": 50.80153759973504,
-      "count": 2,
-      "percentage": 0.20161290322580644
-    },
-    {
-      "bin_label": "Bin 3",
-      "bin_start": 50.80153759973504,
-      "bin_end": 52.87936119660601,
-      "count": 2,
-      "percentage": 0.20161290322580644
-    },
-    {
-      "bin_label": "Bin 4",
-      "bin_start": 52.87936119660601,
-      "bin_end": 55.04216944362144,
-      "count": 3,
-      "percentage": 0.3024193548387097
-    },
-    {
-      "bin_label": "Bin 5",
-      "bin_start": 55.04216944362144,
-      "bin_end": 57.29343828107339,
-      "count": 4,
-      "percentage": 0.4032258064516129
-    },
-    {
-      "bin_label": "Bin 6",
-      "bin_start": 57.29343828107339,
-      "bin_end": 59.63678581799727,
-      "count": 4,
-      "percentage": 0.4032258064516129
-    },
-    {
-      "bin_label": "Bin 7",
-      "bin_start": 59.63678581799727,
-      "bin_end": 62.07597814698735,
-      "count": 7,
-      "percentage": 0.7056451612903225
-    },
-    {
-      "bin_label": "Bin 8",
-      "bin_start": 62.07597814698735,
-      "bin_end": 64.61493539684291,
-      "count": 8,
-      "percentage": 0.8064516129032258
-    },
-    {
-      "bin_label": "Bin 9",
-      "bin_start": 64.61493539684291,
-      "bin_end": 67.25773803277245,
-      "count": 13,
-      "percentage": 1.310483870967742
-    },
-    {
-      "bin_label": "Bin 10",
-      "bin_start": 67.25773803277245,
-      "bin_end": 70.00863341428133,
-      "count": 20,
-      "percentage": 2.0161290322580645
-    },
-    {
-      "bin_label": "Bin 11",
-      "bin_start": 70.00863341428133,
-      "bin_end": 72.87204262128223,
-      "count": 19,
-      "percentage": 1.9153225806451613
-    },
-    {
-      "bin_label": "Bin 12",
-      "bin_start": 72.87204262128223,
-      "bin_end": 75.852567559399,
-      "count": 27,
-      "percentage": 2.721774193548387
-    },
-    {
-      "bin_label": "Bin 13",
-      "bin_start": 75.852567559399,
-      "bin_end": 78.95499835588322,
-      "count": 33,
-      "percentage": 3.326612903225806
-    },
-    {
-      "bin_label": "Bin 14",
-      "bin_start": 78.95499835588322,
-      "bin_end": 82.18432105802951,
-      "count": 42,
-      "percentage": 4.233870967741935
-    },
-    {
-      "bin_label": "Bin 15",
-      "bin_start": 82.18432105802951,
-      "bin_end": 85.54572564646237,
-      "count": 54,
-      "percentage": 5.443548387096774
-    },
-    {
-      "bin_label": "Bin 16",
-      "bin_start": 85.54572564646237,
-      "bin_end": 89.04461437617273,
-      "count": 54,
-      "percentage": 5.443548387096774
-    },
-    {
-      "bin_label": "Bin 17",
-      "bin_start": 89.04461437617273,
-      "bin_end": 92.68661045870967,
-      "count": 80,
-      "percentage": 8.064516129032258
-    },
-    {
-      "bin_label": "Bin 18",
-      "bin_start": 92.68661045870967,
-      "bin_end": 96.4775670994807,
-      "count": 73,
-      "percentage": 7.358870967741936
-    },
-    {
-      "bin_label": "Bin 19",
-      "bin_start": 96.4775670994807,
-      "bin_end": 100.42357690468488,
-      "count": 83,
-      "percentage": 8.366935483870968
-    },
-    {
-      "bin_label": "Bin 20",
-      "bin_start": 100.42357690468488,
-      "bin_end": 104.53098167299703,
-      "count": 76,
-      "percentage": 7.661290322580645
-    },
-    {
-      "bin_label": "Bin 21",
-      "bin_start": 104.53098167299703,
-      "bin_end": 108.80638258773968,
-      "count": 92,
-      "percentage": 9.274193548387096
-    },
-    {
-      "bin_label": "Bin 22",
-      "bin_start": 108.80638258773968,
-      "bin_end": 113.256650825923,
-      "count": 60,
-      "percentage": 6.048387096774194
-    },
-    {
-      "bin_label": "Bin 23",
-      "bin_start": 113.256650825923,
-      "bin_end": 117.88893860120298,
-      "count": 64,
-      "percentage": 6.451612903225806
-    },
-    {
-      "bin_label": "Bin 24",
-      "bin_start": 117.88893860120298,
-      "bin_end": 122.71069065850548,
-      "count": 60,
-      "percentage": 6.048387096774194
-    },
-    {
-      "bin_label": "Bin 25",
-      "bin_start": 122.71069065850548,
-      "bin_end": 127.72965623878954,
-      "count": 36,
-      "percentage": 3.6290322580645165
-    },
-    {
-      "bin_label": "Bin 26",
-      "bin_start": 127.72965623878954,
-      "bin_end": 132.9539015331792,
-      "count": 24,
-      "percentage": 2.4193548387096775
-    },
-    {
-      "bin_label": "Bin 27",
-      "bin_start": 132.9539015331792,
-      "bin_end": 138.3918226464791,
-      "count": 24,
-      "percentage": 2.4193548387096775
-    },
-    {
-      "bin_label": "Bin 28",
-      "bin_start": 138.3918226464791,
-      "bin_end": 144.05215909090865,
-      "count": 14,
-      "percentage": 1.411290322580645
-    },
-    {
-      "bin_label": "Bin 29",
-      "bin_start": 144.05215909090865,
-      "bin_end": 149.9440078317401,
-      "count": 12,
-      "percentage": 1.2096774193548387
-    }
-  ],
-  "summary_stats": {
-    "total_count": 992,
-    "min_value": 46.887618140501345,
-    "max_value": 149.94400783174015,
-    "mean": 99.2085771870391
-  }
-}`
+export const d3jsDataAnalysisResult = `## CSV DATA ANALYSIS REPORT FOR D3.JS VISUALIZATION
 
-export const geminiAnalysis = `{
-  "graph_type": "histogram",
-  "summary": {
-    "title": "Price Distribution Histogram",
-    "total_points_processed": 992,
-    "min_value": 46.887618140501345,
-    "max_value": 149.94400783174015,
-    "mean": 99.2085771870391
-  },
-  "preprocessing_info": {
-    "original_data_points": 1000,
-    "outliers_removed": 8,
-    "transformation_applied": "log"
-  },
-  "visualization_config": {
-    "x_axis": {
-      "label": "Price",
-      "domain": [
-        46.887618140501345,
-        149.94400783174015
-      ],
-      "ticks": [
-        46.887618140501345,
-        58.338328106194545,
-        69.78903807188775,
-        81.23974803758094,
-        92.69045800327414,
-        104.14116796896735,
-        115.59187793466054,
-        127.04258790035375,
-        138.49329786604693,
-        149.94400783174015
-      ]
-    },
-    "y_axis": {
-      "label": "Frequency"
-    }
-  },
-  "binned_data": [
-    {
-      "bin_label": "Bin 1",
-      "range_start": 46.887618140501345,
-      "range_end": 48.80535929512965,
-      "count": 2
-    },
-    {
-      "bin_label": "Bin 2",
-      "range_start": 48.80535929512965,
-      "range_end": 50.80153759973504,
-      "count": 2
-    },
-    {
-      "bin_label": "Bin 3",
-      "range_start": 50.80153759973504,
-      "range_end": 52.87936119660601,
-      "count": 2
-    },
-    {
-      "bin_label": "Bin 4",
-      "range_start": 52.87936119660601,
-      "range_end": 55.04216944362144,
-      "count": 3
-    },
-    {
-      "bin_label": "Bin 5",
-      "range_start": 55.04216944362144,
-      "range_end": 57.29343828107339,
-      "count": 4
-    },
-    {
-      "bin_label": "Bin 6",
-      "range_start": 57.29343828107339,
-      "range_end": 59.63678581799727,
-      "count": 4
-    },
-    {
-      "bin_label": "Bin 7",
-      "range_start": 59.63678581799727,
-      "range_end": 62.07597814698735,
-      "count": 7
-    },
-    {
-      "bin_label": "Bin 8",
-      "range_start": 62.07597814698735,
-      "range_end": 64.61493539684291,
-      "count": 8
-    },
-    {
-      "bin_label": "Bin 9",
-      "range_start": 64.61493539684291,
-      "range_end": 67.25773803277245,
-      "count": 13
-    },
-    {
-      "bin_label": "Bin 10",
-      "range_start": 67.25773803277245,
-      "range_end": 70.00863341428133,
-      "count": 20
-    },
-    {
-      "bin_label": "Bin 11",
-      "range_start": 70.00863341428133,
-      "range_end": 72.87204262128223,
-      "count": 19
-    },
-    {
-      "bin_label": "Bin 12",
-      "range_start": 72.87204262128223,
-      "range_end": 75.852567559399,
-      "count": 27
-    },
-    {
-      "bin_label": "Bin 13",
-      "range_start": 75.852567559399,
-      "range_end": 78.95499835588322,
-      "count": 33
-    },
-    {
-      "bin_label": "Bin 14",
-      "range_start": 78.95499835588322,
-      "range_end": 82.18432105802951,
-      "count": 42
-    },
-    {
-      "bin_label": "Bin 15",
-      "range_start": 82.18432105802951,
-      "range_end": 85.54572564646237,
-      "count": 54
-    },
-    {
-      "bin_label": "Bin 16",
-      "range_start": 85.54572564646237,
-      "range_end": 89.04461437617273,
-      "count": 54
-    },
-    {
-      "bin_label": "Bin 17",
-      "range_start": 89.04461437617273,
-      "range_end": 92.68661045870967,
-      "count": 80
-    },
-    {
-      "bin_label": "Bin 18",
-      "range_start": 92.68661045870967,
-      "range_end": 96.4775670994807,
-      "count": 73
-    },
-    {
-      "bin_label": "Bin 19",
-      "range_start": 96.4775670994807,
-      "range_end": 100.42357690468488,
-      "count": 83
-    },
-    {
-      "bin_label": "Bin 20",
-      "range_start": 100.42357690468488,
-      "range_end": 104.53098167299703,
-      "count": 76
-    },
-    {
-      "bin_label": "Bin 21",
-      "range_start": 104.53098167299703,
-      "range_end": 108.80638258773968,
-      "count": 92
-    },
-    {
-      "bin_label": "Bin 22",
-      "range_start": 108.80638258773968,
-      "range_end": 113.256650825923,
-      "count": 60
-    },
-    {
-      "bin_label": "Bin 23",
-      "range_start": 113.256650825923,
-      "range_end": 117.88893860120298,
-      "count": 64
-    },
-    {
-      "bin_label": "Bin 24",
-      "range_start": 117.88893860120298,
-      "range_end": 122.71069065850548,
-      "count": 60
-    },
-    {
-      "bin_label": "Bin 25",
-      "range_start": 122.71069065850548,
-      "range_end": 127.72965623878954,
-      "count": 36
-    },
-    {
-      "bin_label": "Bin 26",
-      "range_start": 127.72965623878954,
-      "range_end": 132.9539015331792,
-      "count": 24
-    },
-    {
-      "bin_label": "Bin 27",
-      "range_start": 132.9539015331792,
-      "range_end": 138.3918226464791,
-      "count": 24
-    },
-    {
-      "bin_label": "Bin 28",
-      "range_start": 138.3918226464791,
-      "range_end": 144.05215909090865,
-      "count": 14
-    },
-    {
-      "bin_label": "Bin 29",
-      "range_start": 144.05215909090865,
-      "range_end": 149.9440078317401,
-      "count": 12
-    }
-  ]
-}`
+### 1. FILE INFORMATION:
+- **File name:** prices.csv
+- **Full file path:** C:/repos/SAGAMiddleware/data/prices.csv
+- **Relative path for HTML:** ./data/prices.csv
 
-export const geminiAnalysisSummary = `{
-  "data_requirements": {
-    "source": "./data/prices.csv",
-    "loading_method": "d3.csv()",
-    "fields_to_use": [
-      "price"
-    ],
-    "expected_record_count": "992"
-  },
-  "data_structures_provided_by_analysis": {
-    "binned_data": {
-      "type": "array of objects, representing pre-computed histogram bins",
-      "exact_values": "Reference ANALYSIS.binned_data",
-      "fields": [
-        "bin_label",
-        "range_start",
-        "range_end",
-        "count"
-      ],
-      "count": 29
+### 2. CSV FILE STRUCTURE:
+- **Column names:** Single column named "price"
+- **Data type:** Numeric (floating-point values)
+- **Sample data values (first 10 rows):**
+  - 75.0
+  - 104.0
+  - 369.0
+  - 300.0
+  - 92.0
+  - 64.0
+  - 265.0
+  - 35.0
+  - 287.0
+  - 69.0
+- **Total number of data rows:** 9,998 (excluding header)
+- **Total file lines:** 9,999 (including header)
+- **Delimiter:** Comma (standard CSV format)
+
+### 3. RELEVANCE TO VISUALIZATION:
+- **Visualization type requested:** Histogram
+- **Relevant column:** "price" - perfect match for histogram requirements
+- **Data range:**
+  - Minimum: ~23.0
+  - Maximum: 17,242.0
+  - Average: 179.31
+- **Distribution characteristics:**
+  - Most values cluster between 30-500
+  - Contains significant outliers (9502.0, 10095.0, 17242.0)
+  - Right-skewed distribution with long tail
+  - Majority of prices are in the lower range with occasional high-value outliers
+
+### 4. D3.JS RECOMMENDATIONS:
+- **Data loading:** Use d3.csv("./data/prices.csv") with relative path as specified
+- **Data conversion:** Convert string to number using:
+  javascript
+  d3.csv("./data/prices.csv").then(data => {
+    data.forEach(d => {
+      d.price = +d.price; // Convert string to number
+    });
+    // Filter out empty/null values
+    data = data.filter(d => !isNaN(d.price));
+  });
+  
+- **Scale recommendations:**
+  - Consider using d3.scaleLinear() for x-axis
+  - Due to outliers, you might want to:
+    - Option A: Use log scale (d3.scaleLog()) to better visualize the distribution
+    - Option B: Cap the x-axis at a reasonable maximum (e.g., 2000) and group outliers
+    - Option C: Create two histograms - one for main distribution, one for outliers
+- **Bin configuration:**
+  - Recommended bin count: 30-50 bins for main distribution
+  - Use d3.bin().domain([0, 2000]).thresholds(40) for standard view
+  - Or use automatic binning: d3.bin().thresholds(d3.thresholdSturges)
+
+### 5. DATA QUALITY NOTES:
+- **Missing values:** 4 empty/null values found at rows:
+  - Row 1565 (empty)
+  - Row 2784 (empty)
+  - Row 5098 (empty)
+  - Row 9343 (empty)
+- **Outliers requiring attention:**
+  - Extreme outliers: 9502.0 (row 56), 10095.0 (row 9904), 17242.0 (appears to be maximum)
+  - These outliers will significantly affect histogram scale if not handled
+- **Data type consistency:** All non-empty values are properly formatted as decimal numbers
+- **Recommended cleaning:**
+  javascript
+  // Filter out empty values and optionally cap outliers
+  data = data.filter(d => !isNaN(d.price) && d.price !== null && d.price !== "");
+
+  // Optional: Handle outliers
+  const outlierThreshold = 2000;
+  data.forEach(d => {
+    d.isOutlier = d.price > outlierThreshold;
+  });
+  
+
+### IMPLEMENTATION NOTES FOR HISTOGRAM:
+1. The data file contains a single "price" column which is perfect for a histogram
+2. Use the relative path "./data/prices.csv" in the HTML file as specified
+3. Implement proper error handling for the 4 empty values
+4. Consider implementing an interactive feature to toggle between full range and focused range views due to the presence of extreme outliers
+5. The histogram should clearly show the concentration of prices in the 30-500 range while acknowledging the presence of high-value outliers
+DATA ANALYZER  {"user_query":"{\n  \"full_file_path\": \"C:/repos/SAGAMiddleware/data/prices.csv\",\n  \"d3_visualization_request\": \"Create D3 js histogram of prices from the csv file provided from the response from the MCP server. You must use d3.csv() method to handle the input file. The data represents prices. RELATIVE PATH: ./data/prices.csv **NOTE** Use relative path in html\"\n}"}
+SDK NAME D3JSDataAnalyzer
+SDK VALUE {
+  DATA_ANALYSIS: 'Now I have enough information to provide a comprehensive analysis. Let me create the structured report:\n' +
+    '\n' +
+    '---\n' +
+    '\n' +
+    '## CSV DATA ANALYSIS REPORT FOR D3.JS VISUALIZATION\n' +
+    '\n' +
+    '### 1. FILE INFORMATION:\n' +
+    '- **File name:** prices.csv\n' +
+    '- **Full file path:** C:/repos/SAGAMiddleware/data/prices.csv\n' +
+    '- **Relative path for HTML:** ./data/prices.csv\n' +
+    '\n' +
+    '### 2. CSV FILE STRUCTURE:\n' +
+    '- **Column names:** Single column named "price"\n' +
+    '- **Data type:** Numeric (floating-point values)\n' +
+    '- **Sample data values (first 10 rows):**\n' +
+    '  - 75.0\n' +
+    '  - 104.0\n' +
+    '  - 369.0\n' +
+    '  - 300.0\n' +
+    '  - 92.0\n' +
+    '  - 64.0\n' +
+    '  - 265.0\n' +
+    '  - 35.0\n' +
+    '  - 287.0\n' +
+    '  - 69.0\n' +
+    '- **Total number of data rows:** 9,998 (excluding header)\n' +
+    '- **Total file lines:** 9,999 (including header)\n' +
+    '- **Delimiter:** Comma (standard CSV format)\n' +
+    '\n' +
+    '### 3. RELEVANCE TO VISUALIZATION:\n' +
+    '- **Visualization type requested:** Histogram\n' +
+    '- **Relevant column:** "price" - perfect match for histogram requirements\n' +
+    '- **Data range:**\n' +
+    '  - Minimum: ~23.0\n' +
+    '  - Maximum: 17,242.0\n' +
+    '  - Average: 179.31\n' +
+    '- **Distribution characteristics:**\n' +
+    '  - Most values cluster between 30-500\n' +
+    '  - Contains significant outliers (9502.0, 10095.0, 17242.0)\n' +
+    '  - Right-skewed distribution with long tail\n' +
+    '  - Majority of prices are in the lower range with occasional high-value outliers\n' +
+    '\n' +
+    '### 4. D3.JS RECOMMENDATIONS:\n' +
+    '- **Data loading:** Use d3.csv("./data/prices.csv") with relative path as specified\n' +
+    '- **Data conversion:** Convert string to number using:\n' +
+    '  javascript\n' +
+    '  d3.csv("./data/prices.csv").then(data => {\n' +
+    '    data.forEach(d => {\n' +
+    '      d.price = +d.price; // Convert string to number\n' +
+    '    });\n' +
+    '    // Filter out empty/null values\n' +
+    '    data = data.filter(d => !isNaN(d.price));\n' +
+    '  });\n' +
+    '  \n' +
+    '- **Scale recommendations:**\n' +
+    '  - Consider using d3.scaleLinear() for x-axis\n' +
+    '  - Due to outliers, you might want to:\n' +
+    '    - Option A: Use log scale (d3.scaleLog()) to better visualize the distribution\n' +
+    '    - Option B: Cap the x-axis at a reasonable maximum (e.g., 2000) and group outliers\n' +
+    '    - Option C: Create two histograms - one for main distribution, one for outliers\n' +
+    '- **Bin configuration:**\n' +
+    '  - Recommended bin count: 30-50 bins for main distribution\n' +
+    '  - Use d3.bin().domain([0, 2000]).thresholds(40) for standard view\n' +
+    '  - Or use automatic binning: d3.bin().thresholds(d3.thresholdSturges)\n' +
+    '\n' +
+    '### 5. DATA QUALITY NOTES:\n' +
+    '- **Missing values:** 4 empty/null values found at rows:\n' +
+    '  - Row 1565 (empty)\n' +
+    '  - Row 2784 (empty)\n' +
+    '  - Row 5098 (empty)\n' +
+    '  - Row 9343 (empty)\n' +
+    '- **Outliers requiring attention:**\n' +
+    '  - Extreme outliers: 9502.0 (row 56), 10095.0 (row 9904), 17242.0 (appears to be maximum)\n' +
+    '  - These outliers will significantly affect histogram scale if not handled\n' +
+    '- **Data type consistency:** All non-empty values are properly formatted as decimal numbers\n' +
+    '- **Recommended cleaning:**\n' +
+    '  javascript\n' +
+    '  // Filter out empty values and optionally cap outliers\n' +
+    '  data = data.filter(d => !isNaN(d.price) && d.price !== null && d.price !== "");\n' +
+    '  \n' +
+    '  // Optional: Handle outliers\n' +
+    '  const outlierThreshold = 2000;\n' +
+    '  data.forEach(d => {\n' +
+    '    d.isOutlier = d.price > outlierThreshold;\n' +
+    '  });\n' +
+    '  \n' +
+    '\n' +
+    '### IMPLEMENTATION NOTES FOR HISTOGRAM:\n' +
+    '1. The data file contains a single "price" column which is perfect for a histogram\n' +
+    '2. Use the relative path "./data/prices.csv" in the HTML file as specified\n' +
+    '3. Implement proper error handling for the 4 empty values\n' +
+    '4. Consider implementing an interactive feature to toggle between full range and focused range views due to the presence of extreme outliers\n' +
+    '5. The histogram should clearly show the concentration of prices in the 30-500 range while acknowledging the presence of high-value outliers',`
+
+
+export const pythonDataFilter = `import pandas as pd
+import numpy as np
+import json
+
+# Load the prices data
+df = pd.read_csv('C:/repos/SAGAMiddleware/data/prices.csv')
+
+# Get the price column (assuming it's named 'price' or is the first column)
+if 'price' in df.columns:
+    prices = df['price']
+else:
+    prices = df.iloc[:, 0]
+
+# Calculate comprehensive statistics
+min_val = float(prices.min())
+max_val = float(prices.max())
+mean_val = float(prices.mean())
+median_val = float(prices.median())
+std_val = float(prices.std())
+variance_val = float(prices.var())
+
+# Calculate quartiles
+q1 = float(prices.quantile(0.25))
+q2 = float(prices.quantile(0.50))  # median
+q3 = float(prices.quantile(0.75))
+iqr = q3 - q1
+
+# Calculate percentiles
+percentiles = {}
+for p in [1, 5, 10, 90, 95, 99]:
+    percentiles[f'p{p}'] = float(prices.quantile(p/100))
+
+# Detect outliers using IQR method
+lower_bound = q1 - 1.5 * iqr
+upper_bound = q3 + 1.5 * iqr
+outliers = prices[(prices < lower_bound) | (prices > upper_bound)]
+outlier_count = len(outliers)
+outlier_percentage = float((outlier_count / len(prices)) * 100)
+
+# Identify extreme outliers
+extreme_lower_bound = q1 - 3 * iqr
+extreme_upper_bound = q3 + 3 * iqr
+extreme_outliers = prices[(prices < extreme_lower_bound) | (prices > extreme_upper_bound)]
+extreme_outlier_count = len(extreme_outliers)
+
+# Calculate skewness and kurtosis
+skewness = float(prices.skew())
+kurtosis = float(prices.kurtosis())
+
+# Distribution characteristics
+value_range = max_val - min_val
+coefficient_of_variation = float((std_val / mean_val) * 100) if mean_val != 0 else 0
+
+# Count values in different ranges
+range_counts = {
+    'below_100': int((prices < 100).sum()),
+    '100_to_500': int(((prices >= 100) & (prices < 500)).sum()),
+    '500_to_1000': int(((prices >= 500) & (prices < 1000)).sum()),
+    '1000_to_5000': int(((prices >= 1000) & (prices < 5000)).sum()),
+    '5000_to_10000': int(((prices >= 5000) & (prices < 10000)).sum()),
+    'above_10000': int((prices >= 10000).sum())
+}
+
+# Create result dictionary
+result = {
+    'total_records': len(prices),
+    'statistics': {
+        'min': min_val,
+        'max': max_val,
+        'mean': mean_val,
+        'median': median_val,
+        'std_dev': std_val,
+        'variance': variance_val,
+        'range': value_range,
+        'cv': coefficient_of_variation
     },
-    "x_axis_domain": {
-      "type": "array of two numbers for min/max",
-      "exact_values": [
-        46.887618140501345,
-        149.94400783174015
-      ],
-      "fields": [],
-      "count": 2
+    'quartiles': {
+        'q1': q1,
+        'q2': q2,
+        'q3': q3,
+        'iqr': iqr
     },
-    "x_axis_ticks": {
-      "type": "array of numbers",
-      "exact_values": [
-        46.887618140501345,
-        58.338328106194545,
-        69.78903807188775,
-        81.23974803758094,
-        92.69045800327414,
-        104.14116796896735,
-        115.59187793466054,
-        127.04258790035375,
-        138.49329786604693,
-        149.94400783174015
-      ],
-      "fields": [],
-      "count": 10
+    'percentiles': percentiles,
+    'outliers': {
+        'count': outlier_count,
+        'percentage': outlier_percentage,
+        'lower_bound': lower_bound,
+        'upper_bound': upper_bound,
+        'extreme_count': extreme_outlier_count,
+        'extreme_lower_bound': extreme_lower_bound,
+        'extreme_upper_bound': extreme_upper_bound,
+        'outlier_values': outliers.tolist() if outlier_count < 100 else outliers[:100].tolist()
+    },
+    'distribution': {
+        'skewness': skewness,
+        'kurtosis': kurtosis,
+        'is_right_skewed': skewness > 0,
+        'is_heavy_tailed': kurtosis > 0
+    },
+    'range_distribution': range_counts,
+    'data_quality': {
+        'has_nulls': bool(prices.isnull().any()),
+        'null_count': int(prices.isnull().sum()),
+        'has_negative': bool((prices < 0).any()),
+        'negative_count': int((prices < 0).sum())
+    },
+    'raw_data': prices.tolist()
+}
+
+print(json.dumps(result))`
+
+
+
+export const pythonHistogram = `import numpy as np
+import json
+import math
+
+# Get statistics from previous agent
+stats = _prev_result['statistics']
+quartiles = _prev_result['quartiles']
+outliers = _prev_result['outliers']
+distribution = _prev_result['distribution']
+range_dist = _prev_result['range_distribution']
+raw_data = _prev_result['raw_data']
+
+min_val = stats['min']
+max_val = stats['max']
+mean_val = stats['mean']
+median_val = stats['median']
+std_dev = stats['std_dev']
+q1 = quartiles['q1']
+q3 = quartiles['q3']
+iqr = quartiles['iqr']
+total_count = _prev_result['total_records']
+
+# Strategy 1: Sturges' Rule
+sturges_bins = int(math.ceil(math.log2(total_count) + 1))
+
+# Strategy 2: Square Root Choice
+sqrt_bins = int(math.ceil(math.sqrt(total_count)))
+
+# Strategy 3: Rice's Rule
+rice_bins = int(math.ceil(2 * (total_count ** (1/3))))
+
+# Strategy 4: Scott's Rule (bin width based)
+scott_width = 3.49 * std_dev / (total_count ** (1/3))
+scott_bins = int(math.ceil((max_val - min_val) / scott_width)) if scott_width > 0 else 30
+
+# Strategy 5: Freedman-Diaconis Rule (IQR based)
+fd_width = 2 * iqr / (total_count ** (1/3))
+fd_bins = int(math.ceil((max_val - min_val) / fd_width)) if fd_width > 0 else 30
+
+# Given the extreme outliers, we need adaptive binning
+# Determine outlier handling strategy
+extreme_outlier_threshold = 10000
+has_extreme_outliers = range_dist['above_10000'] > 0
+
+# Calculate optimal bin count considering the distribution
+if has_extreme_outliers:
+    # For skewed data with outliers, use fewer bins
+    recommended_bins = min(fd_bins, 50)  # Cap at 50 for better visualization
+else:
+    recommended_bins = fd_bins
+
+# Create bin edges strategies
+# Strategy 1: Equal width bins
+equal_width_edges = []
+bin_width = (max_val - min_val) / recommended_bins
+for i in range(recommended_bins + 1):
+    equal_width_edges.append(min_val + i * bin_width)
+
+# Strategy 2: Quantile-based bins (equal frequency)
+quantile_edges = []
+for i in range(recommended_bins + 1):
+    quantile_edges.append(float(np.percentile(raw_data, i * 100 / recommended_bins)))
+
+# Strategy 3: Adaptive bins for outliers
+# Focus most bins on the bulk of the data, fewer bins for outliers
+if has_extreme_outliers:
+    # Use percentile 95 as cutoff for main data
+    p95 = float(np.percentile(raw_data, 95))
+    main_bins = int(recommended_bins * 0.9)  # 90% of bins for main data
+    outlier_bins = recommended_bins - main_bins
+
+    adaptive_edges = []
+    # Dense binning for main data
+    main_width = (p95 - min_val) / main_bins
+    for i in range(main_bins):
+        adaptive_edges.append(min_val + i * main_width)
+
+    # Sparse binning for outliers
+    if outlier_bins > 0 and max_val > p95:
+        outlier_width = (max_val - p95) / outlier_bins
+        for i in range(1, outlier_bins + 1):
+            adaptive_edges.append(p95 + i * outlier_width)
+    adaptive_edges.append(max_val)
+else:
+    adaptive_edges = equal_width_edges
+
+# Calculate bin ranges for different strategies
+def calculate_ranges(edges):
+    ranges = []
+    for i in range(len(edges) - 1):
+        ranges.append({
+            'min': float(edges[i]),
+            'max': float(edges[i + 1]),
+            'width': float(edges[i + 1] - edges[i])
+        })
+    return ranges
+
+# Outlier handling recommendations
+outlier_strategies = []
+
+if has_extreme_outliers:
+    outlier_strategies.append({
+        'name': 'cap_outliers',
+        'description': 'Cap values above 10000 to 10000',
+        'threshold': extreme_outlier_threshold
+    })
+    outlier_strategies.append({
+        'name': 'separate_viz',
+        'description': 'Create separate visualization for outliers',
+        'main_data_max': float(np.percentile(raw_data, 95))
+    })
+    outlier_strategies.append({
+        'name': 'log_transform',
+        'description': 'Apply logarithmic transformation to compress range'
+    })
+
+# Determine final recommendation
+if has_extreme_outliers:
+    final_strategy = 'adaptive'
+    final_bins = recommended_bins
+    final_edges = adaptive_edges
+else:
+    final_strategy = 'equal_width'
+    final_bins = recommended_bins
+    final_edges = equal_width_edges
+
+result = {
+    'bin_count_strategies': {
+        'sturges': sturges_bins,
+        'sqrt': sqrt_bins,
+        'rice': rice_bins,
+        'scott': scott_bins,
+        'freedman_diaconis': fd_bins,
+        'recommended': recommended_bins
+    },
+    'bin_edge_strategies': {
+        'equal_width': {
+            'edges': equal_width_edges,
+            'ranges': calculate_ranges(equal_width_edges)
+        },
+        'quantile': {
+            'edges': quantile_edges,
+            'ranges': calculate_ranges(quantile_edges)
+        },
+        'adaptive': {
+            'edges': adaptive_edges,
+            'ranges': calculate_ranges(adaptive_edges)
+        }
+    },
+    'outlier_handling': {
+        'has_extreme_outliers': has_extreme_outliers,
+        'extreme_threshold': extreme_outlier_threshold,
+        'strategies': outlier_strategies
+    },
+    'final_recommendation': {
+        'strategy': final_strategy,
+        'bin_count': final_bins,
+        'bin_edges': final_edges,
+        'rationale': 'Adaptive binning to handle extreme outliers while preserving detail in main data distribution' if has_extreme_outliers else 'Equal width binning for uniform data distribution'
+    },
+    'visualization_params': {
+        'x_axis_range': [min_val, min(max_val, extreme_outlier_threshold) if has_extreme_outliers else max_val],
+        'y_axis_type': 'linear',
+        'suggested_width': 800,
+        'suggested_height': 600,
+        'margin': {'top': 20, 'right': 30, 'bottom': 40, 'left': 50}
     }
-  },
-  "implementation_gaps": [
-    {
-      "appraisal_failure": "Empty Histogram - No Bars Visible; all bars with height='0' or height='NaN'",
-      "code_pattern_causing_failure": "The code uses d3.histogram() to dynamically calculate bins from the raw CSV data. It then sets the y-scale domain using d3.max(bins, d => d.length). This entire calculation process is failing, resulting in bins with a .length that produces a NaN or 0 height.",
-      "analysis_provides_solution": "The ANALYSIS provides a complete, pre-calculated binned_data array. Each object in this array contains the exact bin boundaries (range_start, range_end) and the final count (count) for that bin.",
-      "required_fix": "Do not use d3.histogram(). Instead, use the binned_data array provided in the ANALYSIS as the data source for the bars. The y-scale domain must be based on the maximum count value from this array. Bar height should be mapped from d.count, and x-position/width from d.range_start and d.range_end."
-    },
-    {
-      "appraisal_failure": "Y-Axis Scale Issue; the y-axis has no tick marks or labels",
-      "code_pattern_causing_failure": "The y-scale domain is set by d3.max(bins, d => d.length). Because the d3.histogram() calculation is failing, this returns an invalid value (likely 0 or undefined), which breaks the scale and prevents axis generation.",
-      "analysis_provides_solution": "The binned_data array contains a count for each bin. The maximum of these counts (92) should be used to define the y-scale's domain.",
-      "required_fix": "Calculate the maximum value from the count field across all objects in the binned_data array and use it to set the y-scale domain, e.g., y.domain([0, d3.max(analysisBinnedData, d => d.count)])."
-    },
-    {
-      "appraisal_failure": "No visual representation of the 29 variable-width bins",
-      "code_pattern_causing_failure": "The code attempts to generate its own bins using d3.histogram().thresholds(x.ticks(30)), which does not match the specific 29 bins provided by the analysis. This automatic generation is the root cause of all rendering failures.",
-      "analysis_provides_solution": "The binned_data array explicitly defines all 29 bins, their start/end points, and their counts.",
-      "required_fix": "Bind the binned_data array directly to the SVG rectangles. Use d.range_start for the 'x' attribute and d.range_end - d.range_start for the 'width' attribute."
+}
+
+print(json.dumps(result))`
+
+export const pythonDataPreProcessor = ` import json
+import numpy as np
+
+# Get data and parameters from previous agents
+raw_data = _prev_result['raw_data']  # This should come from DataProfiler through the chain
+params = _prev_result  # This is from HistogramParametersCalculator
+
+# Extract key parameters
+outlier_handling = params['outlier_handling']
+has_extreme_outliers = outlier_handling['has_extreme_outliers']
+extreme_threshold = outlier_handling['extreme_threshold']
+final_recommendation = params['final_recommendation']
+bin_edges = final_recommendation['bin_edges']
+
+# Convert raw_data to numpy array for processing
+prices = np.array(raw_data)
+original_count = len(prices)
+
+# Track preprocessing steps
+preprocessing_log = []
+
+# Step 1: Handle extreme outliers if present
+if has_extreme_outliers:
+    # Count outliers before capping
+    outliers_above_threshold = np.sum(prices > extreme_threshold)
+
+    # Cap extreme outliers
+    capped_prices = np.where(prices > extreme_threshold, extreme_threshold, prices)
+
+    preprocessing_log.append({
+        'step': 'cap_outliers',
+        'description': f'Capped {outliers_above_threshold} values above {extreme_threshold}',
+        'values_affected': int(outliers_above_threshold)
+    })
+else:
+    capped_prices = prices.copy()
+    preprocessing_log.append({
+        'step': 'no_capping',
+        'description': 'No extreme outliers detected, data unchanged',
+        'values_affected': 0
+    })
+
+# Step 2: Remove any invalid values (NaN, inf)
+valid_mask = np.isfinite(capped_prices)
+clean_prices = capped_prices[valid_mask]
+invalid_count = original_count - len(clean_prices)
+
+if invalid_count > 0:
+    preprocessing_log.append({
+        'step': 'remove_invalid',
+        'description': f'Removed {invalid_count} invalid values (NaN or inf)',
+        'values_affected': int(invalid_count)
+    })
+
+# Step 3: Calculate histogram bins
+hist_counts, hist_edges = np.histogram(clean_prices, bins=bin_edges)
+
+# Step 4: Format data for D3.js
+# Create bin data with counts and ranges
+d3_bins = []
+for i in range(len(hist_counts)):
+    bin_data = {
+        'range': f'{hist_edges[i]:.2f}-{hist_edges[i+1]:.2f}',
+        'min': float(hist_edges[i]),
+        'max': float(hist_edges[i+1]),
+        'count': int(hist_counts[i]),
+        'frequency': float(hist_counts[i] / len(clean_prices))
     }
-  ],
-  "must_use_from_analysis": {
-    "exact_arrays": [
-      {
-        "name": "pre_computed_bins",
-        "values": "Reference ANALYSIS.binned_data",
-        "purpose": "To serve as the direct data source for rendering histogram bars, eliminating the need for d3.histogram()."
-      },
-      {
-        "name": "x_axis_domain",
-        "values": [
-          46.887618140501345,
-          149.94400783174015
-        ],
-        "purpose": "To set the precise domain for the x-axis linear scale, instead of calculating it with d3.min and d3.max."
-      },
-      {
-        "name": "x_axis_tick_values",
-        "values": [
-          46.887618140501345,
-          58.338328106194545,
-          69.78903807188775,
-          81.23974803758094,
-          92.69045800327414,
-          104.14116796896735,
-          115.59187793466054,
-          127.04258790035375,
-          138.49329786604693,
-          149.94400783174015
-        ],
-        "purpose": "To provide the exact values for the x-axis ticks using axis.tickValues() instead of auto-generating them with axis.ticks()."
-      }
-    ],
-    "exact_values": []
-  },
-  "must_not_do": [
-    "Do not use d3.histogram() to calculate bins. Use the provided binned_data array.",
-    "Do not calculate the x-axis domain from the raw data using d3.min() or d3.max(). Use the provided x_axis.domain values.",
-    "Do not derive bar height from bin.length. Use the count property from the objects within the binned_data array.",
-    "Do not automatically generate axis ticks with .ticks(n). Use .tickValues() with the provided x_axis.ticks array."
-  ],
-  "success_criteria": [
-    "The chart must render exactly 29 bars.",
-    "The bar heights must correspond to the count values in the binned_data array, with the tallest bar having a count of 92.",
-    "The x-position and width of each bar must correspond to its range_start and range_end values.",
-    "The y-axis must be visible with ticks and labels, scaled to a domain that includes the maximum count of 92.",
-    "The x-axis domain must be exactly [46.887618140501345, 149.94400783174015].",
-    "The sum of all bar counts must equal 992."
-  ]
-}`
+    d3_bins.append(bin_data)
+
+# Step 5: Create individual data points for D3 (if needed for raw visualization)
+d3_data_points = []
+for price in clean_prices:
+    d3_data_points.append({'price': float(price)})
+
+# Calculate summary statistics on cleaned data
+clean_min = float(np.min(clean_prices))
+clean_max = float(np.max(clean_prices))
+clean_mean = float(np.mean(clean_prices))
+clean_median = float(np.median(clean_prices))
+clean_std = float(np.std(clean_prices))
+
+# Create metadata for visualization
+metadata = {
+    'original_count': original_count,
+    'processed_count': len(clean_prices),
+    'outliers_capped': int(outliers_above_threshold) if has_extreme_outliers else 0,
+    'invalid_removed': int(invalid_count),
+    'preprocessing_steps': preprocessing_log,
+    'statistics': {
+        'min': clean_min,
+        'max': clean_max,
+        'mean': clean_mean,
+        'median': clean_median,
+        'std_dev': clean_std
+    }
+}
+
+# Final result optimized for D3.js
+result = {
+    'histogram_data': d3_bins,
+    'raw_data': d3_data_points[:1000] if len(d3_data_points) > 1000 else d3_data_points,  # Limit raw data for performance
+    'full_data_array': clean_prices.tolist(),
+    'metadata': metadata,
+    'd3_config': {
+        'bin_count': len(d3_bins),
+        'x_domain': [clean_min, clean_max],
+        'y_domain': [0, int(np.max(hist_counts))],
+        'x_label': 'Price',
+        'y_label': 'Frequency',
+        'title': 'Price Distribution Histogram'
+    }
+}
+
+print(json.dumps(result))`

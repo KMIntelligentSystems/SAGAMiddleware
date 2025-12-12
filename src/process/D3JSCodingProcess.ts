@@ -4,10 +4,10 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt, intermedateAnalysis, histogramValidationPrompt_1 } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt, intermedateAnalysis, histogramValidationPrompt_1, analysisFixPrompt } from '../types/visualizationSaga.js'
 import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
 import { d3jsCoordinatingAgentResultforCodeGenerator } from '../test//testData.js'
-import { geminiAnalysisSummary } from '../test/histogramData.js'
+//import { geminiAnalysisSummary } from '../test/histogramData.js'
 
 import * as fs from 'fs'; 
 import * as path from 'path';
@@ -126,12 +126,16 @@ console.log('CONVERSATION CTX', conversationContext)
          this.contextManager.updateContext(this.targetAgentName, {
           lastTransactionResult: input
          })
-        //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
-    } else if (this.targetAgentName === 'ValidatingAgent_'){
-         const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-         console.log('CONVERSATION AGENT CTX VALIDATION',  ctx.lastTransactionResult)
-         this.contextManager.updateContext(this.targetAgentName, {
-          lastTransactionResult: ctx.lastTransactionResult
+        //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;  analysisFixPrompt
+    } else if (this.targetAgentName === 'D3JSCoordinatingAgent'){
+         const ctx = this.contextManager.getContext(this.targetAgentName) as WorkingMemory;
+         console.log('COORDINATING AGENT AGENT CTX VALIDATION',  ctx.lastTransactionResult);
+         this.agent.setTaskDescription(analysisFixPrompt);
+         result = await this.agent.execute(ctx.lastTransactionResult);
+         const agentCtx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+         agentCtx.lastTransactionResult.python_analysis = ctx.lastTransactionResult;
+         this.contextManager.updateContext(this.agent.getName(), {
+          lastTransactionResult: agentCtx.lastTransactionResult
          })
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }else if (this.targetAgentName === 'D3JSCodingAgent'){

@@ -154,7 +154,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             const prompt = this.buildPrompt(input);
             const output = opusCodeValidatorResult //await this.executeQuery(prompt);
 
-            this.setContext({ APPRAISAL: output, CODE: input.d3jsCode });//CODE: input.d3jsCode,USER_REQUIREMENT: userQuery, ANALYSIS: input.pythonAnalysis,
+            this.setContext({ APPRAISAL: output, ANALYSIS: input.pythonAnalysis, CODE: input.d3jsCode });//CODE: input.d3jsCode,USER_REQUIREMENT: userQuery, ANALYSIS: input.pythonAnalysis,
             
 
             return {

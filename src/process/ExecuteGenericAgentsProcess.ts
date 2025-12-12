@@ -256,7 +256,7 @@ export class ExecuteGenericAgentsProcess {
 
         try {
           // Execute the tool calling agent with the Python code
-          result.result =  ''//await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
+          result.result =  //await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
 
           console.log('TOOL CALL ' + definition.name, result);
           console.log('TOOL CALL SUCCESS FLAG: ', result.success);
@@ -295,7 +295,7 @@ export class ExecuteGenericAgentsProcess {
 
     console.log('RESULT_2', result.result);
     console.log('RESULT_2_1', result.success);
- result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_1.txt', 'utf-8');
+ //result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_1.txt', 'utf-8');
     // After all agents complete, retrieve persisted data
     if (result.success) {
       const persistedData = result.result//fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse.txt', 'utf-8');

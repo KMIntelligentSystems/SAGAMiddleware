@@ -247,14 +247,14 @@ export class DataProfiler extends BaseSDKAgent {
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
             const prompt = this.buildPrompt(ctx.lastTransactionResult);
 
-           const output = ''//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
+           const output = await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
         
-           this.createTestAgents();//
+         //  this.createTestAgents();//
            const agents = JSON.stringify(this.createdAgents)
            this.setContext(agents);
             return {
                agentName: 'DataProfiler',
-                result: agents,
+                result: output,
                 success: true,
                 timestamp: new Date(),
             };
@@ -339,30 +339,40 @@ console.log('INPUT DATAPROFILER ', actualResult)
 
 ${input.workflowDescription}
 
-STEPS:
-1. Read the data file once to understand structure
-2. Create agents using create_generic_agent for each step in the workflow
-3. Output: "Created N agents: [names]. Pipeline complete." and STOP
+CRITICAL INSTRUCTION - taskDescription Field:
+The taskDescription parameter must contain EXECUTABLE PYTHON CODE, not instructions.
+You must write the complete Python script that the agent will execute.
+
+For each agent in the workflow plan:
+1. Write complete, executable Python code for that agent's task
+2. Call create_generic_agent with the Python code in taskDescription parameter
+3. After creating all agents, output: "Created N agents: [names]. Pipeline complete." and STOP
+
+IMPORTANT RESTRICTIONS:
+- IGNORE any visualization agents in the workflow plan - DO NOT create them
+- ONLY create agents for data processing, analysis, and calculation tasks
+- ALL agents must use agentType: 'tool' (NEVER use 'processing')
+- ALL code must be Python - NEVER generate JavaScript, HTML, or D3.js code
 
 AGENT DATA FLOW:
 - First agent: Loads CSV file with pd.read_csv(path) - processes full dataset
 - Subsequent agents: Use _prev_result dictionary from previous agent
-  Example: stat_val = _prev_result['statistic_name']
+  Example: mean_val = _prev_result['mean']
 
-PYTHON CODE RULES:
+PYTHON CODE REQUIREMENTS (for code you write in taskDescription):
 - Import json at top: import json
 - Never simulate data (no np.random, no fake data)
-- Never reload CSV in dependent agents
-- Use safe variable names (field_val, not field)
-- Define variables before using in dicts
+- Never reload CSV in dependent agents (use _prev_result)
+- Use safe variable names (count_val, mean_val, not reserved words)
+- Define all variables before using in dictionaries
+- Convert numpy/pandas types to native Python: float(), int(), .tolist()
 - Must end with: print(json.dumps(result))
 
 ANALYSIS DEPTH (when applicable):
 - Be thorough and comprehensive in statistical analysis
 - Include multiple calculation strategies when appropriate
 
-Now create the agents.`
-;
+Now create the agents.`;
     }
 
     /**

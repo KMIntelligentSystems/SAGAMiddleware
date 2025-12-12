@@ -228,7 +228,7 @@ sleep(ms: number) {
     console.log(' AGENT ',  agentName)
     if (!agent) {
       console.error(`❌ Agent ${agentName} not found`);
-      return null;
+      return null;// NEEDS FIXING
     }
    
    
@@ -403,13 +403,9 @@ sleep(ms: number) {
       // Update current agent state
     
       if (step.process === 'ExecuteGenericAgentsProcess') {
-            console.log('🔴 SagaCoordinator: ExecuteGenericAgentsProcess step reached');
-            console.log('🔴 SagaCoordinator: ContextManager instance:', this.contextManager ? 'EXISTS' : 'NULL');
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
-            console.log('🔴 SagaCoordinator: DataProfiler context:', ctx ? 'EXISTS' : 'NULL');
-            console.log('🔴 SagaCoordinator: lastTransactionResult:', ctx?.lastTransactionResult ? 'HAS DATA' : 'NULL');
             if (ctx?.lastTransactionResult) {
-              console.log('🔴 SagaCoordinator: Data preview:', typeof ctx.lastTransactionResult === 'string' ? ctx.lastTransactionResult.substring(0, 200) : 'NOT STRING');
+              console.log('🔴 SagaCoordinator: Data preview:', typeof ctx.lastTransactionResult === 'string' ? ctx.lastTransactionResult : 'NOT STRING');
             }
       }
          

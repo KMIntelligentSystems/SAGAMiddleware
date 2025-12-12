@@ -8,6 +8,7 @@
 
 import { BaseSDKAgent } from './baseSDKAgent.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
+import { d3jsDataAnalysisResult } from '../test/histogramData.js'
 
 export interface D3DataAnalyzerInput {
     userQuery: string;
@@ -37,17 +38,19 @@ export class D3JSDataAnalyzer extends BaseSDKAgent {
                 };
             }
 
+            input.userQuery =  JSON.stringify(ctx.lastTransactionResult);
+
             // Build prompt and execute query
             // The Claude SDK will automatically use its built-in Read tool when prompted
             const prompt = this.buildPrompt(input);
-            const output = ''//await this.executeQuery(prompt);
+            const output = d3jsDataAnalysisResult//await this.executeQuery(prompt);
             console.log('DATA ANALYZER ', JSON.stringify(ctx.lastTransactionResult))
 
             // Store analysis result in context for downstream agents
             this.setContext({
                 'DATA_ANALYSIS': output,
                 'USER_QUERY': input.userQuery,
-                'FILE_PATH': input.filePath
+
             });
 
             return {
@@ -79,11 +82,9 @@ export class D3JSDataAnalyzer extends BaseSDKAgent {
 USER QUERY (visualization requirements):
 ${userQuery}
 
-FILE PATH:
-${filePath}
 
 INSTRUCTIONS:
-1. Read the CSV file at the specified path: ${filePath}
+1. Read the CSV file at the specified path in ${userQuery}
 2. Examine the CSV file structure carefully:
    - Identify column names (from the header row)
    - Determine data types for each column (numeric, string, date, etc.)
@@ -101,7 +102,7 @@ Provide a structured report with the following sections:
 
 1. FILE INFORMATION:
    - File name: [Extract the actual file name from the path]
-   - Full file path: ${filePath} (output the EXACT path provided - this will be used with d3.csv())
+   - Full file path (output the EXACT path provided - this will be used with d3.csv())
    - Relative path from project root (if applicable)
 
 2. CSV FILE STRUCTURE:
