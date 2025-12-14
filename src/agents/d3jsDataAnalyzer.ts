@@ -47,11 +47,7 @@ export class D3JSDataAnalyzer extends BaseSDKAgent {
             console.log('DATA ANALYZER ', JSON.stringify(ctx.lastTransactionResult))
 
             // Store analysis result in context for downstream agents
-            this.setContext({
-                'DATA_ANALYSIS': output,
-                'USER_QUERY': input.userQuery,
-
-            });
+            this.setContext(output);
 
             return {
                 agentName: 'D3JSDataAnalyzer',

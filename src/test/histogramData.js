@@ -1297,7 +1297,7 @@ result = {
 
 print(json.dumps(result))`
 
-
+// pythonHistogram  pythonDataPreProcessor pythonDataFilter
 
 export const pythonHistogram = `import numpy as np
 import json
@@ -1585,3 +1585,64 @@ result = {
 }
 
 print(json.dumps(result))`
+
+export const openaiPythonAnalysisResult = ` {
+  "dataset": {
+    "source_original": "C:/repos/SAGAMiddleware/data/prices.csv",
+    "source_relative": "./data/prices.csv",
+    "records": 9995
+  },
+  "statistics": {
+    "min": 11,
+    "max_after_capping": 1187.8399999999929,
+    "mean": 162.01550775387688,
+    "median": 103,
+    "std": 185.95503422334704
+  },
+  "distribution": {
+    "bin_count": 39,
+    "peak_bin": {
+      "range": [78.24799999999959, 111.87199999999939],
+      "count": 2537,
+      "percentage": 25.382691345672836
+    },
+    "second_peak_bin": {
+      "range": [44.623999999999796, 78.24799999999959],
+      "count": 2466,
+      "percentage": 24.67233616808404
+    },
+    "overflow_bin": {
+      "range": [1187.8399999999929, 5201.379999999995],
+      "count": 100
+    },
+    "total_count": 9995
+  },
+  "processing": {
+    "original_count": 9995,
+    "final_count": 9995,
+    "removed_count": 0,
+    "capped_count": 100,
+    "extreme_outliers_found": 6,
+    "data_loss_percentage": 0,
+    "steps": [
+      {
+        "step": "capping",
+        "threshold": 1187.8399999999929,
+        "affected_count": 100,
+        "description": "Capped 100 values above 1187.84"
+      }
+    ]
+  },
+  "visualization_config": {
+    "x_domain": [11, 1187.8399999999929],
+    "y_domain": [0, 2537],
+    "bin_count": 39,
+    "recommended_size": { "width": 800, "height": 400 },
+    "margin": { "top": 20, "right": 30, "bottom": 40, "left": 50 }
+  },
+  "status": {
+    "ready_for_visualization": true,
+    "d3_ready": true,
+    "data_characteristics": "Right-skewed with capped high-value outliers"
+  }
+}`

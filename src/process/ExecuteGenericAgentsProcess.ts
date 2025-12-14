@@ -8,6 +8,7 @@ import { CreatedAgentInfo } from '../agents/dataProfiler.js';
 import { dataProfilerError, pythonSuccessResult } from '../test/histogramData.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import * as fs from 'fs';
+import { PromptCaching } from '@anthropic-ai/sdk/resources/beta/prompt-caching/prompt-caching.js';
 
 /**
  * ExecuteGenericAgentsProcess - Modified Version
@@ -202,7 +203,14 @@ export class ExecuteGenericAgentsProcess {
       success: true,
       timestamp: new Date()
     };
+ const prompt = `You are a Python execution agent.
 
+TOOL: execute_python
+INPUT: Use the code from context.
+ACTION: Call execute_python with the code as the "code" argument
+
+DO NOT generate placeholder code. Use ONLY the code provided in your context.
+ `
   
     for (const definition of agentDefinitions) {
       console.log('LINEAR AGENT DEFINITION ', definition);
@@ -256,7 +264,8 @@ export class ExecuteGenericAgentsProcess {
 
         try {
           // Execute the tool calling agent with the Python code
-          result.result =  //await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
+          toolCallingAgent.setTaskDescription(prompt)
+          result.result = ''// await toolCallingAgent.execute({'CODE:': cleanCode}) as AgentResult;
 
           console.log('TOOL CALL ' + definition.name, result);
           console.log('TOOL CALL SUCCESS FLAG: ', result.success);
@@ -295,14 +304,16 @@ export class ExecuteGenericAgentsProcess {
 
     console.log('RESULT_2', result.result);
     console.log('RESULT_2_1', result.success);
- //result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_1.txt', 'utf-8');
+ result.result =  fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_2.txt', 'utf-8');
     // After all agents complete, retrieve persisted data
     if (result.success) {
       const persistedData = result.result//fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse.txt', 'utf-8');
       if (persistedData) {
         console.log('📊 Persisted dictionary retrieved successfully');
+    //    const lastResult = this.contextManager.getContext(this.targetAgent) as WorkingMemory
+    //    lastResult.lastTransactionResult.python_analysis = persistedData;
         this.contextManager.updateContext(this.targetAgent, {
-          lastTransactionResult: persistedData,
+          pythonAnalysis: persistedData,
           hasError: false,
           success: true,
           transactionId: '',

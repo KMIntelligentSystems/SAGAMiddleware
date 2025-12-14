@@ -144,10 +144,13 @@ export const pythonCodeValidatingAgentPrompt = `You will validate python code. Y
 If there are problems, for each problem show the problem line of code, show the fix for that problem, provide a comment about the problem. Thus provide this output for all problems.
 If there are no problems, simply return: {success: true}`
 
-export const histogramInterpretationPrompt = `You are expert in Javascript and the d3 js library. You will receive the User Query. Focus on the visualization part of the User Query. You will also receive in your context
- a detailed analysis of data to be visualized in d3 js code.
-Examine the analysis to extract the necessary attributes and values as best fits the requirements for the d3 js code.
+export const histogramInterpretationPrompt = `You are expert in Javascript and the d3 js library. You will receive the following information in your context:
+1. Analysis of the input csv file which  provides information about the type of graph to produce
+2. Python code analysis of the csv file at a deeper level providing information about how to implement the graph
+Examine the analyses to extract the necessary attributes and values as best fits the requirements for the d3 js code.
 Provide ONLY the d3 js code to provide the visualization as HTML with the d3 js script.
+**IMPORTANT**
+Be sure to use the provided relative path and to use the d3.csv() function
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
 //3. CODE: look carefully at the code. Does it meet the requirements?
@@ -302,6 +305,25 @@ Return ONLY valid JSON with this structure:
 - IDENTIFY where CODE auto-generates what ANALYSIS explicitly provides
 </critical_rules>`
 
+export const MCPPythonCoderResultPrompt = `You are a data analysis summarizer. Extract key information from processed data results.
+
+INPUT: Large JSON object containing analysis results
+
+OUTPUT: Concise JSON summary containing:
+- Dataset information (source, record counts)
+- Key statistics and metrics
+- Processing steps applied
+- Configuration details
+- Status/readiness indicators
+
+RULES:
+- Extract actual values, not placeholders
+- Omit large arrays and raw data
+- Focus on high-level insights only
+- Keep output under 2KB
+- Return valid JSON only
+- Adapt structure to match the input data type;`
+
 export const analysisFixPrompt =`You are receiving output from another agent in a non-standard format.
 
 Your task: Summarize the salient information that will enable a coding agent to understand the structure of the required graph
@@ -410,6 +432,24 @@ export const toolValidationErrorPrompt = `You will receive Python code containin
 export const toolValidationCorrectionPrompt = `You will receive three items: 1. A set of autonomous agents which contain executable Python code; 2. A corrected Python code for one of the agents; 3. The name of the agent whose code is in error.
 Your task is to substitute the correct code for the agent's code in error. Be sure to place the correct code between the delimiters: [AGENT: agent id]correct code[/AGENT]. Remember to return all the other agent definitions in tact as well as the updated agent`
 
+export const summaryAgentPrompt = `You are a data analysis summarizer. Extract key information from processed DATA RESULTS in your context.
+
+INPUT: Large JSON object containing analysis results
+
+OUTPUT: Concise JSON summary containing:
+- Dataset information (source, record counts)
+- Key statistics and metrics
+- Processing steps applied
+- Configuration details
+- Status/readiness indicators
+
+RULES:
+- Extract actual values, not placeholders
+- Omit large arrays and raw data
+- Focus on high-level insights only
+- Keep output under 2KB
+- Return valid JSON only
+- Adapt structure to match the input data type`;
 
 export const sagaPrompt = `Role and Purpose
 You are the Data Pipeline Coordinator Meta-Agent. Your role is to analyze user-provided data requirements and generate specific, actionable instructions for a sequence of data processing agents. You must create concrete instructions using the user's actual data structure, field names, and requirements - not generic examples.

@@ -4,7 +4,8 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { userVizQuery } from '../test/histogramData.js'
+import { userVizQuery, openaiPythonAnalysisResult } from '../test/histogramData.js'
+import {  summaryAgentPrompt } from '../types/visualizationSaga.js'
 /**
  * DataAnalysisProcess
  *
@@ -12,7 +13,7 @@ import { userVizQuery } from '../test/histogramData.js'
  *
  * Pattern:
  * 1. Get target agent's last result (data to analyze)
- * 2. Clear D3JSCoordinatingAgent context
+ * 2. Clear D3JSCoordinatingAgent contextvi
  * 3. Set context with data
  * 4. Execute D3JSCoordinatingAgent for analysis
  * 5. Store analysis result
@@ -51,6 +52,7 @@ export class DataAnalysisProcess {
       timestamp: new Date()
     };
     if(this.agent.getName() === 'TransactionGroupingAgent'){
+      console.log('HERE TRANS')
         this.agent.setTaskDescription(this.visualizationPrompt);
         result.result = userVizQuery//await this.agent.execute({'USER QUERY: ': this.userQuery})
         this.contextManager.updateContext(this.targeAgentName, {
@@ -60,10 +62,24 @@ export class DataAnalysisProcess {
         });
     } else if(this.agent.getName() === 'D3JSDataAnalyzer'){
         const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-        const targetCtx = this.contextManager.getContext(this.targeAgentName) as WorkingMemory;
-        
+      //  const targetCtx = this.contextManager.getContext(this.targeAgentName) as WorkingMemory
+console.log('D3 JS COOD 1', JSON.stringify(ctx.lastTransactionResult).substring(2, 90))
         this.contextManager.updateContext(this.targeAgentName, {
-        lastTransactionResult: {user_query: targetCtx.lastTransactionResult.user_query, data_analysis: ctx.lastTransactionResult },
+          //IS USER QUERY NEEDED
+        lastTransactionResult: { data_analysis: ctx.lastTransactionResult },
+        transactionId: this.agent.getId(),
+        timestamp: new Date()
+        });
+    }
+    else if(this.agent.getName() === 'D3JSCoordinatingAgent'){
+        const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
+        const targetCtx = this.contextManager.getContext(this.targeAgentName) as WorkingMemory;
+console.log('D3 JS COOD 2', ctx.lastTransactionResult.data_analysis)
+        this.agent.setTaskDescription( summaryAgentPrompt)
+        result.result = openaiPythonAnalysisResult//await this.agent.execute({'DATA RESULTS: ': ctx.pythonAnalysis})
+
+        this.contextManager.updateContext(this.targeAgentName, {
+        lastTransactionResult: { data_analysis: ctx.lastTransactionResult.data_analysis, python_analysis: result.result },
         transactionId: this.agent.getId(),
         timestamp: new Date()
         });

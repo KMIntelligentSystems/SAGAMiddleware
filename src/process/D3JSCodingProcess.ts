@@ -4,7 +4,7 @@
 import { GenericAgent } from '../agents/genericAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt, intermedateAnalysis, histogramValidationPrompt_1, analysisFixPrompt } from '../types/visualizationSaga.js'
+import { D3JSCoordinatingAgentAnalysis, histogramInterpretationPrompt, histogramValidationPrompt, intermedateAnalysis, histogramValidationPrompt_1, analysisFixPrompt, MCPPythonCoderResultPrompt } from '../types/visualizationSaga.js'
 import { D3CodeInput } from '../agents/d3jsCodeGenerator.js'
 import { d3jsCoordinatingAgentResultforCodeGenerator } from '../test//testData.js'
 //import { geminiAnalysisSummary } from '../test/histogramData.js'
@@ -139,6 +139,7 @@ console.log('CONVERSATION CTX', conversationContext)
          })
         //  result.result = d3jsCoordinatingAgentResultforCodeGenerator;// await this.agent.execute({}) as AgentResult;
     }else if (this.targetAgentName === 'D3JSCodingAgent'){
+      //MCPPythonCoderResultPrompt
       console.log('D3 JS COOOODING  ', this.agent.getName())
          const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
            console.log('HERE IN COOOODING',JSON.stringify(ctx.lastTransactionResult))
@@ -149,16 +150,17 @@ console.log('CONVERSATION CTX', conversationContext)
     } else if (this.targetAgentName === 'ValidatingAgent'){
       console.log('VAAAALDDDATION   ', this.agent.getName())//D3JSCodingAgent
             const ctx = this.contextManager.getContext(this.agent.getName()) as WorkingMemory;
-            console.log('HERE IN VAAAAAL',JSON.stringify(ctx.lastTransactionResult))//1.
+      //      console.log('HERE IN VAAAAAL',JSON.stringify(ctx.lastTransactionResult))//1.
            this.agent.deleteContext();
            if(this.agent.getName() === 'D3JSCodingAgent'){
+           
                 const task = this.agent.getAgentDefinition().taskDescription;
                 if(task === histogramInterpretationPrompt){
                     this.agent.setTaskDescription(histogramValidationPrompt/*intermedateAnalysishi stogramValidationPrompt*/);
-                    result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');//await this.agent.execute(ctx.lastTransactionResult); 
+                    result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');// await this.agent.execute(ctx.lastTransactionResult); 
                 }else {
                     this.agent.setTaskDescription(histogramInterpretationPrompt);
-                    result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');//await this.agent.execute({ 'USER QUERY: ': this.userQuery,'DATA TO ANALYZE: ' :ctx.lastTransactionResult }); 
+                    result.result =  fs.readFileSync('C:/repos/Main/sonnet.html', 'utf-8');//await this.agent.execute({ 'FILE ANALYSIS: ': ctx.lastTransactionResult.data_analysis,'PYTHON ANALYSIS: ' :ctx.lastTransactionResult.python_analysis }); 
                 }
 
            }

@@ -21,7 +21,7 @@ import { GenericAgent } from './genericAgent.js';
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import * as fs from 'fs'
-import { claudeBackendResult_1, claudeBackendResult_2, claudeBackendResult_3, dataProfilerPrompt_1} from '../test/histogramData.js'
+import { claudeBackendResult_1, claudeBackendResult_2, claudeBackendResult_3, dataProfilerPrompt_1, pythonHistogram, pythonDataPreProcessor, pythonDataFilter} from '../test/histogramData.js'
 import { agentConstructorPythonExecutionError } from '../test/testData.js';
 
 export interface DataProfileInput {
@@ -165,13 +165,13 @@ export class DataProfiler extends BaseSDKAgent {
     public getCreatedAgents(): CreatedAgentInfo[] {
         return [...this.createdAgents].sort((a, b) => a.order - b.order);
     }
-
+// pythonHistogram  pythonDataPreProcessor pythonDataFilter
     private createTestAgents(): void{
          const agentDefinition_1: AgentDefinition = {
         id: 'tx-ag_1',
         name: 'DataFilter',
         backstory: `Dynamic agent created from SAGA transaction with ID`,
-        taskDescription: claudeBackendResult_1,
+        taskDescription: pythonDataFilter,
         taskExpectedOutput: 'Structured response based on task requirements',
         llmConfig: { model: 'gpt-5', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
@@ -188,7 +188,7 @@ export class DataProfiler extends BaseSDKAgent {
         id: 'tx-ag_1',
         name: 'HistogramParametersCalculatorAgent',
         backstory: `Dynamic agent created from SAGA transaction with ID`,
-        taskDescription: claudeBackendResult_2,
+        taskDescription: pythonHistogram ,
         taskExpectedOutput: 'Structured response based on task requirements',
         llmConfig: { model: 'gpt-5', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
@@ -205,7 +205,7 @@ export class DataProfiler extends BaseSDKAgent {
         id: 'tx-ag_1',
         name: ' DataPreprocessorAgent',
         backstory: `Dynamic agent created from SAGA transaction with ID`,
-        taskDescription: claudeBackendResult_3,
+        taskDescription: pythonDataPreProcessor,
         taskExpectedOutput: 'Structured response based on task requirements',
         llmConfig: { model: 'gpt-5', temperature: 0.7, maxTokens: 1000,  provider: 'openai' },
         dependencies: [],
@@ -247,9 +247,9 @@ export class DataProfiler extends BaseSDKAgent {
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
             const prompt = this.buildPrompt(ctx.lastTransactionResult);
 
-           const output = await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
+           const output = ''//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
         
-         //  this.createTestAgents();//
+           this.createTestAgents();//
            const agents = JSON.stringify(this.createdAgents)
            this.setContext(agents);
             return {
@@ -358,6 +358,8 @@ AGENT DATA FLOW:
 - First agent: Loads CSV file with pd.read_csv(path) - processes full dataset
 - Subsequent agents: Use _prev_result dictionary from previous agent
   Example: mean_val = _prev_result['mean']
+- MCP server automatically passes data between agents via pickle file
+- Each agent's result is saved for next agent to access via _prev_result
 
 PYTHON CODE REQUIREMENTS (for code you write in taskDescription):
 - Import json at top: import json

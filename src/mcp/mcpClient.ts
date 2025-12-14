@@ -370,8 +370,28 @@ MCP tool execute_python raw response: {
           console.log(`Raw text content ends with: "${textContent.slice(-50)}"`);
 
           try {
-            // Try to parse the text content as JSON
-            const parsedContent = JSON.parse(textContent);
+            // Extract JSON from stdout that may contain MCP server status messages
+            let jsonText = textContent;
+            const lines = textContent.split(/\r?\n/);
+
+            // Look for lines that start with { or [ (potential JSON)
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (trimmedLine.startsWith('{') || trimmedLine.startsWith('[')) {
+                try {
+                  JSON.parse(trimmedLine); // Test if it's valid JSON
+                  jsonText = trimmedLine;
+                  console.log(`Found JSON line in mixed output (length: ${trimmedLine.length})`);
+                  break;
+                } catch (e) {
+                  // Not valid JSON, continue searching
+                  continue;
+                }
+              }
+            }
+
+            // Try to parse the extracted JSON text
+            const parsedContent = JSON.parse(jsonText);
             console.log(`Parsed ${enhancedToolCall.name} content:`, Array.isArray(parsedContent) ? `Array with ${parsedContent.length} items` : typeof parsedContent);
             // Return full response with parsed content
             return {

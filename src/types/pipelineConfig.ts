@@ -69,7 +69,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'subAgent',
                 controlFlow: [
-                     { agent: 'D3JSDataAnalyzer', process: 'DataAnalysisProcess', targetAgent: 'D3JSCodingAgent' },
+                     { agent: 'D3JSDataAnalyzer', process: 'DataAnalysisProcess', targetAgent: 'D3JSCoordinatingAgent' },
                      { agent: 'DataProfiler', process: 'ExecuteGenericAgentsProcess', targetAgent: 'D3JSCoordinatingAgent' }
                 ]
             }
@@ -96,7 +96,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
                 processType: 'subAgent',
                 controlFlow: [
                   // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
-                   { agent: 'D3JSCoordinatingAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodingAgent' },
+                   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess', targetAgent: 'D3JSCodingAgent' },
                    { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent' }
                 ],
              //   testWithPlaywright: true 

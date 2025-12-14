@@ -316,7 +316,7 @@ export class SagaWorkflow {
 
       //Was part of validation of the collated results of csv data analysis given to challenger tx-6 to make critique and provide back to tx-5
       {
-        agentName: 'D3AnalysisChallengingAgent',
+        agentName: 'D3JSDataAnalyzer',
         agentType: 'processinisg',
         transactionId: 'tx-6',
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
@@ -541,8 +541,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'gemini', //'anthropic' 'openai' 'gemini'
-        model: 'gemini-3-pro-preview',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        provider:'anthropic' , //'anthropic' 'openai' 'gemini'
+        model: 'claude-sonnet-4-5',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  4096,
        // apiKey: process.env.ANTHROPIC_API_KEY
