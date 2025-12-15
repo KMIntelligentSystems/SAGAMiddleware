@@ -150,7 +150,7 @@ export const histogramInterpretationPrompt = `You are expert in Javascript and t
 Examine the analyses to extract the necessary attributes and values as best fits the requirements for the d3 js code.
 Provide ONLY the d3 js code to provide the visualization as HTML with the d3 js script.
 **IMPORTANT**
-Be sure to use the provided relative path and to use the d3.csv() function
+Be sure to use the provided data values and directions as specified in the analyses
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
 //3. CODE: look carefully at the code. Does it meet the requirements?
@@ -432,24 +432,36 @@ export const toolValidationErrorPrompt = `You will receive Python code containin
 export const toolValidationCorrectionPrompt = `You will receive three items: 1. A set of autonomous agents which contain executable Python code; 2. A corrected Python code for one of the agents; 3. The name of the agent whose code is in error.
 Your task is to substitute the correct code for the agent's code in error. Be sure to place the correct code between the delimiters: [AGENT: agent id]correct code[/AGENT]. Remember to return all the other agent definitions in tact as well as the updated agent`
 
-export const summaryAgentPrompt = `You are a data analysis summarizer. Extract key information from processed DATA RESULTS in your context.
+export const summaryAgentPrompt = `You are a data analysis agent. Examine the data in your context. It relates to HOW a graphical representation of data should be rendered and WHAT values should be used. Generate a structured JSON response with two components:
 
-INPUT: Large JSON object containing analysis results
+1. A description of what graph should be created
+2. Data formatted as JSON input for D3.js
 
-OUTPUT: Concise JSON summary containing:
-- Dataset information (source, record counts)
-- Key statistics and metrics
-- Processing steps applied
-- Configuration details
-- Status/readiness indicators
+OUTPUT FORMAT (JSON):
 
-RULES:
-- Extract actual values, not placeholders
-- Omit large arrays and raw data
-- Focus on high-level insights only
-- Keep output under 2KB
-- Return valid JSON only
-- Adapt structure to match the input data type`;
+{
+  "graphDescription": {
+    "type": "[Graph type you recommend]",
+    "title": "[Descriptive title]",
+    "summary": "[Brief description of what the graph shows]"
+  },
+  
+  "d3Data": {
+    // Provide data in the best JSON format for D3.js based on the graph type
+    // Include any statistics, binned data, configurations, or metadata that would be useful
+    // Structure this however makes most sense for the visualization
+  }
+}
+
+INSTRUCTIONS:
+
+1. Understand the structure and layout of the input
+2. Assimilate your understanding into the two broad categories:  "graphDescription" and "d3Data"
+3. The first category can provide summary information about the specifications such as relevant statistics, preprocessed data, and any configuration recommendations
+3. The second category MUST be detailed and specific for a d3 js coding agent
+4. Format the data as JSON for D3.js - structure it in whatever way works best for the chosen graph type.
+
+The d3Data section should be comprehensive and ready for D3.js to consume directly.`;
 
 export const sagaPrompt = `Role and Purpose
 You are the Data Pipeline Coordinator Meta-Agent. Your role is to analyze user-provided data requirements and generate specific, actionable instructions for a sequence of data processing agents. You must create concrete instructions using the user's actual data structure, field names, and requirements - not generic examples.

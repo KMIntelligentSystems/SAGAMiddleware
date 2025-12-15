@@ -76,10 +76,10 @@ console.log('D3 JS COOD 1', JSON.stringify(ctx.lastTransactionResult).substring(
         const targetCtx = this.contextManager.getContext(this.targeAgentName) as WorkingMemory;
 console.log('D3 JS COOD 2', ctx.lastTransactionResult.data_analysis)
         this.agent.setTaskDescription( summaryAgentPrompt)
-        result.result = openaiPythonAnalysisResult//await this.agent.execute({'DATA RESULTS: ': ctx.pythonAnalysis})
+        result.result = openaiPythonAnalysisResult//await this.agent.execute({'DATA RESULTS: ': ctx.pythonAnalysis})//
 
         this.contextManager.updateContext(this.targeAgentName, {
-        lastTransactionResult: { data_analysis: ctx.lastTransactionResult.data_analysis, python_analysis: result.result },
+        lastTransactionResult: { python_analysis: result.result },//data_analysis: ctx.lastTransactionResult.data_analysis, 
         transactionId: this.agent.getId(),
         timestamp: new Date()
         });

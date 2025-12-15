@@ -160,14 +160,14 @@ console.log('CONVERSATION CTX', conversationContext)
                     result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');// await this.agent.execute(ctx.lastTransactionResult); 
                 }else {
                     this.agent.setTaskDescription(histogramInterpretationPrompt);
-                    result.result =  fs.readFileSync('C:/repos/Main/sonnet.html', 'utf-8');//await this.agent.execute({ 'FILE ANALYSIS: ': ctx.lastTransactionResult.data_analysis,'PYTHON ANALYSIS: ' :ctx.lastTransactionResult.python_analysis }); 
+                    result =  await this.agent.execute({ 'FILE ANALYSIS: ': ctx.lastTransactionResult.data_analysis,'PYTHON ANALYSIS: ' :ctx.lastTransactionResult.python_analysis }); 
                 }
 
            }
 
             this.contextManager.updateContext(this.targetAgentName, {
             lastTransactionResult: result.result,
-            previousTransactionResult: ctx.lastTransactionResult
+            previousTransactionResult: ctx.lastTransactionResult.python_analysis
           })
     }
     return result;

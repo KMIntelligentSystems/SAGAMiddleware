@@ -6,7 +6,7 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import { validationFixedSyntaxResult,genReflectValidateResponse, d3jsValidationSuccess } from '../test/testData.js'
 import { toolValidationErrorPrompt,  toolValidationCorrectionPrompt,  histogramInterpretationPrompt, svgAndDataAnalysisValidationPrompt, analysisFixPrompt  } from '../types/visualizationSaga.js'
-import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis_1,  geminiCodeValidationResult } from '../test/histogramData.js'
+import { fixedByValidationProcessDataProfilerPython, pythonHistoAnalysis_1,  geminiCodeValidationResult, sonnetJSONRenderedPythonAnalysis } from '../test/histogramData.js'
 import * as fs from 'fs'; 
 
 /**
@@ -79,9 +79,9 @@ export class ValidationProcess {
   if(this.targetAgent === 'D3JSCodeValidator') {
        const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
         const d3jsCode = ctx.lastTransactionResult;
-        const analysis = ctx. previousTransactionResult
+        const analysis = ctx. previousTransactionResult;
         this.validatingAgent.setTaskDescription(analysisFixPrompt)
-     //   result.result = geminiAnalysis// await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': analysis}); //pythonHistoAnalysis_1//openaiAnalyis //
+        result.result = sonnetJSONRenderedPythonAnalysis// await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': analysis}); //pythonHistoAnalysis_1//openaiAnalyis //sonnetJSONRenderedPythonAnalysis// 
         this.contextManager.updateContext(this.targetAgent, {
             lastTransactionResult: { ANALYSIS: result.result, CODE: d3jsCode} 
          })

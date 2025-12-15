@@ -604,7 +604,7 @@ try {
     });*/
    return  {
      agentName: this.getName(),
-     result: resp,
+     result: resp?.text,
      success: true,
      timestamp: new Date()}
  

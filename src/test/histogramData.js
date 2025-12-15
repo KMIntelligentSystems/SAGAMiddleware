@@ -1586,63 +1586,237 @@ result = {
 
 print(json.dumps(result))`
 
-export const openaiPythonAnalysisResult = ` {
-  "dataset": {
-    "source_original": "C:/repos/SAGAMiddleware/data/prices.csv",
-    "source_relative": "./data/prices.csv",
-    "records": 9995
+export const openaiPythonAnalysisResult = `   {
+  "graphDescription": {
+    "type": "Histogram",
+    "title": "Price Distribution (n=9,995) with Capped Outliers",
+    "summary": "A right-skewed distribution of prices where ~95% of observations fall below ~482. Values above 1187.84 are capped and grouped into a top bin to prevent the long tail from dominating the view."
   },
-  "statistics": {
-    "min": 11,
-    "max_after_capping": 1187.8399999999929,
-    "mean": 162.01550775387688,
-    "median": 103,
-    "std": 185.95503422334704
-  },
-  "distribution": {
-    "bin_count": 39,
-    "peak_bin": {
-      "range": [78.24799999999959, 111.87199999999939],
-      "count": 2537,
-      "percentage": 25.382691345672836
+  "d3Data": {
+    "source": {
+      "path": "./data/prices.csv",
+      "column": "price",
+      "rowCount": 9995
     },
-    "second_peak_bin": {
-      "range": [44.623999999999796, 78.24799999999959],
-      "count": 2466,
-      "percentage": 24.67233616808404
+    "stats": {
+      "count": 9995,
+      "min": 11,
+      "max": 1187.8399999999929,
+      "mean": 162.01550775387688,
+      "median": 103,
+      "std": 185.95503422334704,
+      "shareBelowApprox482": 0.9489744872436218
     },
-    "overflow_bin": {
-      "range": [1187.8399999999929, 5201.379999999995],
-      "count": 100
+    "preprocessing": {
+      "capAbove": 1187.8399999999929,
+      "cappedCount": 100,
+      "extremeOutliersFound": 6,
+      "dataLossPercentage": 0,
+      "steps": [
+        {
+          "step": "capping",
+          "threshold": 1187.8399999999929,
+          "affectedCount": 100,
+          "description": "Capped 100 values above 1187.84 into a single upper bin to stabilize the histogram scale"
+        }
+      ]
     },
-    "total_count": 9995
-  },
-  "processing": {
-    "original_count": 9995,
-    "final_count": 9995,
-    "removed_count": 0,
-    "capped_count": 100,
-    "extreme_outliers_found": 6,
-    "data_loss_percentage": 0,
-    "steps": [
-      {
-        "step": "capping",
-        "threshold": 1187.8399999999929,
-        "affected_count": 100,
-        "description": "Capped 100 values above 1187.84"
+    "histogram": {
+      "binsPrecomputed": true,
+      "binCount": 39,
+      "xDomain": [11, 1187.8399999999929],
+      "yDomain": [0, 2537],
+      "binEdges": [11, 44.623999999999796, 78.24799999999959, 111.87199999999939, 145.49599999999919, 179.11999999999898, 212.74399999999878, 246.36799999999857, 279.99199999999837, 313.61599999999817, 347.23999999999796, 380.86399999999776, 414.48799999999756, 448.11199999999735, 481.73599999999715, 515.359999999997, 548.9839999999967, 582.6079999999965, 616.2319999999963, 649.8559999999961, 683.4799999999959, 717.1039999999957, 750.7279999999955, 784.3519999999953, 817.9759999999951, 851.5999999999949, 885.2239999999947, 918.8479999999945, 952.4719999999943, 986.0959999999941, 1019.7199999999939, 1053.3439999999937, 1086.9679999999935, 1120.5919999999933, 1154.215999999993, 1187.8399999999929, 5201.379999999995, 9214.919999999996, 13228.46, 17242],
+      "bins": [
+        {"x0": 11, "x1": 44.623999999999796, "length": 541, "count": 541, "percentage": 5.412706353176588},
+        {"x0": 44.623999999999796, "x1": 78.24799999999959, "length": 2466, "count": 2466, "percentage": 24.67233616808404},
+        {"x0": 78.24799999999959, "x1": 111.87199999999939, "length": 2537, "count": 2537, "percentage": 25.382691345672836},
+        {"x0": 111.87199999999939, "x1": 145.49599999999919, "length": 1467, "count": 1467, "percentage": 14.677338669334667},
+        {"x0": 145.49599999999919, "x1": 179.11999999999898, "length": 847, "count": 847, "percentage": 8.47423711855928},
+        {"x0": 179.11999999999898, "x1": 212.74399999999878, "length": 337, "count": 337, "percentage": 3.371685842921461},
+        {"x0": 212.74399999999878, "x1": 246.36799999999857, "length": 408, "count": 408, "percentage": 4.082041020510255},
+        {"x0": 246.36799999999857, "x1": 279.99199999999837, "length": 144, "count": 144, "percentage": 1.4407203601800902},
+        {"x0": 279.99199999999837, "x1": 313.61599999999817, "length": 193, "count": 193, "percentage": 1.9309654827413707},
+        {"x0": 313.61599999999817, "x1": 347.23999999999796, "length": 220, "count": 220, "percentage": 2.2011005502751377},
+        {"x0": 347.23999999999796, "x1": 380.86399999999776, "length": 48, "count": 48, "percentage": 0.48024012006003},
+        {"x0": 380.86399999999776, "x1": 414.48799999999756, "length": 111, "count": 111, "percentage": 1.1105552776388194},
+        {"x0": 414.48799999999756, "x1": 448.11199999999735, "length": 41, "count": 41, "percentage": 0.4102051025512757},
+        {"x0": 448.11199999999735, "x1": 481.73599999999715, "length": 89, "count": 89, "percentage": 0.8904452226113058},
+        {"x0": 481.73599999999715, "x1": 515.359999999997, "length": 34, "count": 34, "percentage": 0.3401700850425213},
+        {"x0": 515.359999999997, "x1": 548.9839999999967, "length": 45, "count": 45, "percentage": 0.4502251125562781},
+        {"x0": 548.9839999999967, "x1": 582.6079999999965, "length": 89, "count": 89, "percentage": 0.8904452226113058},
+        {"x0": 582.6079999999965, "x1": 616.2319999999963, "length": 14, "count": 14, "percentage": 0.14007003501750875},
+        {"x0": 616.2319999999963, "x1": 649.8559999999961, "length": 27, "count": 27, "percentage": 0.27013506753376687},
+        {"x0": 649.8559999999961, "x1": 683.4799999999959, "length": 12, "count": 12, "percentage": 0.1200600300150075},
+        {"x0": 683.4799999999959, "x1": 717.1039999999957, "length": 37, "count": 37, "percentage": 0.37018509254627313},
+        {"x0": 717.1039999999957, "x1": 750.7279999999955, "length": 20, "count": 20, "percentage": 0.2001000500250125},
+        {"x0": 750.7279999999955, "x1": 784.3519999999953, "length": 9, "count": 9, "percentage": 0.09004502251125564},
+        {"x0": 784.3519999999953, "x1": 817.9759999999951, "length": 31, "count": 31, "percentage": 0.3101550775387694},
+        {"x0": 817.9759999999951, "x1": 851.5999999999949, "length": 13, "count": 13, "percentage": 0.13006503251625812},
+        {"x0": 851.5999999999949, "x1": 885.2239999999947, "length": 14, "count": 14, "percentage": 0.14007003501750875},
+        {"x0": 885.2239999999947, "x1": 918.8479999999945, "length": 3, "count": 3, "percentage": 0.030015007503751873},
+        {"x0": 918.8479999999945, "x1": 952.4719999999943, "length": 19, "count": 19, "percentage": 0.19009504752376188},
+        {"x0": 952.4719999999943, "x1": 986.0959999999941, "length": 20, "count": 20, "percentage": 0.2001000500250125},
+        {"x0": 986.0959999999941, "x1": 1019.7199999999939, "length": 5, "count": 5, "percentage": 0.05002501250625312},
+        {"x0": 1019.7199999999939, "x1": 1053.3439999999937, "length": 19, "count": 19, "percentage": 0.19009504752376188},
+        {"x0": 1053.3439999999937, "x1": 1086.9679999999935, "length": 2, "count": 2, "percentage": 0.020010005002501254},
+        {"x0": 1086.9679999999935, "x1": 1120.5919999999933, "length": 8, "count": 8, "percentage": 0.08004002001000501},
+        {"x0": 1120.5919999999933, "x1": 1154.215999999993, "length": 23, "count": 23, "percentage": 0.2301150575287644},
+        {"x0": 1154.215999999993, "x1": 1187.8399999999929, "length": 2, "count": 2, "percentage": 0.020010005002501254},
+        {"x0": 1187.8399999999929, "x1": 5201.379999999995, "length": 100, "count": 100, "percentage": 1.0005002501250626},
+        {"x0": 5201.379999999995, "x1": 9214.919999999996, "length": 0, "count": 0, "percentage": 0},
+        {"x0": 9214.919999999996, "x1": 13228.46, "length": 0, "count": 0, "percentage": 0},
+        {"x0": 13228.46, "x1": 17242, "length": 0, "count": 0, "percentage": 0}
+      ]
+    },
+    "annotations": {
+      "mean": {
+        "value": 162.01550775387688,
+        "label": "Mean"
+      },
+      "median": {
+        "value": 103,
+        "label": "Median"
+      },
+      "outlierCap": {
+        "value": 1187.8399999999929,
+        "label": "Cap threshold (>= 1187.84 grouped)"
       }
-    ]
-  },
-  "visualization_config": {
-    "x_domain": [11, 1187.8399999999929],
-    "y_domain": [0, 2537],
-    "bin_count": 39,
-    "recommended_size": { "width": 800, "height": 400 },
-    "margin": { "top": 20, "right": 30, "bottom": 40, "left": 50 }
-  },
-  "status": {
-    "ready_for_visualization": true,
-    "d3_ready": true,
-    "data_characteristics": "Right-skewed with capped high-value outliers"
+    },
+    "config": {
+      "width": 800,
+      "height": 400,
+      "margin": { "top": 20, "right": 30, "bottom": 40, "left": 50 },
+      "xLabel": "Price",
+      "yLabel": "Count",
+      "barPadding": 0.1,
+      "xScale": { "type": "linear", "domain": [11, 1187.8399999999929], "nice": true, "clamp": true },
+      "yScale": { "type": "linear", "domain": [0, 2537], "nice": true },
+      "tooltip": {
+        "format": {
+          "range": "~,.2f",
+          "count": ",.0f",
+          "percentage": ".2%"
+        },
+        "fields": ["x0", "x1", "count", "percentage"]
+      },
+      "accessors": {
+        "xValue": "d => d.price",
+        "binCount": 39
+      },
+      "legend": [
+        { "label": "Capped outliers bin (>= 1187.84)", "style": { "fill": "#d95f02" } }
+      ],
+      "recommendations": {
+        "interaction": [
+          "Show a tooltip with bin range, count, and share on bar hover",
+          "Highlight the top capped bin in a distinct color"
+        ],
+        "alternatives": [
+          "Offer a toggle for log-scaled x-axis to further reveal tail structure",
+          "Add small inset for the capped bin if desired"
+        ]
+      }
+    },
+    "readyForD3": true
   }
 }`
+
+export const sonnetJSONRenderedPythonAnalysis = `{
+  "graph_type": "histogram",
+  "data_source": {
+    "path": "./data/prices.csv",
+    "total_records": 9995
+  },
+  "data_characteristics": {
+    "distribution": "right-skewed",
+    "outliers": "capped at upper threshold",
+    "data_integrity": "no records removed, 100 values capped"
+  },
+  "axes": {
+    "x_axis": {
+      "label": "Price",
+      "domain": [11, 1187.84],
+      "data_range": {
+        "min": 11,
+        "max_capped": 1187.84,
+        "mean": 162.02,
+        "median": 103,
+        "std_dev": 185.96
+      }
+    },
+    "y_axis": {
+      "label": "Frequency",
+      "domain": [0, 2537]
+    }
+  },
+  "histogram_config": {
+    "bin_count": 39,
+    "peak_distribution": {
+      "primary_peak": {
+        "range": [78.25, 111.87],
+        "count": 2537,
+        "percentage": 25.38
+      },
+      "secondary_peak": {
+        "range": [44.62, 78.25],
+        "count": 2466,
+        "percentage": 24.67
+      }
+    }
+  },
+  "visualization_settings": {
+    "dimensions": {
+      "width": 800,
+      "height": 400
+    },
+    "margin": {
+      "top": 20,
+      "right": 30,
+      "bottom": 40,
+      "left": 50
+    }
+  },
+  "data_processing_notes": {
+    "capping_applied": true,
+    "capping_threshold": 1187.84,
+    "values_capped": 100,
+    "extreme_outliers_detected": 6
+  }
+}
+`
+export const sonnetValidationResult = ` ## Validation Analysis
+
+After analyzing the SVG output and rendered visualization, I can now validate it against the data analysis specifications:
+
+### ✓ **Correct Elements:**
+
+1. **Dimensions**: The SVG has width="800" height="400", matching the specified dimensions in the data analysis
+2. **Margins**: Transform attribute shows "translate(50,20)" confirming left margin of 50 and top margin of 20
+3. **Title**: Correctly displays "Price Distribution (9995 records, 100 values capped at 1187.84)"
+4. **Axis Labels**: Both "Price" (x-axis) and "Frequency" (y-axis) labels are present
+5. **Right-skewed distribution**: The visualization clearly shows a right-skewed distribution with high frequency at lower price ranges
+6. **X-axis domain**: The x-axis scale shows values from 0 to approximately 1200, consistent with the domain [11, 1187.84]
+
+### ✗ **Issues Found:**
+
+1. **Peak Values Mismatch**:
+   - The visualization shows the highest bar at approximately 1550 frequency (visible in y-axis scale going up to 1400+)
+   - Data analysis specifies the primary peak should have 2537 records in range [78.25, 111.87]
+   - The peaks in the visualization don't match the specified counts
+
+2. **Bin Count**:
+   - The SVG shows 62 rect elements (bars), not 39 bins as specified in the data analysis
+   - This is a significant discrepancy from the histogram_config.bin_count: 39
+
+3. **Y-axis Domain Issue**:
+   - The visualization's y-axis goes up to approximately 1500
+   - The data analysis specifies y_axis.domain: [0, 2537]
+   - The maximum frequency bar should reach 2537, not ~1550
+
+4. **Distribution Pattern**:
+   - While the visualization does show a right-skewed pattern, the specific peak distributions don't match:
+   - Primary peak (25.38% of data) and secondary peak (24.67% of data) are not accurately represented in their specified ranges
+
+## **VALIDATION FAILED: The visualization has incorrect bin count (62 instead of 39), peak frequencies don't match the specified values (max ~1550 instead of 2537), and the distribution doesn't accurately represent the primary peak of 2537 records in [78.25, 111.87] or secondary peak of 2466 records in [44.62, 78.25].**
+`
