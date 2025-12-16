@@ -65,8 +65,7 @@ export class D3JSCodingProcess {
 
     console.log('USER QUERY ', this.userQuery)
 
-    // Get previous control flow result from context manager
-    this.lastControlFlowResult = this.contextManager.getContext('PREVIOUS_CONTROL_FLOW');
+  
   }
 
   /**
@@ -156,11 +155,13 @@ console.log('CONVERSATION CTX', conversationContext)
            
                 const task = this.agent.getAgentDefinition().taskDescription;
                 if(task === histogramInterpretationPrompt){
+                //  console.log('APPRAISAL RES', ctx.lastTransactionResult)
+                  //  console.log('CODE RES',ctx.lastTransactionResult.CODE)
                     this.agent.setTaskDescription(histogramValidationPrompt/*intermedateAnalysishi stogramValidationPrompt*/);
-                    result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/opus.html', 'utf-8');// await this.agent.execute(ctx.lastTransactionResult); 
+                    result.result =  await this.agent.execute({APPRAISAL: ctx.lastTransactionResult.APPRAISAL, CODE: ctx.lastTransactionResult.CODE}); 
                 }else {
                     this.agent.setTaskDescription(histogramInterpretationPrompt);
-                    result =  await this.agent.execute({ 'FILE ANALYSIS: ': ctx.lastTransactionResult.data_analysis,'PYTHON ANALYSIS: ' :ctx.lastTransactionResult.python_analysis }); 
+                    result.result =  fs.readFileSync('C:/repos/Main/opus.html', 'utf-8')//await this.agent.execute({ 'PYTHON ANALYSIS: ' :ctx.lastTransactionResult.python_analysis }); //'FILE ANALYSIS: ': ctx.lastTransactionResult.data_analysis,
                 }
 
            }

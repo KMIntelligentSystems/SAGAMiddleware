@@ -185,7 +185,7 @@ export class PipelineExecutor {
             userQuery,
             previousControlFlowResult: this.state?.lastControlFlowResult
         };
-        console.log(`🔄 COMPOSITE INPUT ${JSON.stringify(compositeInput)}`);
+    
         const controlFlowResult = await this.coordinator.executeControlFlow(compositeInput);
 
         console.log(`✅ Control flow execution complete`, controlFlowResult);
@@ -209,42 +209,12 @@ export class PipelineExecutor {
 
             console.log(`✅ SDK Agent execution complete`, sdkResult.result);
 
-            // If this is a DataProfiler, retrieve and log created agents
-            if (step.transactionType === 'DataProfiler' && sdkAgent instanceof DataProfiler) {
-                   const ctx = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory;
-                   console.log('🔴 SagaCoordinator: DataProfiler context:', ctx ? 'EXISTS' : 'NULL');
-            console.log('🔴 SagaCoordinator: lastTransactionResult:', ctx?.lastTransactionResult ? 'HAS DATA' : 'NULL');
-            if (ctx?.lastTransactionResult) {
-              console.log('🔴 SagaCoordinator: Data preview:', typeof ctx.lastTransactionResult === 'string' ? ctx.lastTransactionResult.substring(0, 200) : 'NOT STRING');
-            }
-            /*    console.log('🟢 PipelineExecutor: DataProfiler execution complete, checking context...');
-                const contextCheck = this.coordinator.contextManager.getContext('DataProfiler') as WorkingMemory;
-                console.log('🟢 PipelineExecutor: DataProfiler context exists?', contextCheck?.lastTransactionResult ? 'YES' : 'NO');
-                const createdAgents = sdkAgent.getCreatedAgents();
-                console.log(`\n📊 DataProfiler created ${createdAgents.length} agents:`);
-                createdAgents.forEach((agentInfo, idx) => {
-                    console.log(`\n   ${idx + 1}. ${agentInfo.definition.name} (Order: ${agentInfo.order})`);
-                    console.log(`      Type: ${agentInfo.definition.agentType}`);
-                    console.log(`      LLM: ${agentInfo.definition.llmConfig.provider}/${agentInfo.definition.llmConfig.model}`);
-                    console.log(`      Dependencies: ${agentInfo.definition.dependencies?.map(d => d.agentName).join(', ') || 'none'}`);
-                    console.log(`      MCP Tools: ${agentInfo.definition.mcpTools?.join(', ') || 'none'}`);
-                    console.log(`      Task Preview: ${agentInfo.definition.taskDescription}`);
-                });*/
-
-            }
-            /*
-                These contexts get updated:
-                DataProfiler
-                AgentStructureGenerator
-                D3JSCodeGenerator
-            */
-        /*   if(step.transactionType != 'D3JSCodeGenerator' ){
-                  this.coordinator.contextManager.updateContext(step.transactionType, {
-                lastTransactionResult: sdkResult.result,
-                transactionId: step.transactionType,
-                timestamp: new Date()
-            });
-           }*/
+           /* if(step.transactionType === 'D3JSCodeValidator'){
+                const ctx = this.coordinator.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
+    console.log('APPRAISAL RES 1', ctx.lastTransactionResult.APPRAISAL)
+                    console.log('CODE RES 1',ctx.lastTransactionResult.CODE)   
+            }*/
+  
 
             console.log(`💾 Stored SDK result in context manager under key: ${step.transactionType}`);
         } else if (step.processConfig.processType === 'subAgent') {
@@ -271,30 +241,7 @@ export class PipelineExecutor {
         // Store SDK result in context manager immediately so next step's control flow can access it
        
 
-        // Debug: Verify the result was stored
-        const verification = this.coordinator.contextManager.getContext(step.transactionType);
-        console.log(`🔍 Debug - Verification: ${step.transactionType} context exists:`, verification ? 'YES' : 'NO');
-        if (verification) {
-            console.log(`🔍 Debug - Has lastTransactionResult:`, verification.lastTransactionResult ? 'YES' : 'NO');
-        }
-
-        // Store only the latest SDK agent result in pipeline state
-        // SDK agents are stateless - GenericAgents handle context management
-        if (this.state) {
-            this.state.context['COMPLETED'] = sdkResult.result;
-            this.state.lastControlFlowResult = controlFlowResult;
-            this.state.lastSDKResult = sdkResult;
-            console.log(`💾 Stored latest SDK result in COMPLETED context`);
-        }
-
-        if (step.processConfig.testWithPlaywright) {
-           const codeString = typeof sdkResult.result === 'string'
-               ? sdkResult.result
-               : JSON.stringify(sdkResult.result);
-           const svgPath = await this.handlePlaywrightTesting(step, codeString);
-           sdkResult.result = {'D3 JS CODE: ': sdkResult.result, 'SVG PATH: ': svgPath}
-        }
-
+      
         console.log(`✅ Step complete: ${step.name}`);
 
         // Return composite result containing both control flow and SDK agent results

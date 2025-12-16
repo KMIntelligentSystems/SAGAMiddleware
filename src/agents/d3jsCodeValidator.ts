@@ -12,7 +12,7 @@ import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { D3VisualizationClient } from '../mcp/d3VisualizationClient.js';
 import { mcpClientManager } from '../mcp/mcpClient.js';
-import { opusCodeValidatorResult } from '../test/histogramData.js'
+import { opusCodeValidatorResult, openai3Issues } from '../test/histogramData.js'
 import * as fs from 'fs';
 
 export interface D3ValidationInput {
@@ -151,7 +151,8 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             input.d3jsCode = ctx.lastTransactionResult.CODE;
             
             const prompt = this.buildPrompt(input);
-            const output = ''//await this.executeQuery(prompt); //opusCodeValidatorResult //
+        //    console.log('VALIDATOR PROMPT', prompt)
+            const output = openai3Issues//await this.executeQuery(prompt); //opusCodeValidatorResult //
 
             this.setContext({ APPRAISAL: output, ANALYSIS: input.pythonAnalysis, CODE: input.d3jsCode });//CODE: input.d3jsCode,USER_REQUIREMENT: userQuery, ANALYSIS: input.pythonAnalysis,
             
@@ -183,11 +184,14 @@ export class D3JSCodeValidator extends BaseSDKAgent {
 DATA ANALYSIS:
 ${JSON.stringify(input.pythonAnalysis, null, 2)}
 
+D3 JS CODE
+${input.d3jsCode}
 TASK:
-1. Call analyze_d3_output tool with the d3Code to render visualization
-2. Examine the SVG output elements
-3. Compare SVG visual representation against data analysis
-4. Report validation result
+1. Call analyze_d3_output tool ONCE with the complete d3Code shown above to render visualization
+2. The tool will return file paths to the rendered SVG and PNG
+3. Analyze the returned SVG file path information to validate the visualization
+4. Compare the visualization against the data analysis requirements
+5. Report validation result
 
 Does the rendered visualization accurately represent the data analysis?
 
@@ -245,3 +249,116 @@ If issues found: Return "VALIDATION FAILED: [describe specific issues]"`;
         }
     }
 }
+
+/*
+opus.html 
+
+Based on my validation of the rendered D3.js visualization against the data analysis requirements, I can now provide the validation result:
+
+## VALIDATION PASSED
+
+The rendered visualization accurately represents all the data analysis requirements:
+
+### ✅ Key Validation Points Confirmed:
+
+1. **Data Integrity**
+   - Total records: 9,995 (shown in title "n=9,995")
+   - 100 values capped at threshold (orange bar at end shows exactly 100 capped values)
+   - No records removed from dataset
+
+2. **Distribution Characteristics**
+   - Right-skewed distribution clearly visible with peak in lower price ranges
+   - Outliers properly capped and displayed as distinct orange bar at ≥1187.84
+
+3. **Statistical Measures**
+   - Mean: 162 (red dashed line correctly positioned at 162.02)
+   - Median: 103 (blue dashed line correctly positioned)
+   - Mean > Median confirms right-skewed distribution
+
+4. **Histogram Peaks**
+   - Primary peak: Range [78.25, 111.87] with count 2537 (25.38%) - correctly shown as tallest bar
+   - Secondary peak: Range [44.62, 78.25] with count 2466 (24.67%) - correctly shown as second tallest bar
+
+5. **Axes Configuration**
+   - X-axis: "Price" with range [11, 1187.84] extended to 1250 for capped values display
+   - Y-axis: "Count" with appropriate range [0, 2700] to accommodate peak frequency of 2537
+
+6. **Visualization Dimensions**
+   - Width: 800px with margins (60 left, 30 right)
+   - Height: 400px with margins (40 top, 60 bottom)
+   - Matches specified dimensions exactly
+
+7. **Special Features**
+   - Capped outliers clearly distinguished with orange color
+   - Legend properly identifies regular bins vs capped outliers
+   - Statistical lines (mean/median) with appropriate labels
+   - Bin count appears to be 36 regular bins + special capped bin
+
+The visualization successfully communicates the right-skewed price distribution with appropriate handling of outliers through capping, maintaining data integrity while providing clear visual distinction between regular and capped values.
+
+
+*/
+
+/*
+openai_3_issues.html
+
+ ## Validation Analysis
+
+After rendering and analyzing the D3.js visualization, I've identified a critical issue:
+
+**VALIDATION FAILED: The visualization appears to be empty - no histogram bars are rendered**
+
+### Specific Issues Found:
+
+1. **Missing Data**: The histogram bars that should show the price distribution are not visible in the rendered output. The chart only shows:
+   - The axes and grid lines
+   - The title "Price Distribution (n=9,995) with Capped Outliers"
+   - X-axis labeled "Price" (0-1200 range)
+   - Y-axis labeled "Count" (0-2600 range)
+   - But NO actual histogram bars
+
+2. **Data Loading Problem**: The D3.js code attempts to load data from `./data/prices.csv`, but the provided sample CSV data appears to be insufficient test data (only ~140 values) instead of the actual 9,995 records mentioned in the analysis.
+
+3. **Missing Visual Elements**: According to the data analysis, the visualization should display:
+   - 39 histogram bins
+   - A primary peak at range [78.25, 111.87] with 2,537 count
+   - A secondary peak at range [44.62, 78.25] with 2,466 count
+   - Reference lines for mean (162.02), median (103), and cap threshold (1187.84)
+   - A special colored bar for capped outliers
+   - None of these elements are visible in the rendered output
+
+4. **Critical Mismatch**: The data analysis indicates 9,995 total records with specific distribution characteristics, but the visualization failed to render this data properly.
+
+**VALIDATION FAILED: The histogram bars and reference lines are not rendered. The visualization is missing all data points and only shows empty axes framework.**
+SDK NAME D3JSCodeValidator
+SDK VALUE {
+  APPRAISAL: '## Validation Analysis\n' +
+    '\n' +
+    "After rendering and analyzing the D3.js visualization, I've identified a critical issue:\n" +
+    '\n' +
+    '**VALIDATION FAILED: The visualization appears to be empty - no histogram bars are rendered**\n' +
+    '\n' +
+    '### Specific Issues Found:\n' +
+    '\n' +
+    '1. **Missing Data**: The histogram bars that should show the price distribution are not visible in the rendered output. The chart only shows:\n' +
+    '   - The axes and grid lines\n' +
+    '   - The title "Price Distribution (n=9,995) with Capped Outliers"\n' +
+    '   - X-axis labeled "Price" (0-1200 range)\n' +
+    '   - Y-axis labeled "Count" (0-2600 range)\n' +
+    '   - But NO actual histogram bars\n' +
+    '\n' +
+    '2. **Data Loading Problem**: The D3.js code attempts to load data from `./data/prices.csv`, but the provided sample CSV data appears to be insufficient test data (only ~140 values) instead of the actual 9,995 records mentioned in the analysis.\n' +
+    '\n' +
+    '3. **Missing Visual Elements**: According to the data analysis, the visualization should display:\n' +
+    '   - 39 histogram bins\n' +
+    '   - A primary peak at range [78.25, 111.87] with 2,537 count\n' +
+    '   - A secondary peak at range [44.62, 78.25] with 2,466 count\n' +
+    '   - Reference lines for mean (162.02), median (103), and cap threshold (1187.84)\n' +
+    '   - A special colored bar for capped outliers\n' +
+    '   - None of these elements are visible in the rendered output\n' +
+    '\n' +
+    '4. **Critical Mismatch**: The data analysis indicates 9,995 total records with specific distribution characteristics, but the visualization failed to render this data properly.\n' +
+    '\n' +
+    '**VALIDATION FAILED: The histogram bars and reference lines are not rendered. The visualization is missing all data points and only shows empty axes framework.**',
+
+*/

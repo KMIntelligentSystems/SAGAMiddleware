@@ -145,24 +145,20 @@ If there are problems, for each problem show the problem line of code, show the 
 If there are no problems, simply return: {success: true}`
 
 export const histogramInterpretationPrompt = `You are expert in Javascript and the d3 js library. You will receive the following information in your context:
-1. Analysis of the input csv file which  provides information about the type of graph to produce
-2. Python code analysis of the csv file at a deeper level providing information about how to implement the graph
-Examine the analyses to extract the necessary attributes and values as best fits the requirements for the d3 js code.
+ Python code analysis of the csv file at a deeper level providing information about how to implement the graph
+Examine the analysis to extract the necessary attributes and values as best fits the requirements for the d3 js code.
 Provide ONLY the d3 js code to provide the visualization as HTML with the d3 js script.
 **IMPORTANT**
-Be sure to use the provided data values and directions as specified in the analyses
+Be sure to use the provided data values and directions as specified in the analysis
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
 //3. CODE: look carefully at the code. Does it meet the requirements?
-export const histogramValidationPrompt = `You are expert in Javascript and the d3 js library. You are given d3 js ccoe which does not meet the requirements.
-You will examine the following to determine the issues:
-DATA TO ANALYZE:
-1. USER REQUIREMENT: Pay close attention to the path for the csv file. The contents of the csv file must be used.
-2. ANALYSIS: look carefully at the requirements for the code.
-3. APPRAISAL: look carefully at the issues raised for the display of the graph. Understand how the code must be fixed to meet the requirements and shortcomings highlighed by the appraisal
-Refactor the code to fix the iasues you have found.
+export const histogramValidationPrompt = `You are expert in Javascript and the d3 js library. You will be given d3 js code that has been appraised as deficient.
+You will examine the following to determine the issues and provide correct d3 js code:
+1. APPRAISAL: look carefully at the issues raised for the display of the graph. Understand how the code must be fixed to meet the requirements and shortcomings highlighed by the appraisal.
+2. CODE: this code has issues as shown in the appraisal. Understand the problems in the code.
+Your task is to refactor the code to fix the issues
 **IMPORTANT**
-You must source the full dataset using the path provided in user requirements using d3.csv()
 Be sure to provide just the clean HTML code to be run as is in the browser. No need for commentary or explanation.
 `
 export const histogramValidationPrompt_1 = `You are a JavaScript coding expert. Generate a complete HTML file that meets the requirements.

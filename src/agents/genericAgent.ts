@@ -131,15 +131,6 @@ export class GenericAgent {
          console.log(`🔧 Agent ${this.definition.name} received MCP tool call context for chunk ${iteration + 1}/${totalChunks}`);
        }
 
-       // Extract the actual data to avoid double-stringification
-           /*
-         ...baseContext,
-      agentSpecificTask: enhancedTask,
-      extendedCycleDependency: {
-        ...cycleMetadata,
-        previousResult: previousResult.result,
-        currentChunk: cycleMetadata.currentChunk
-        */
        let baseContext: string = '';
        
        if (contextData?.lastTransactionResult) {

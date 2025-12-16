@@ -80,6 +80,7 @@ export class ValidationProcess {
        const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
         const d3jsCode = ctx.lastTransactionResult;
         const analysis = ctx. previousTransactionResult;
+
         this.validatingAgent.setTaskDescription(analysisFixPrompt)
         result.result = sonnetJSONRenderedPythonAnalysis// await this.validatingAgent.execute({'INFORMATION TO INTERPRET: ': analysis}); //pythonHistoAnalysis_1//openaiAnalyis //sonnetJSONRenderedPythonAnalysis// 
         this.contextManager.updateContext(this.targetAgent, {
@@ -129,14 +130,12 @@ export class ValidationProcess {
        
     }
   }  else if(this.targetAgent === 'D3JSCodingAgent'){
-      const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
-console.log('JSOOOS', JSON.stringify(ctx.lastTransactionResult))
+    const ctx = this.contextManager.getContext(this.validatingAgent.getName()) as WorkingMemory;
+//console.log('JSOOOS', JSON.stringify(ctx.lastTransactionResult))
 console.log('NAME', this.validatingAgent.getName())
-const task = 'The d3 js CODE in your context has issues. The APPRAISAL gives insights into the issues. Look closely at the issues and provide guidence for a d3 js coding agent to address the issues. Provide an in-depth analysis of the issues and the fixes. DO NOT provide the d3 js code. Your task is anlyzer not coder'
-this.validatingAgent.setTaskDescription(task);
-result.result = geminiCodeValidationResult//await this.validatingAgent.execute(ctx.lastTransactionResult);
+
         this.contextManager.updateContext(this.targetAgent, { //ValidatingAgent
-        lastTransactionResult: result.result, //ctx.lastTransactionResult,
+        lastTransactionResult: ctx.lastTransactionResult,
         transactionId: 'tx-3-3',
         timestamp: new Date()
       });
@@ -151,28 +150,7 @@ console.log('NAME', this.validatingAgent.getName())
         timestamp: new Date()
       });
     }
-   else if(this.targetAgent === 'AgentStructureGenerator'){
-      const ctx = this.contextManager.getContext(this.targetAgent) as WorkingMemory;
-      const agentCtx = this.contextManager.getContext('AgentStructureGenerator') as WorkingMemory;
-      const agentDefinitions = agentCtx.lastTransactionResult;
-      console.log('VALIDATION GENERATE AGENTS ',agentDefinitions)
-      console.log('VAL CODE ', ctx.lastTransactionResult);
-        console.log('VAL CODE IN ERROR ', ctx.agentInError);
-       this.validatingAgent.setTaskDescription( toolValidationCorrectionPrompt );
-         this.validatingAgent.deleteContext();
-         
-         result.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/UpdatedAgentStructurePythonCoders.txt', 'utf-8'); //await this.validatingAgent.execute({'AGENT DEFINITIONS: ': agentCtx, 'PYTHON CODE:': ctx.lastTransactionResult, 'AGENT:': ctx.agentInError})//
-         result.success = false;
-         console.log('ERROR FIX ', result.result)
-         this.contextManager.updateContext(this.targetAgent, {
-        lastTransactionResult: result.result,
-        codeInErrorResult: ctx.lastTransactionResult,
-        agentInError: ctx.agentInError,
-        hasError: true,
-        transactionId: this.validatingAgent.getId(),
-        timestamp: new Date()
-      });
-  }  else if(this.targetAgent === 'D3JSCoordinatingAgent'){
+  else if(this.targetAgent === 'D3JSCoordinatingAgent'){
       const ctx = this.contextManager.getContext('ValidatingAgent') as WorkingMemory;
        const persistedPythonResult = ctx.lastTransactionResult;
   //     console.log('PERSIST ', persistedPythonResult) 'D3JSCodingAgent'
