@@ -46,6 +46,8 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             description: 'Analyze CSV data and generate technical specifications',
             processConfig: {
                 processType: 'agent',
+                isExecutable: false,
+                prompts: [],
                 controlFlow: [
                     { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' }
                 ]
