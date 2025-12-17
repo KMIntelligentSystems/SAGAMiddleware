@@ -4,7 +4,8 @@ import { OpenAI } from 'openai';
 // Assuming you've already imported the GoogleGenerativeAI class
 //import { GoogleGenerativeAI } from '@google/genai';
 import { GoogleGenAI, mcpToTool, FunctionCallingConfigMode } from '@google/genai';
-import * as fs from 'fs'; 
+import * as fs from 'fs';
+import { userVizQuery, sonnetJSONRenderedPythonAnalysis } from '../test/histogramData.js'; 
 
 // Initialize the client
 const genAI = new GoogleGenAI({
@@ -88,7 +89,7 @@ export class GenericAgent {
       if(contextData){
         this.receiveContext(contextData);
       }
-     
+
       const prompt = this.createPrompt();//buildPrompt(contextData);
       if(this.definition.name === 'GeneratingAgent'){
         if(this.counter === 1){
@@ -98,8 +99,21 @@ export class GenericAgent {
         this.counter++;
         console.log('HERE D3 JS PROCESSING', this.counter)
       }
+
+      // TEMPORARY: For testing, return hardcoded data for TransactionGroupingAgent
+      if(this.definition.name === 'TransactionGroupingAgent'){
+        console.log('🔧 TransactionGroupingAgent: Returning test data (userVizQuery)');
+        result.result = userVizQuery;
+      }
+
+      // TEMPORARY: For testing, return hardcoded data for ValidatingAgent
+      if(this.definition.name === 'ValidatingAgent'){
+        console.log('🔧 ValidatingAgent: Returning test data (sonnetJSONRenderedPythonAnalysis)');
+        result.result = sonnetJSONRenderedPythonAnalysis;
+      }
+
       console.log("PROMPT ",prompt)
-   result = await this.invokeLLM(prompt);
+ //  result = await this.invokeLLM(prompt);
   console.log('GENERIC RESULT ',result.result)
 
 

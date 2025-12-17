@@ -25,6 +25,10 @@ export class PipelineExecutor {
         this.coordinator = coordinator;
     }
 
+
+
+    
+
     /**
      * Execute a complete pipeline
      */
@@ -185,8 +189,12 @@ export class PipelineExecutor {
             userQuery,
             previousControlFlowResult: this.state?.lastControlFlowResult
         };
-    
-        const controlFlowResult = await this.coordinator.executeControlFlow(compositeInput);
+
+        // Pass prompts from step config to executeControlFlow
+        const controlFlowResult = await this.coordinator.executeControlFlow(
+            compositeInput,
+            step.processConfig.prompts
+        );
 
         console.log(`✅ Control flow execution complete`, controlFlowResult);
 

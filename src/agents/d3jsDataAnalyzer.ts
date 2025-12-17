@@ -34,7 +34,7 @@ export class D3JSDataAnalyzer extends BaseSDKAgent {
                     result: '',
                     success: false,
                     timestamp: new Date(),
-                    error: 'Context not initialized: D3JSCodeValidator context must be set before execution'
+                    error: 'Context not initialized: D3JSDataAnalyzer context must be set before execution'
                 };
             }
 

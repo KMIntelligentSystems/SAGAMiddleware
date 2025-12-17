@@ -13,6 +13,8 @@ export interface SDKAgentStep {
     outputKey?: string; // Key to store result in context
     processConfig: {
         processType: string;
+        isExecutable: boolean;
+        prompts: { agent: string; prompt: string }[];
         controlFlow: ProcessFlowStep[];
         renderVisualization?: boolean;
         testWithPlaywright?: boolean;
@@ -21,7 +23,8 @@ export interface SDKAgentStep {
 
 export interface ProcessFlowStep {
     agent: string;
-    process: string;
+    flowType: 'llm_call' | 'context_pass' | 'execute_agents' | 'sdk_agent' | 'validation';
+    process?: string; // Deprecated - kept for backward compatibility
     targetAgent?: string;
 }
 
@@ -49,7 +52,7 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                 isExecutable: false,
                 prompts: [],
                 controlFlow: [
-                    { agent: 'TransactionGroupingAgent', process: 'DefineUserRequirementsProcess', targetAgent: 'DataProfiler' }
+                    { agent: 'TransactionGroupingAgent', flowType: 'llm_call', targetAgent: 'DataProfiler' }
                 ]
             }
         }, {
@@ -58,8 +61,15 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             description: 'Analyze CSV data and generate technical specifications',
             processConfig: {
                 processType: 'agent',
+                isExecutable: false,
+                prompts: [
+                    {
+                        agent: 'TransactionGroupingAgent',
+                        prompt: 'Your task is to extract the part of the user request which pertains to the d3 js visualization. The output will be formatted as JSON. Include a specific entry for the full file path'
+                    }
+                ],
                 controlFlow: [
-                    { agent: 'TransactionGroupingAgent', process: 'DataAnalysisProcess', targetAgent: 'D3JSDataAnalyzer' }
+                    { agent: 'TransactionGroupingAgent', flowType: 'llm_call', targetAgent: 'D3JSDataAnalyzer' }
                 ]
             }
         },
@@ -70,9 +80,11 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             description: 'Generate agent structures in [AGENT:...] format',
             processConfig: {
                 processType: 'subAgent',
+                isExecutable: true,
+                prompts: [],
                 controlFlow: [
-                     { agent: 'D3JSDataAnalyzer', process: 'DataAnalysisProcess', targetAgent: 'D3JSCoordinatingAgent' },
-                     { agent: 'DataProfiler', process: 'ExecuteGenericAgentsProcess', targetAgent: 'D3JSCoordinatingAgent' }
+                     { agent: 'D3JSDataAnalyzer', flowType: 'context_pass', targetAgent: 'D3JSCoordinatingAgent' },
+                     { agent: 'DataProfiler', flowType: 'execute_agents', targetAgent: 'D3JSCoordinatingAgent' }
                 ]
             }
         }
@@ -96,12 +108,14 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             outputKey: 'd3jsCode',
             processConfig: {
                 processType: 'subAgent',
+                isExecutable: false,
+                prompts: [],
                 controlFlow: [
-                  // { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCoordinatingAgent' },
-                   { agent: 'D3JSCoordinatingAgent', process: 'DataAnalysisProcess', targetAgent: 'D3JSCodingAgent' },
-                   { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent' }
+                  // { agent: 'ValidatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCoordinatingAgent' },
+                   { agent: 'D3JSCoordinatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCodingAgent' },
+                   { agent: 'D3JSCodingAgent', flowType: 'sdk_agent', targetAgent: 'ValidatingAgent' }
                 ],
-             //   testWithPlaywright: true 
+             //   testWithPlaywright: true
             }
         },
         {
@@ -112,8 +126,10 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             outputKey: 'validatedCode',
             processConfig: {
                 processType: 'agent',
+                isExecutable: false,
+                prompts: [],
                 controlFlow: [
-                     { agent: 'ValidatingAgent', process: 'ValidationProcess', targetAgent: 'D3JSCodeValidator'  },
+                     { agent: 'ValidatingAgent', flowType: 'validation', targetAgent: 'D3JSCodeValidator'  },
                 ],
                // Re-test with Playwright if code was corrected
             }
@@ -125,9 +141,11 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             outputKey: 'updatedCode',
             processConfig: {
                 processType: 'subAgent',
+                isExecutable: false,
+                prompts: [],
                 controlFlow: [
-                     { agent: 'D3JSCodeValidator', process: 'ValidationProcess', targetAgent: 'D3JSCodingAgent'  },
-                      { agent: 'D3JSCodingAgent', process: 'D3JSCodingProcess', targetAgent: 'ValidatingAgent' }
+                     { agent: 'D3JSCodeValidator', flowType: 'sdk_agent', targetAgent: 'D3JSCodingAgent'  },
+                      { agent: 'D3JSCodingAgent', flowType: 'sdk_agent', targetAgent: 'ValidatingAgent' }
                 ],
                // Re-test with Playwright if code was corrected
             }
@@ -150,8 +168,10 @@ export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
             outputKey: 'updatedCode',
             processConfig: {
                 processType: 'agent',
+                isExecutable: false,
+                prompts: [],
                 controlFlow: [
-                    { agent: 'ConversationAgent', process: 'D3JSCodingProcess', targetAgent: 'D3JSCodeUpdater' }
+                    { agent: 'ConversationAgent', flowType: 'llm_call', targetAgent: 'D3JSCodeUpdater' }
                 ],
                 renderVisualization: true,
                 testWithPlaywright: true

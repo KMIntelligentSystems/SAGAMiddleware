@@ -1,14 +1,16 @@
 import { EventEmitter } from 'events';
-import { 
-  AgentDefinition, 
-  SagaEvent, 
+import {
+  AgentDefinition,
+  SagaEvent,
   AgentResult,
   WorkingMemory,
   LLMConfig,
   MCPServerConfig
 } from '../types/index.js';
-import { 
-  SagaState, 
+import { ProcessFlowStep } from '../types/pipelineConfig.js';
+import { getFlowStrategy } from '../process/FlowStrategies.js';
+import {
+  SagaState,
   SagaTransaction,
 
   SagaWorkflowRequest,
@@ -34,18 +36,6 @@ import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
 import { TransactionManager } from '../sublayers/transactionManager.js';
 import { CSVReader } from '../processing/csvReader.js'
 import { D3VisualizationClient, D3RenderResult } from '../mcp/d3VisualizationClient.js';
-import { DefineUserRequirementsProcess } from '../process/DefineUserRequirementsProcess.js';
-import { ValidationProcess } from '../process/ValidationProcess.js';
-import { FlowProcess } from '../process/FlowProcess.js';
-import { AgentGeneratorProcess } from '../process/AgentGeneratorProcess.js';
-import { D3JSCodingProcess } from '../process/D3JSCodingProcess.js';
-import { DataAnalysisProcess } from '../process/DataAnalysisProcess.js';
-import { DataSummarizingProcess } from '../process/DataSummarizingProcess.js';
-import { ExecuteGenericAgentsProcess } from '../process/ExecuteGenericAgentsProcess.js';
-import { GenReflectProcess } from '../process/GenReflectProcess.js';
-import { FlowGeneratingProcess } from '../process/FlowGeneratingProcess.js';
-import { GenerateAgentAgentStructureProcess } from '../process/GenerateAgentAgentStructureProcess.js'
-import { AgentParser } from '../agents/agentParser.js'
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -84,7 +74,7 @@ export class SagaCoordinator extends EventEmitter {
 
   // Control flow list: maps agent names to process types
   // For ValidationProcess: agent is ValidatingAgent, targetAgent is the agent being validated
-  private controlFlowList: Array<{agent: string, process: string, targetAgent?: string}> = [];
+  private controlFlowList: ProcessFlowStep[] = [];
   private svgPath = '';
 
   constructor(mcpServers: Record<string, MCPServerConfig>) {
@@ -206,94 +196,18 @@ sleep(ms: number) {
    * Initialize control flow list
    * Maps default agents to their corresponding process types
    */
-  initializeControlFlow(controlFlowList: Array<{agent: string, process: string, targetAgent?: string}>): void {
+  initializeControlFlow(controlFlowList: ProcessFlowStep[]): void {
     this.controlFlowList = controlFlowList;
-  }
-
-  /**
-   * Instantiate a process based on process type
-   * Returns the appropriate Process instance configured with required agents
-   */
-  private instantiateProcess(
-    processType: string,
-    agentName: string,
-    userQuery: string,
-    targetAgentName?: string,
-  ): DefineUserRequirementsProcess | ValidationProcess | D3JSCodingProcess | DataAnalysisProcess | ExecuteGenericAgentsProcess | null {
-    const agent = this.agents.get(agentName);
-    
-    console.log('PROCESS TYPE', processType)
-    console.log(' AGENT ',  agentName)
-    if (!agent) {
-      console.error(`❌ Agent ${agentName} not found`);
-      return null;// NEEDS FIXING
-    }
-   
-   
-    switch (processType) {
-      case 'DefineUserRequirementsProcess':
-        return new DefineUserRequirementsProcess(
-          agent,
-          this.contextManager,
-          userQuery,
-          targetAgentName
-        );
-
-      case 'ValidationProcess': {
-        if( targetAgentName){
-        return new ValidationProcess(
-          agent, // ValidatingAgent
-          targetAgentName, // Agent being validated
-          this.contextManager,
-          userQuery
-        );
-      }
-    }
-     
-      case 'ExecuteGenericAgentsProcess': {
-       if(targetAgentName){
-          const targetAgent = this.agents.get(targetAgentName) as GenericAgent;
-          return new ExecuteGenericAgentsProcess(
-          agent.getName(),
-          this.contextManager,
-          targetAgentName,
-          this.mcpServers
-        );
-      }
-    }
-
-      case 'DataAnalysisProcess':
-
-        return new DataAnalysisProcess(
-          agent,
-          this.contextManager,
-          userQuery,
-          targetAgentName as string
-        );
-      
-      case 'D3JSCodingProcess':
-      
-        return new D3JSCodingProcess(
-          agent,
-          this.contextManager,
-          userQuery,
-          targetAgentName as string
-        );
-
-    
- 
-     
-      default:
-        console.error(`❌ Unknown process type: ${processType}`);
-        return null;
-    }
   }
 
   /**
    * Execute the control flow
    * Iterates through control flow list and executes each process in sequence
    */
-  async executeControlFlow(input: { userQuery: string; previousControlFlowResult?: any }): Promise<AgentResult> {
+  async executeControlFlow(
+    input: { userQuery: string; previousControlFlowResult?: any },
+    prompts?: { agent: string; prompt: string }[]
+  ): Promise<AgentResult> {
     console.log('\n🎯 Starting control flow execution');
     console.log(`📋 Control flow steps: ${this.controlFlowList.length}`);
 
@@ -315,49 +229,90 @@ sleep(ms: number) {
     let lastDynamicAgentName = '';
     for (let i = 0; i < this.controlFlowList.length; i++) {
       const step = this.controlFlowList[i];
-      console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.process} ---`);
-//--- Step 1/1: DataProfiler → ExecuteGenericAgentsProcess ---
-      // Update current agent state
-         
-  this.currAgent = this.agents.get(step.agent) || null;
+      console.log(`\n--- Step ${i + 1}/${this.controlFlowList.length}: ${step.agent} → ${step.flowType} → ${step.targetAgent} ---`);
 
-      // Instantiate process
-      // Determine userQuery based on special cases
-      let userQueryForProcess = input.userQuery;
-      let svgFilePath: string | undefined = undefined;
-
-      // Special case handling
-
-      const process = this.instantiateProcess(
-        step.process,
-        step.agent,
-        userQueryForProcess,
-        step.targetAgent,
-      
-      );
-
-      if (!process) {
-        console.error(`❌ Failed to instantiate process at step ${i + 1}`);
-        continue;
-      }
- /*  if(step.agent === 'D3JSCodeValidator'){
-                const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
-    console.log('APPRAISAL RES 1', ctx.lastTransactionResult.APPRAISAL)
-                    console.log('CODE RES 1',ctx.lastTransactionResult.CODE)   
-            }*/
-  
       try {
-        // Execute process
-        result = await process.execute();
+        // NEW APPROACH: Use FlowStrategies directly instead of old process classes
+        console.log(`🔄 Using ${step.flowType} strategy for ${step.agent}`);
+
+        // Get the appropriate strategy
+        const strategy = getFlowStrategy(step.flowType);
+
+        // Determine what to pass to the strategy based on flowType
+        let agentOrName: any;
+
+        if (step.flowType === 'context_pass' || step.flowType === 'execute_agents') {
+          // For context-based strategies, we only need the name to look up context in ContextManager
+          // The agent might be an SDK agent (not in this.agents), so we create a minimal object
+          agentOrName = {
+            getName: () => step.agent
+          };
+          console.log(`📝 Using context key: ${step.agent} (may reference SDK agent result)`);
+        } else if (step.flowType === 'llm_call' || step.flowType === 'validation') {
+          // For LLM calls and validation, we need the actual GenericAgent instance
+          this.currAgent = this.agents.get(step.agent) || null;
+
+          if (!this.currAgent) {
+            console.error(`❌ GenericAgent ${step.agent} not found in agents registry`);
+            continue;
+          }
+
+          // IMPORTANT: Apply custom prompt if configured
+          if (prompts) {
+            const promptConfig = prompts.find(p => p.agent === step.agent);
+            if (promptConfig) {
+              console.log(`📝 Setting custom prompt for ${step.agent}`);
+              this.currAgent.setTaskDescription(promptConfig.prompt);
+            }
+          }
+
+          agentOrName = this.currAgent;
+        } else if (step.flowType === 'sdk_agent') {
+          // SDK agents are not in this.agents - they're managed by PipelineExecutor
+          // This shouldn't normally be called from sagaCoordinator.executeControlFlow
+          console.warn(`⚠️ sdk_agent flowType for ${step.agent} - SDK agents should be called from PipelineExecutor`);
+          continue;
+        }
+
+        // Execute using the strategy
+        result = await strategy.execute(
+          agentOrName,
+          step.targetAgent || step.agent,
+          this.contextManager,
+          input.userQuery
+        );
+
+        if (!result.success) {
+          console.error(`❌ Step ${i + 1} failed:`, result.error);
+          // Continue or throw based on error handling strategy
+          continue;
+        }
 
         console.log(`✅ Step ${i + 1} completed successfully`);
-      
+
+        // Debug: Log what was stored in context
+        if (step.targetAgent) {
+          const ctx = this.contextManager.getContext(step.targetAgent);
+          console.log(`🔍 Context stored in ${step.targetAgent}:`, JSON.stringify(ctx, null, 2).substring(0, 300) + '...');
+        }
+
       } catch (error) {
         console.error(`❌ Error executing step ${i + 1}:`, error);
-        throw error; // Or continue based on error handling strategy
+
+        result = {
+          agentName: step.agent,
+          result: '',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date()
+        };
+
+        // Throw to stop execution on error
+        throw error;
       }
-         console.log('\n🎉 Control flow execution completed')             
     }
+
+    console.log('\n🎉 Control flow execution completed');
 
       return result;
   }
