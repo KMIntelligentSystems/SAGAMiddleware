@@ -14,6 +14,7 @@ import { D3VisualizationClient } from '../mcp/d3VisualizationClient.js';
 import { mcpClientManager } from '../mcp/mcpClient.js';
 import { opusCodeValidatorResult, openai3Issues } from '../test/histogramData.js'
 import * as fs from 'fs';
+import { trigger_conversation, trigger_code_correction, ValidatorToolContext } from '../tools/validatorTools.js';
 
 export interface D3ValidationInput {
     d3jsCode: string;
