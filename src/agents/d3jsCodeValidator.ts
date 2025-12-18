@@ -25,18 +25,21 @@ export interface D3ValidationInput {
 
 export class D3JSCodeValidator extends BaseSDKAgent {
     private d3Client: D3VisualizationClient | null = null;
+    private coordinator: any; // Reference to SagaCoordinator for local tools
 
-    constructor(contextManager?: any) {
+    constructor(contextManager?: any, coordinator?: any) {
         super('D3JSCodeValidator', 20, contextManager);
+        this.coordinator = coordinator;
 
-        // Setup MCP tool for D3 visualization analysis
-        this.setupAnalyzeD3OutputTool();
+        // Setup MCP tools for D3 visualization analysis and decision making
+        this.setupValidatorTools();
     }
 
     /**
-     * Setup custom MCP tool for analyzing D3 visualization output
+     * Setup MCP tools for validation and autonomous decision making
      */
-    private setupAnalyzeD3OutputTool(): void {
+    private setupValidatorTools(): void {
+        // Tool 1: Render and analyze D3 output
         const analyzeD3OutputTool = tool(
             'analyze_d3_output',
             'Renders D3.js code via Playwright and returns paths to SVG/PNG files for analysis',
@@ -50,10 +53,37 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             }
         );
 
-        // Create MCP server with the tool
+        // Tool 2: Trigger conversation (validation PASSED)
+        const triggerConversationTool = tool(
+            'trigger_conversation',
+            'Pass validated D3.js code to ConversationAgent for user output. Use when validation PASSES.',
+            {
+                code: z.string().describe('The validated D3.js code to send to user'),
+                message: z.string().optional().describe('Optional success message to include with the code')
+            },
+            async (args) => {
+                return this.handleTriggerConversation(args);
+            }
+        );
+
+        // Tool 3: Trigger code correction (validation FAILED)
+        const triggerCodeCorrectionTool = tool(
+            'trigger_code_correction',
+            'Request D3JSCodingAgent to fix validation errors. Use when validation FAILS.',
+            {
+                originalCode: z.string().describe('The original D3.js code that failed validation'),
+                validationErrors: z.array(z.string()).describe('List of specific validation errors to fix'),
+                validationReport: z.any().describe('Complete validation report with details')
+            },
+            async (args) => {
+                return this.handleTriggerCodeCorrection(args);
+            }
+        );
+
+        // Create MCP server with all tools
         const mcpServer = createSdkMcpServer({
             name: 'd3-validator',
-            tools: [analyzeD3OutputTool]
+            tools: [analyzeD3OutputTool, triggerConversationTool, triggerCodeCorrectionTool]
         });
 
         // Add MCP server to options
@@ -127,6 +157,94 @@ export class D3JSCodeValidator extends BaseSDKAgent {
     }
 
     /**
+     * Handler for trigger_conversation tool
+     * Called when validation PASSES - sends code to ConversationAgent
+     */
+    private async handleTriggerConversation(args: any) {
+        try {
+            console.log('🎯 trigger_conversation tool called - validation PASSED');
+
+            if (!this.coordinator) {
+                throw new Error('Coordinator not available - cannot trigger conversation');
+            }
+
+            // Get current validation context
+            const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
+            const validationReport = ctx?.lastTransactionResult;
+
+            // Create tool context
+            const toolContext: ValidatorToolContext = {
+                coordinator: this.coordinator,
+                validationReport: validationReport,
+                originalCode: args.code
+            };
+
+            // Call the local tool function
+            const result = await trigger_conversation(toolContext, args);
+
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2)
+                }]
+            };
+        } catch (error) {
+            console.error('❌ Error in handleTriggerConversation:', error);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error triggering conversation: ${error instanceof Error ? error.message : String(error)}`
+                }],
+                isError: true
+            };
+        }
+    }
+
+    /**
+     * Handler for trigger_code_correction tool
+     * Called when validation FAILS - requests D3JSCodingAgent to fix errors
+     */
+    private async handleTriggerCodeCorrection(args: any) {
+        try {
+            console.log('🔧 trigger_code_correction tool called - validation FAILED');
+
+            if (!this.coordinator) {
+                throw new Error('Coordinator not available - cannot trigger code correction');
+            }
+
+            // Get current validation context
+            const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
+            const validationReport = ctx?.lastTransactionResult;
+
+            // Create tool context
+            const toolContext: ValidatorToolContext = {
+                coordinator: this.coordinator,
+                validationReport: validationReport,
+                originalCode: args.originalCode
+            };
+
+            // Call the local tool function
+            const result = await trigger_code_correction(toolContext, args);
+
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2)
+                }]
+            };
+        } catch (error) {
+            console.error('❌ Error in handleTriggerCodeCorrection:', error);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error triggering code correction: ${error instanceof Error ? error.message : String(error)}`
+                }],
+                isError: true
+            };
+        }
+    }
+
+    /**
      * Execute validation
      */
     async execute(input: D3ValidationInput): Promise<AgentResult> {
@@ -180,24 +298,34 @@ export class D3JSCodeValidator extends BaseSDKAgent {
      * Build prompt for validation
      */
     protected buildPrompt(input: D3ValidationInput): string {
-        return `Validate visualization output against data analysis.
+        return `Validate D3.js visualization and autonomously decide the next action.
 
 DATA ANALYSIS:
 ${JSON.stringify(input.pythonAnalysis, null, 2)}
 
-D3 JS CODE
+D3 JS CODE:
 ${input.d3jsCode}
-TASK:
-1. Call analyze_d3_output tool ONCE with the complete d3Code shown above to render visualization
-2. The tool will return file paths to the rendered SVG and PNG
-3. Analyze the returned SVG file path information to validate the visualization
-4. Compare the visualization against the data analysis requirements
-5. Report validation result
 
-Does the rendered visualization accurately represent the data analysis?
+YOUR TASK:
+1. Call analyze_d3_output tool ONCE with the complete d3Code shown above to render the visualization
+2. The tool will return file paths to the rendered SVG and PNG files
+3. Analyze the SVG output to validate whether the visualization accurately represents the data analysis
+4. Make an AUTONOMOUS DECISION about what happens next:
 
-If accurate: Return "VALIDATION PASSED"
-If issues found: Return "VALIDATION FAILED: [describe specific issues]"`;
+**IF VALIDATION PASSES:**
+   - Call trigger_conversation tool with:
+     - code: the validated D3.js code
+     - message: brief success message
+   - This sends the code directly to the user via ConversationAgent
+
+**IF VALIDATION FAILS:**
+   - Call trigger_code_correction tool with:
+     - originalCode: the D3.js code that failed
+     - validationErrors: array of specific error descriptions
+     - validationReport: complete validation details
+   - This triggers D3JSCodingAgent to generate corrected code
+
+CRITICAL: You must call ONE of the two decision tools (trigger_conversation OR trigger_code_correction) based on your validation assessment. Do not just report the result - take action by calling the appropriate tool.`;
     }
 
     /**
