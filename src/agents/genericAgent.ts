@@ -5,7 +5,7 @@ import { OpenAI } from 'openai';
 //import { GoogleGenerativeAI } from '@google/genai';
 import { GoogleGenAI, mcpToTool, FunctionCallingConfigMode } from '@google/genai';
 import * as fs from 'fs';
-import { userVizQuery, sonnetJSONRenderedPythonAnalysis } from '../test/histogramData.js'; 
+import { userVizQuery, sonnetJSONRenderedPythonAnalysis, openaiPythonAnalysisResult } from '../test/histogramData.js'; 
 
 // Initialize the client
 const genAI = new GoogleGenAI({
@@ -91,14 +91,8 @@ export class GenericAgent {
       }
 
       const prompt = this.createPrompt();//buildPrompt(contextData);
-      if(this.definition.name === 'GeneratingAgent'){
-        if(this.counter === 1){
-        //  result = await this.invokeLLM(prompt);
-          console.log('FIXED RESULT ' , result.result)
-        }
-        this.counter++;
-        console.log('HERE D3 JS PROCESSING', this.counter)
-      }
+        console.log("PROMPT ",prompt)
+     //   result = await this.invokeLLM(prompt);
 
       // TEMPORARY: For testing, return hardcoded data for TransactionGroupingAgent
       if(this.definition.name === 'TransactionGroupingAgent'){
@@ -112,8 +106,19 @@ export class GenericAgent {
         result.result = sonnetJSONRenderedPythonAnalysis;
       }
 
-      console.log("PROMPT ",prompt)
- //  result = await this.invokeLLM(prompt);
+      // TEMPORARY: For testing, return hardcoded data for D3JSCoordinatingAgent
+      if(this.definition.name === 'D3JSCoordinatingAgent'){
+        console.log('🔧 D3JSCoordinatingAgent: Returning test data (openaiPythonAnalysisResult)');
+        result.result = openaiPythonAnalysisResult;
+      }
+
+      // TEMPORARY: For testing, return hardcoded data for D3JSCodingAgent
+      if(this.definition.name === 'D3JSCodingAgent'){
+        console.log('🔧 D3JSCodingAgent: Reading test data from opus.html');
+        result.result = fs.readFileSync('C:/repos/Main/opus.html', 'utf-8');
+      }
+
+    
   console.log('GENERIC RESULT ',result.result)
 
 

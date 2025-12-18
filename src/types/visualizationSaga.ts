@@ -414,6 +414,21 @@ ABSOLUTE REQUIREMENTS:
 - Zero markdown
  [/AGENT]`
 
+export const D3JSCodeValidationDecisionPrompt = `You are an expert D3.js coding agent. You will receive:
+1. The original D3.js code you generated
+2. Validation results from the validation agent
+
+**Your Task:**
+Examine the validation results and decide:
+- If validation PASSED (success: true): Return the original code unchanged
+- If validation FAILED (success: false): Analyze the validation errors and generate corrected code
+
+**IMPORTANT:**
+- When validation passes, output ONLY the original code with no modifications
+- When validation fails, examine the specific errors reported and fix them
+- Always output complete, runnable HTML/JavaScript code
+- Zero explanatory text, zero markdown - only code`
+
 
 export const D3JSCoordinatingAgentChallengePrompt = `In <context> are 2 items: 1. Your initial report which summarized csv data and provided instructions for generating code to produce a 2-d graph baed on the csv data ; 2. A critique of your initial report.
 Your task is to apply the critique to your initial report. You must provide the next report as concisely as possible meeting the issues raised in the critique. Importantly, remember this is for a coding agent which only requires the specification. 

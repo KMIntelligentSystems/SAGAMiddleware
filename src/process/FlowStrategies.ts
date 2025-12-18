@@ -9,6 +9,7 @@ import { GenericAgent } from '../agents/genericAgent.js';
 import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
+import * as fs from 'fs';
 
 /**
  * Flow Strategy Interface
@@ -19,7 +20,8 @@ export interface FlowStrategy {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
-        userQuery?: string
+        userQuery?: string,
+        agentsRegistry?: Map<string, GenericAgent>
     ): Promise<AgentResult>;
 }
 
@@ -42,8 +44,30 @@ export const LLMCallStrategy: FlowStrategy = {
 
         console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} with LLM call`);
 
-        // Execute GenericAgent with user query context
-        const result = await agent.execute({ userQuery: userQuery || '' });
+        // Clear agent's internal context to avoid contamination from previous executions
+        agent.deleteContext();
+
+        // Get the agent's context from ContextManager
+        const agentCtx = contextManager.getContext(agent.getName()) as WorkingMemory;
+
+        // Build context data from ContextManager (includes pythonAnalysis, userQuery, etc.)
+        const contextData: Record<string, any> = {};
+        if (agentCtx) {
+            // Include all relevant context data
+            if (agentCtx.lastTransactionResult) contextData.lastTransactionResult = agentCtx.lastTransactionResult;
+            if (agentCtx.pythonAnalysis) contextData.pythonAnalysis = agentCtx.pythonAnalysis;
+            if (agentCtx.userQuery) contextData.userQuery = agentCtx.userQuery;
+        }
+
+        // Add current userQuery if provided
+        if (userQuery) {
+            contextData.userQuery = userQuery;
+        }
+
+        console.log(`📦 Context data keys: ${Object.keys(contextData).join(', ')}`);
+
+        // Execute GenericAgent with context from ContextManager
+        const result = await agent.execute(contextData);
 
         // Store result in target agent's context
         contextManager.updateContext(targetAgent, {
@@ -101,15 +125,27 @@ export const ContextPassStrategy: FlowStrategy = {
 /**
  * Execute Agents Strategy
  * Executes GenericAgents that were created by SDK agents (e.g., Python code agents from DataProfiler)
- * Used for: Running dynamically created agents
+ * Used for: Running dynamically created agents with MCP tool execution
+ *
+ * This strategy handles:
+ * 1. Tool agents (Python code execution via MCP)
+ * 2. Regular GenericAgents (LLM-based agents)
  */
 export const ExecuteAgentsStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
-        contextManager: ContextManager
+        contextManager: ContextManager,
+        userQuery?: string,
+        agentsRegistry?: Map<string, GenericAgent>
     ): Promise<AgentResult> {
         console.log(`🔄 ExecuteAgentsStrategy: Executing agents created by ${agent.getName()}`);
+
+        // Get the ToolCallingAgent from the registry
+        const toolCallingAgent = agentsRegistry?.get('ToolCallingAgent');
+        if (!toolCallingAgent) {
+            throw new Error('ToolCallingAgent not found in registry. Required for Python execution.');
+        }
 
         // Get the agent's name
         const agentName = agent.getName();
@@ -140,25 +176,63 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
 
         for (const agentInfo of agentDefinitions) {
             const definition = agentInfo.definition || agentInfo;
-            console.log(`🔧 Executing GenericAgent: ${definition.name}`);
+            console.log(`🔧 Executing GenericAgent: ${definition.name} (type: ${definition.agentType})`);
 
-            // Create and execute GenericAgent
-            const genericAgent = new GenericAgent(definition);
-            const result = await genericAgent.execute({});
+            // Handle tool agents (Python execution via MCP)
+            if (definition.agentType === 'tool') {
+                // Use the existing ToolCallingAgent from registry (already configured with MCP)
+                console.log(`🔧 Using ToolCallingAgent from registry for ${definition.name}`);
 
-            if (!result.success) {
-                console.error(`❌ Agent ${definition.name} failed:`, result.error);
+                // Extract and clean Python code from taskDescription
+                const pythonCode = cleanPythonCode(definition.taskDescription);
+                console.log(`📝 Python code extracted (${pythonCode.length} chars)`);
+
+                // Clear any previous context from ToolCallingAgent
+                toolCallingAgent.deleteContext();
+
+                // Execute with Python code in context
+                const result = await toolCallingAgent.execute({ 'CODE:': pythonCode });
+
+                if (!result.success) {
+                    console.error(`❌ Tool agent ${definition.name} failed:`, result.error);
+
+                    // Store error in target context
+                    contextManager.updateContext(targetAgent, {
+                        lastTransactionResult: result.result,
+                        codeInErrorResult: definition.taskDescription,
+                        agentInError: definition.name,
+                        hasError: true,
+                        success: false,
+                        transactionId: agentName,
+                        timestamp: new Date()
+                    });
+
+                    finalResult = result;
+                    break;
+                }
+
                 finalResult = result;
-                break;
+                console.log(`✅ Tool agent ${definition.name} completed successfully`);
+            } else {
+                // Handle regular GenericAgents (non-tool agents)
+                const genericAgent = new GenericAgent(definition);
+                const result = await genericAgent.execute({});
+
+                if (!result.success) {
+                    console.error(`❌ Agent ${definition.name} failed:`, result.error);
+                    finalResult = result;
+                    break;
+                }
+
+                finalResult = result;
+                console.log(`✅ Agent ${definition.name} completed successfully`);
             }
-
-            finalResult = result;
-            console.log(`✅ Agent ${definition.name} completed successfully`);
         }
-
+finalResult.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_2.txt', 'utf-8');
         // Store final result in target agent's context
+        console.log('EXECUTIONSTRATEGY', targetAgent)
         contextManager.updateContext(targetAgent, {
-            pythonAnalysis: finalResult.result,
+            lastTransactionResult: finalResult.result,
             hasError: !finalResult.success,
             success: finalResult.success,
             transactionId: agentName,
@@ -169,6 +243,50 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         return finalResult;
     }
 };
+
+/**
+ * Helper: Clean Python code from string format
+ * Handles escaped newlines, string concatenation, quotes, etc.
+ */
+function cleanPythonCode(rawCode: string): string {
+    let cleaned = rawCode.trim();
+
+    // Remove object wrapper if present
+    if (cleaned.includes('agentName:') && cleaned.includes('result:')) {
+        const resultMatch = cleaned.match(/result:\s*(['"])([\s\S]*?)(?=,\s*(?:success|timestamp|\}))/);
+        if (resultMatch) {
+            cleaned = resultMatch[2];
+            cleaned = resultMatch[1] + cleaned;
+        }
+    }
+
+    // Convert escaped newlines to actual newlines
+    cleaned = cleaned.replace(/\\n/g, '\n');
+
+    // Remove string concatenation
+    cleaned = cleaned.replace(/'\s*\+\s*\n\s*'/gm, '\n');
+    cleaned = cleaned.replace(/"\s*\+\s*\n\s*"/gm, '\n');
+    cleaned = cleaned.replace(/\s*\+\s*$/gm, '');
+
+    // Remove outer quotes
+    cleaned = cleaned.trim();
+    cleaned = cleaned.replace(/^['"]/, '');
+    cleaned = cleaned.replace(/['"]$/, '');
+
+    // Handle escaped quotes
+    cleaned = cleaned.replace(/\\'/g, "'");
+    cleaned = cleaned.replace(/\\"/g, '"');
+
+    // Convert backticks to single quotes
+    cleaned = cleaned.replace(/`/g, "'");
+
+    // Clean up lines while preserving Python indentation
+    const lines = cleaned.split('\n');
+    const trimmedLines = lines.map(line => line.replace(/\s+$/, ''));
+    cleaned = trimmedLines.join('\n').trim();
+
+    return cleaned;
+}
 
 /**
  * SDK Agent Strategy

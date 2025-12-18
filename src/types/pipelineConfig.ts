@@ -5,6 +5,8 @@
  * Each SDK agent output feeds into a SAGA process that creates/executes GenericAgents
  */
 
+import { MCPPythonCoderResultPrompt, histogramInterpretationPrompt, D3JSCodeValidationDecisionPrompt } from './visualizationSaga.js';
+
 export interface SDKAgentStep {
     transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater' | 'D3JSDataAnalyzer';
     name: string;
@@ -81,10 +83,16 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'subAgent',
                 isExecutable: true,
-                prompts: [],
+                prompts: [
+                    {
+                        agent: 'D3JSCoordinatingAgent',
+                        prompt: MCPPythonCoderResultPrompt
+                    }
+                ],
                 controlFlow: [
                      { agent: 'D3JSDataAnalyzer', flowType: 'context_pass', targetAgent: 'D3JSCoordinatingAgent' },
-                     { agent: 'DataProfiler', flowType: 'execute_agents', targetAgent: 'D3JSCoordinatingAgent' }
+                     { agent: 'DataProfiler', flowType: 'execute_agents', targetAgent: 'D3JSCoordinatingAgent' },
+                     { agent: 'D3JSCoordinatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCodingAgent' }
                 ]
             }
         }
@@ -109,11 +117,16 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             processConfig: {
                 processType: 'subAgent',
                 isExecutable: false,
-                prompts: [],
+                prompts: [
+                    {
+                        agent: 'D3JSCodingAgent',
+                        prompt: histogramInterpretationPrompt
+                    }
+                ],
                 controlFlow: [
                   // { agent: 'ValidatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCoordinatingAgent' },
                    { agent: 'D3JSCoordinatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCodingAgent' },
-                   { agent: 'D3JSCodingAgent', flowType: 'sdk_agent', targetAgent: 'ValidatingAgent' }
+                   { agent: 'D3JSCodingAgent', flowType: 'llm_call', targetAgent: 'ValidatingAgent' }
                 ],
              //   testWithPlaywright: true
             }
@@ -123,31 +136,40 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
             name: 'D3CodeValidationStep',
             description: 'Validate D3.js code against requirements and SVG output',
             inputFrom: 'd3jsCode',
-            outputKey: 'validatedCode',
+            outputKey: 'validationResult',
             processConfig: {
                 processType: 'agent',
                 isExecutable: false,
                 prompts: [],
                 controlFlow: [
-                     { agent: 'ValidatingAgent', flowType: 'validation', targetAgent: 'D3JSCodeValidator'  },
-                ],
-               // Re-test with Playwright if code was corrected
+                     // Validate the code generated in previous step
+                     { agent: 'ValidatingAgent', flowType: 'validation', targetAgent: 'D3JSCodeValidator' }
+                ]
             }
         },
         {
             transactionType: 'D3JSCodeUpdater',
-            name: 'UpdateExistingCodeStep',
-            description: 'Update existing D3 code based on user comments',
-            outputKey: 'updatedCode',
+            name: 'CodeCorrectionDecisionStep',
+            description: 'D3JSCodingAgent decides whether to correct code based on validation results',
+            inputFrom: 'validationResult',
+            outputKey: 'finalCode',
             processConfig: {
-                processType: 'subAgent',
+                processType: 'agent',
                 isExecutable: false,
-                prompts: [],
-                controlFlow: [
-                     { agent: 'D3JSCodeValidator', flowType: 'sdk_agent', targetAgent: 'D3JSCodingAgent'  },
-                      { agent: 'D3JSCodingAgent', flowType: 'sdk_agent', targetAgent: 'ValidatingAgent' }
+                prompts: [
+                    {
+                        agent: 'D3JSCodingAgent',
+                        prompt: D3JSCodeValidationDecisionPrompt
+                    }
                 ],
-               // Re-test with Playwright if code was corrected
+                controlFlow: [
+                     // Step 1: Pass original code from ValidatingAgent to D3JSCodingAgent
+                     { agent: 'ValidatingAgent', flowType: 'context_pass', targetAgent: 'D3JSCodingAgent' },
+                     // Step 2: Pass validation results from D3JSCodeValidator to D3JSCodingAgent
+                     { agent: 'D3JSCodeValidator', flowType: 'context_pass', targetAgent: 'D3JSCodingAgent' },
+                     // Step 3: D3JSCodingAgent decides - correct code or pass through
+                     { agent: 'D3JSCodingAgent', flowType: 'llm_call', targetAgent: 'ConversationAgent' }
+                ]
             }
         }
     ],

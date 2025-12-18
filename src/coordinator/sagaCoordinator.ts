@@ -279,7 +279,8 @@ sleep(ms: number) {
           agentOrName,
           step.targetAgent || step.agent,
           this.contextManager,
-          input.userQuery
+          input.userQuery,
+          this.agents  // Pass agents registry for ExecuteAgentsStrategy
         );
 
         if (!result.success) {
