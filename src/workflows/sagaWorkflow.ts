@@ -18,6 +18,7 @@ import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
 import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE } from '../types/pipelineConfig.js'
 import { claudeMDResuilt } from '../test/histogramData.js'
 
+import { runAllDAGExamples } from '../examples/dagDesignerExample.js'
 import * as fs from 'fs'
 
 
@@ -229,10 +230,52 @@ export class SagaWorkflow {
         agentName: 'ConversationAgent',
         agentType: 'processing',
         transactionId: 'tx-1',
-        backstory: 'Manage conversation with user as an intermediary passing user instructions to other agents.',
-        taskDescription: `You are a passthrough agent. You will recieve information in <context></context>, pass the information between the tags as is.`,
-      //  context: { dataSources: defaultDataSources },
-        taskExpectedOutput: 'Pass through the information as received, preserving all formatting and bracket tags. You must provide the opening and closing tags as received: [AGENT...][/AGENT]'
+        backstory: 'Receives workflow requirements from frontend and passes them to DAG Designer for autonomous workflow creation.',
+        taskDescription: `Your role is to receive workflow requirements from the frontend and ensure they are in the correct format for the DAG Designer.
+
+The frontend may send detailed agent specifications in an "agents" array. These are CRITICAL - they specify Python agents that will be executed via ExecuteAgentsStrategy.
+
+IMPORTANT: If frontend includes an "agents" array, PRESERVE IT - this tells DAG Designer which Python agents to create.
+
+Required fields:
+- objective: What the user wants to accomplish
+- inputData: {type, source, schema (optional)}
+- outputExpectation: {type, format (optional), quality (optional)}
+
+Optional but important fields:
+- agents: Array of agent specifications with {name, description, task, inputFrom, outputSchema}
+- constraints: {maxExecutionTime, parallelismAllowed, executionOrder}
+
+Output a clean JSON object with WorkflowRequirements format:
+{
+  "objective": "...",
+  "inputData": {
+    "type": "...",
+    "source": "...",
+    "schema": {...}
+  },
+  "outputExpectation": {
+    "type": "...",
+    "format": "...",
+    "quality": [...]
+  },
+  "agents": [
+    {
+      "name": "...",
+      "description": "...",
+      "task": "...",
+      "inputFrom": null or "PreviousAgentName",
+      "outputSchema": {...}
+    }
+  ],
+  "constraints": {
+    "parallelismAllowed": false,
+    "executionOrder": "sequential"
+  }
+}
+
+Preserve all values provided by the user, especially the agents array if present.`,
+        taskExpectedOutput: 'Complete WorkflowRequirements JSON including agents array if provided by frontend'
       },
        {
         agentName: 'TransactionGroupingAgent',
@@ -541,8 +584,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'openai' , //'anthropic' 'openai' 'gemini'
-        model:'gpt-5',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        provider:  'gemini' , //'anthropic' 'openai' 'gemini'
+        model:'gemini-3-pro-preview',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  4096,
        // apiKey: process.env.ANTHROPIC_API_KEY
@@ -677,11 +720,13 @@ Focus: Only array extraction
       this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
+    //  await runAllDAGExamples(this.coordinator);
+
       const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
 
       // PHASE 1: Execute DATA_PROFILING_PIPELINE
       console.log('\n🔄 PHASE 1: Data Profiling Pipeline');
-      let profilingState = await pipelineExecutor.executePipeline(
+  /*    let profilingState = await pipelineExecutor.executePipeline(
         DATA_PROFILING_PIPELINE,
         data.message || ''
       );
@@ -720,7 +765,7 @@ Focus: Only array extraction
       });
 
       const finalResult = pipelineExecutor.getFinalResult();
-      console.log('📊 Final Pipeline Result:', finalResult ? 'Available' : 'None');
+      console.log('📊 Final Pipeline Result:', finalResult ? 'Available' : 'None');*/
 
       // PHASE 3: Handle user review responses
       if (opType === 'profile_approved') {

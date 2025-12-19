@@ -5,7 +5,7 @@
  * Each SDK agent output feeds into a SAGA process that creates/executes GenericAgents
  */
 
-import { MCPPythonCoderResultPrompt, histogramInterpretationPrompt, D3JSCodeValidationDecisionPrompt } from './visualizationSaga.js';
+import { MCPPythonCoderResultPrompt, histogramInterpretationPrompt } from './visualizationSaga.js';
 
 export interface SDKAgentStep {
     transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater' | 'D3JSDataAnalyzer';
@@ -103,6 +103,11 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
 
 /**
  * D3 Visualization Generation and Validation Pipeline
+ *
+ * NOTE: D3JSCodeValidator now handles validation AND autonomous decision-making.
+ * It uses local tools (trigger_conversation, trigger_code_correction) to decide
+ * whether to send code to user or request corrections from D3JSCodingAgent.
+ * No separate "CodeCorrectionDecisionStep" needed.
  */
 export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
     name: 'D3VisualizationPipeline',
@@ -134,7 +139,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
         {
             transactionType: 'D3JSCodeValidator',
             name: 'D3CodeValidationStep',
-            description: 'Validate D3.js code against requirements and SVG output',
+            description: 'Validate D3.js code and autonomously decide next action (send to user OR request correction)',
             inputFrom: 'd3jsCode',
             outputKey: 'validationResult',
             processConfig: {
@@ -142,36 +147,15 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
                 isExecutable: false,
                 prompts: [],
                 controlFlow: [
-                     // Validate the code generated in previous step
+                     // D3JSCodeValidator validates the code and autonomously decides:
+                     // - If PASS: calls trigger_conversation → ConversationAgent
+                     // - If FAIL: calls trigger_code_correction → D3JSCodingAgent → ConversationAgent
                      { agent: 'ValidatingAgent', flowType: 'validation', targetAgent: 'D3JSCodeValidator' }
                 ]
             }
-        },
-        {
-            transactionType: 'D3JSCodeUpdater',
-            name: 'CodeCorrectionDecisionStep',
-            description: 'D3JSCodingAgent decides whether to correct code based on validation results',
-            inputFrom: 'validationResult',
-            outputKey: 'finalCode',
-            processConfig: {
-                processType: 'agent',
-                isExecutable: false,
-                prompts: [
-                    {
-                        agent: 'D3JSCodingAgent',
-                        prompt: D3JSCodeValidationDecisionPrompt
-                    }
-                ],
-                controlFlow: [
-                     // Step 1: Pass original code from ValidatingAgent to D3JSCodingAgent
-                     { agent: 'ValidatingAgent', flowType: 'context_pass', targetAgent: 'D3JSCodingAgent' },
-                     // Step 2: Pass validation results from D3JSCodeValidator to D3JSCodingAgent
-                     { agent: 'D3JSCodeValidator', flowType: 'context_pass', targetAgent: 'D3JSCodingAgent' },
-                     // Step 3: D3JSCodingAgent decides - correct code or pass through
-                     { agent: 'D3JSCodingAgent', flowType: 'llm_call', targetAgent: 'ConversationAgent' }
-                ]
-            }
         }
+        // REMOVED: CodeCorrectionDecisionStep is now handled autonomously by D3JSCodeValidator
+        // using local tools (trigger_conversation, trigger_code_correction)
     ],
     onComplete: 'send_to_user'
 };

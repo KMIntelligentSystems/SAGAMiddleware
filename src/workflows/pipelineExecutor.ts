@@ -157,7 +157,8 @@ export class PipelineExecutor {
             case 'D3JSCodeUpdater':
                 return new D3JSCodeUpdater(contextManager);
             case 'D3JSCodeValidator':
-                return new D3JSCodeValidator(contextManager);
+                // Pass coordinator for autonomous decision-making tools
+                return new D3JSCodeValidator(contextManager, this.coordinator);
              case 'D3JSDataAnalyzer':
                 return new D3JSDataAnalyzer(contextManager);
             default:

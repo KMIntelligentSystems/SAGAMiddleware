@@ -92,7 +92,10 @@ export class GenericAgent {
 
       const prompt = this.createPrompt();//buildPrompt(contextData);
         console.log("PROMPT ",prompt)
-     //   result = await this.invokeLLM(prompt);
+          if(this.definition.name === 'D3JSCodingAgent'){
+             result = await this.invokeLLM(prompt);
+          }
+   
 
       // TEMPORARY: For testing, return hardcoded data for TransactionGroupingAgent
       if(this.definition.name === 'TransactionGroupingAgent'){
@@ -115,7 +118,7 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for D3JSCodingAgent
       if(this.definition.name === 'D3JSCodingAgent'){
         console.log('🔧 D3JSCodingAgent: Reading test data from opus.html');
-        result.result = fs.readFileSync('C:/repos/Main/opus.html', 'utf-8');
+       result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
       }
 
     
