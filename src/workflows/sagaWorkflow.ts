@@ -353,12 +353,12 @@ Preserve all values provided by the user, especially the agents array if present
         agentType: 'processing',
         transactionId: 'tx-5-2',
         backstory: 'You are a D3.js code validator and quality assurance specialist.',
-        taskDescription: 'Your role is to validate D3.js visualization code against requirements, check for errors, ensure best practices, and verify that the code will render correctly.',
+        taskDescription: 'Your role is to validate D3.js visualization code against requirements, check for errors, ensure best practices, and verify that the code will render correctly. You can call tools and read files.',
         taskExpectedOutput: 'Validation report indicating whether code meets requirements, list of any issues found, and corrected code if needed.'
       },
 
       //Was part of validation of the collated results of csv data analysis given to challenger tx-6 to make critique and provide back to tx-5
-      {
+    /*  {
         agentName: 'D3JSDataAnalyzer',
         agentType: 'processinisg',
         transactionId: 'tx-6',
@@ -366,7 +366,7 @@ Preserve all values provided by the user, especially the agents array if present
         to be amended in the JSON object that does not follow the rules.`,
         taskDescription:  csvAnalysisRefectingAgentPrompt,
         taskExpectedOutput: 'Provide a concise report.'
-      },
+      },*/
        {
         agentName: 'D3JSCodingAgent',
         agentType: 'processing',
@@ -720,7 +720,7 @@ Focus: Only array extraction
       this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
-    //  await runAllDAGExamples(this.coordinator);
+      await runAllDAGExamples(this.coordinator);
 
       const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
 

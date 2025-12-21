@@ -79,13 +79,13 @@ export const buildWorkflowRequirementsTool = tool(
         // Optional: Frontend agent specifications
         agents: z.array(z.object({
             name: z.string(),
-            description: z.string(),
+            agentType: z.enum(['python_coding', 'functional']).or(z.string()),
             task: z.string(),
             inputFrom: z.string().nullable(),
             outputSchema: z.any().optional()
         }))
             .optional()
-            .describe('Optional array of frontend-specified Python agents with detailed task descriptions. Used by ExecuteAgentsStrategy.')
+            .describe('Optional array of frontend-specified agents with detailed task descriptions. agentType: "python_coding" for Python execution, "functional" for LLM-based tasks.')
     },
     async (args: {
         objective: string;

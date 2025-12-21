@@ -27,6 +27,19 @@ export interface DAGNode {
     type: NodeType;                // Type of node
     agentName: string;             // Agent name from registry
     prompt?: string;               // Optional prompt override
+
+    // SDK Agent step configuration (for sdk_agent nodes)
+    stepConfig?: {
+        transactionType?: string;  // For SDK agents (DataProfiler, D3JSCodeGenerator, etc.)
+        processConfig?: {
+            processType: string;   // 'agent' | 'subAgent'
+            isExecutable: boolean;
+            prompts: { agent: string; prompt: string }[];
+            renderVisualization?: boolean;
+            testWithPlaywright?: boolean;
+        };
+    };
+
     metadata?: {
         description?: string;
         tags?: string[];
@@ -46,9 +59,15 @@ export interface DAGEdge {
         type: 'result' | 'context' | 'custom';
         expression: string;        // Conditional expression (e.g., "validation_passed")
     };
+
+    // Execution hints
+    executionHint?: 'sequential' | 'parallel';  // Hint for parallel vs sequential execution
+    priority?: number;                          // Execution priority (higher = first)
+
     metadata?: {
         description?: string;
         weight?: number;           // Edge weight for optimization
+        promptOverride?: string;   // Optional prompt override for this edge
     };
 }
 
@@ -85,23 +104,6 @@ export interface DAGComplexity {
     branchingFactor: number;       // Average outgoing edges per node
     parallelPaths: number;         // Number of parallel execution paths
     cyclomaticComplexity: number;  // Measure of decision complexity
-}
-
-/**
- * DAG Execution Context
- */
-export interface DAGExecutionContext {
-    dagId: string;
-    executionId: string;           // Unique execution instance ID
-    startTime: Date;
-    currentNode?: string;          // Currently executing node
-    executedNodes: Set<string>;    // Nodes that have completed
-    nodeResults: Map<string, any>; // Results from each node
-    errors: Array<{
-        nodeId: string;
-        error: string;
-        timestamp: Date;
-    }>;
 }
 
 /**
@@ -159,7 +161,7 @@ export interface WorkflowRequirements {
  */
 export interface FrontendAgentSpec {
     name: string;                  // Agent name (e.g., "DataProfiler", "HistogramParametersOptimizer")
-    description: string;           // Human-readable description
+    agentType: 'python_coding' | 'functional' | string;  // Agent type (python_coding for code execution, functional for LLM-based)
     task: string;                  // Detailed task description (will be converted to Python code)
     inputFrom: string | null;      // Name of previous agent or null for first agent
     outputSchema?: any;            // Expected output structure

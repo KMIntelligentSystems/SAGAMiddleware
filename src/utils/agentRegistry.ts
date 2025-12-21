@@ -23,6 +23,8 @@ export function extractAvailableAgents(coordinator: SagaCoordinator): AvailableA
         }
     });
 
+    console.log('AVAILABLE AGENTS', availableAgents)
+
     return availableAgents;
 }
 

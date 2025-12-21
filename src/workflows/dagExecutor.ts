@@ -10,13 +10,18 @@ import {
     DAGDefinition,
     DAGNode,
     DAGEdge,
-    DAGExecutionContext,
     DAGValidationResult,
     DAGComplexity
 } from '../types/dag.js';
 import { AgentResult } from '../types/index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
+import { DataProfiler } from '../agents/dataProfiler.js';
+import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
+import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
+import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
+import { D3JSCodeUpdater } from '../agents/d3jsCodeUpdater.js';
+import { D3JSDataAnalyzer } from '../agents/d3jsDataAnalyzer.js';
 import {
     LLMCallStrategy,
     ContextPassStrategy,
@@ -27,21 +32,15 @@ import {
 
 export class DAGExecutor {
     private coordinator: SagaCoordinator;
-    private context: DAGExecutionContext;
     private strategyMap: Map<string, any>;
+    private executionPath: Set<string> = new Set(); // Track execution to prevent cycles
+
+    // Execution metadata (just for logging/tracking)
+    private currentDagId: string = '';
+    private executionStartTime: Date = new Date();
 
     constructor(coordinator: SagaCoordinator) {
         this.coordinator = coordinator;
-
-        // Initialize execution context
-        this.context = {
-            dagId: '',
-            executionId: this.generateExecutionId(),
-            startTime: new Date(),
-            executedNodes: new Set(),
-            nodeResults: new Map(),
-            errors: []
-        };
 
         // Map flow types to strategies
         this.strategyMap = new Map([
@@ -49,23 +48,26 @@ export class DAGExecutor {
             ['context_pass', ContextPassStrategy],
             ['execute_agents', ExecuteAgentsStrategy],
             ['sdk_agent', SDKAgentStrategy],
-            ['validation', ValidationStrategy]
+            ['validation', ValidationStrategy],
+            ['autonomous_decision', ContextPassStrategy] // Uses existing strategy - routing via edge conditions
         ]);
     }
 
     /**
      * Execute a DAG
+     * Results stored in ContextManager by FlowStrategies
      */
-    async executeDAG(dag: DAGDefinition, input: any): Promise<any> {
+    async executeDAG(dag: DAGDefinition, input: any): Promise<void> {
         console.log(`\n🔀 ============================================`);
         console.log(`🔀 Executing DAG: ${dag.name}`);
         console.log(`🔀 Description: ${dag.description}`);
         console.log(`🔀 Nodes: ${dag.nodes.length}, Edges: ${dag.edges.length}`);
         console.log(`🔀 ============================================\n`);
 
-        // Initialize context
-        this.context.dagId = dag.id;
-        this.context.startTime = new Date();
+        // Initialize execution metadata
+        this.currentDagId = dag.id;
+        this.executionStartTime = new Date();
+        this.executionPath.clear();
 
         try {
             // Phase 1: Validate DAG
@@ -83,20 +85,17 @@ export class DAGExecutor {
             console.log('\n📊 DAG Topology:');
             this.displayTopology(dag);
 
-            // Phase 3: Execute from entry node
+            // Phase 3: Execute from entry node - results stored in ContextManager
             console.log('\n🚀 Phase 2: Executing DAG...\n');
-            const result = await this.executeNode(dag, dag.entryNode, input);
+            await this.executeNode(dag, dag.entryNode, input);
 
             // Phase 4: Summary
-            const duration = Date.now() - this.context.startTime.getTime();
+            const duration = Date.now() - this.executionStartTime.getTime();
             console.log(`\n✅ DAG execution completed in ${duration}ms`);
-            console.log(`   Nodes executed: ${this.context.executedNodes.size}/${dag.nodes.length}`);
-            console.log(`   Errors: ${this.context.errors.length}`);
-
-            return result;
+            console.log(`   Nodes executed: ${this.executionPath.size}/${dag.nodes.length}`);
 
         } catch (error) {
-            const duration = Date.now() - this.context.startTime.getTime();
+            const duration = Date.now() - this.executionStartTime.getTime();
             console.error(`\n❌ DAG execution failed after ${duration}ms`);
             console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
             throw error;
@@ -105,16 +104,17 @@ export class DAGExecutor {
 
     /**
      * Execute a single node in the DAG
+     * Traverses graph, delegates to strategies for execution
      */
     private async executeNode(
         dag: DAGDefinition,
         nodeId: string,
         input: any
-    ): Promise<any> {
-        // Check if already executed
-        if (this.context.executedNodes.has(nodeId)) {
+    ): Promise<void> {
+        // Check if already executed (cycle detection)
+        if (this.executionPath.has(nodeId)) {
             console.log(`⏭️  Node ${nodeId} already executed, skipping...`);
-            return this.context.nodeResults.get(nodeId);
+            return;
         }
 
         // Get node definition
@@ -123,13 +123,10 @@ export class DAGExecutor {
             throw new Error(`Node not found: ${nodeId}`);
         }
 
-        // Update current node
-        this.context.currentNode = nodeId;
-
         // Check if all incoming edges are satisfied
         const incomingEdges = dag.edges.filter(e => e.to === nodeId);
         const unsatisfiedDeps = incomingEdges.filter(
-            edge => !this.context.executedNodes.has(edge.from)
+            edge => !this.executionPath.has(edge.from)
         );
 
         if (unsatisfiedDeps.length > 0) {
@@ -144,82 +141,85 @@ export class DAGExecutor {
             console.log(`\n▶️  Executing Node: ${nodeId} (${node.agentName})`);
             console.log(`   Type: ${node.type}`);
 
-            // Execute the node based on incoming edges
-            let result: any;
+            // Mark as executed (for cycle detection)
+            this.executionPath.add(nodeId);
 
+            // Execute the node based on type
             if (node.type === 'entry') {
-                // Entry node just passes input
-                result = input;
+                // Entry node - just log, no execution
+                console.log(`   Entry node, continuing...`);
             } else if (node.type === 'exit') {
-                // Exit node returns accumulated result
-                result = this.getAccumulatedResult(dag, nodeId);
+                // Exit node - results already in ContextManager
+                console.log(`🏁 Reached exit node: ${nodeId}`);
+                return;
             } else {
-                // Execute based on incoming edges
-                result = await this.executeNodeWithStrategy(dag, node, incomingEdges);
+                // Execute node using strategy - strategy updates ContextManager
+                await this.executeNodeWithStrategy(dag, node, incomingEdges);
             }
-
-            // Mark as executed and store result
-            this.context.executedNodes.add(nodeId);
-            this.context.nodeResults.set(nodeId, result);
 
             console.log(`✅ Node ${nodeId} completed`);
 
             // Find outgoing edges
             const outgoingEdges = dag.edges.filter(e => e.from === nodeId);
 
-            // Check if we're at an exit node
-            if (dag.exitNodes.includes(nodeId)) {
-                console.log(`🏁 Reached exit node: ${nodeId}`);
-                return result;
+            if (outgoingEdges.length === 0 && !dag.exitNodes.includes(nodeId)) {
+                console.log(`⚠️  Node ${nodeId} has no outgoing edges but is not marked as exit node`);
+                return;
             }
 
             // Execute downstream nodes
-            if (outgoingEdges.length === 0) {
-                console.log(`⚠️  Node ${nodeId} has no outgoing edges but is not marked as exit node`);
-                return result;
-            }
-
-            // Check for parallel paths
             if (outgoingEdges.length > 1) {
                 console.log(`🔀 Node ${nodeId} has ${outgoingEdges.length} outgoing edges - executing in parallel`);
-                const downstreamResults = await Promise.all(
-                    outgoingEdges.map(edge => this.executeEdge(dag, edge, result))
+                await Promise.all(
+                    outgoingEdges.map(edge => this.executeEdge(dag, edge))
                 );
-                // Return the first non-null result
-                return downstreamResults.find(r => r !== null) || result;
-            } else {
+            } else if (outgoingEdges.length === 1) {
                 // Single outgoing edge
-                return await this.executeEdge(dag, outgoingEdges[0], result);
+                await this.executeEdge(dag, outgoingEdges[0]);
             }
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             console.error(`❌ Error executing node ${nodeId}: ${errorMsg}`);
-
-            this.context.errors.push({
-                nodeId,
-                error: errorMsg,
-                timestamp: new Date()
-            });
-
             throw error;
         }
     }
 
     /**
+     * Instantiate SDK agent by transaction type
+     * Injects the coordinator's context manager for shared context access
+     */
+    private instantiateSDKAgent(node: DAGNode): BaseSDKAgent {
+        const transactionType = node.stepConfig?.transactionType || node.agentName;
+        const contextManager = this.coordinator.contextManager;
+
+        switch (transactionType) {
+            case 'DataProfiler':
+                return new DataProfiler(contextManager);
+            case 'AgentStructureGenerator':
+                return new AgentStructureGenerator(contextManager);
+            case 'D3JSCodeGenerator':
+                return new D3JSCodeGenerator(contextManager);
+            case 'D3JSCodeUpdater':
+                return new D3JSCodeUpdater(contextManager);
+            case 'D3JSCodeValidator':
+                return new D3JSCodeValidator(contextManager, this.coordinator);
+            case 'D3JSDataAnalyzer':
+                return new D3JSDataAnalyzer(contextManager);
+            default:
+                throw new Error(`Unknown SDK agent transaction type: ${transactionType}`);
+        }
+    }
+
+    /**
      * Execute node using appropriate flow strategy
+     * Strategy handles ContextManager updates
      */
     private async executeNodeWithStrategy(
         dag: DAGDefinition,
         node: DAGNode,
         incomingEdges: DAGEdge[]
-    ): Promise<any> {
-        // Get the agent
-        const agent = this.coordinator.agents.get(node.agentName);
-        if (!agent) {
-            throw new Error(`Agent not found in registry: ${node.agentName}`);
-        }
-
+    ): Promise<void> {
         // Determine strategy from incoming edge
         const primaryEdge = incomingEdges[0]; // Use first edge to determine strategy
         if (!primaryEdge) {
@@ -231,23 +231,48 @@ export class DAGExecutor {
             throw new Error(`Unknown flow type: ${primaryEdge.flowType}`);
         }
 
-        // Get source agent/node name for strategy
+        // Get source agent/node name for context lookups
         const sourceNode = dag.nodes.find(n => n.id === primaryEdge.from);
         const sourceAgentName = sourceNode?.agentName || primaryEdge.from;
 
-        // Execute using strategy
         console.log(`   Strategy: ${primaryEdge.flowType}`);
         console.log(`   Source: ${sourceAgentName} → ${node.agentName}`);
 
-        const result = await strategy.execute(
-            agent,
+        // Determine what to pass to strategy based on flowType (like SagaCoordinator does)
+        let agentOrName: any;
+
+        if (primaryEdge.flowType === 'context_pass' || primaryEdge.flowType === 'execute_agents' || primaryEdge.flowType === 'autonomous_decision') {
+            // For context-based strategies, pass a name object to look up context in ContextManager
+            // autonomous_decision uses ContextPassStrategy - routing determined by edge conditions
+            agentOrName = {
+                getName: () => sourceAgentName
+            };
+            console.log(`📝 Using context key: ${sourceAgentName}`);
+        } else if (primaryEdge.flowType === 'llm_call' || primaryEdge.flowType === 'validation') {
+            // For LLM calls and validation, get the actual GenericAgent instance
+            const genericAgent = this.coordinator.agents.get(node.agentName);
+            if (!genericAgent) {
+                throw new Error(`GenericAgent not found in registry: ${node.agentName}`);
+            }
+            agentOrName = genericAgent;
+        } else if (primaryEdge.flowType === 'sdk_agent') {
+            // For SDK agents, instantiate the BaseSDKAgent
+            if (node.type !== 'sdk_agent') {
+                throw new Error(`Node ${node.id} has sdk_agent flowType but is not an sdk_agent node type`);
+            }
+            agentOrName = this.instantiateSDKAgent(node);
+        } else {
+            throw new Error(`Unsupported flowType: ${primaryEdge.flowType}`);
+        }
+
+        // Execute using strategy - strategy updates ContextManager
+        await strategy.execute(
+            agentOrName,
             node.agentName,
             this.coordinator.contextManager,
             undefined, // userQuery - can be passed if needed
             this.coordinator.agents // agents registry for ExecuteAgentsStrategy
         );
-
-        return result;
     }
 
     /**
@@ -255,20 +280,23 @@ export class DAGExecutor {
      */
     private async executeEdge(
         dag: DAGDefinition,
-        edge: DAGEdge,
-        currentResult: any
-    ): Promise<any> {
+        edge: DAGEdge
+    ): Promise<void> {
         // Check edge condition if present
         if (edge.condition) {
-            const conditionMet = this.evaluateCondition(edge.condition, currentResult);
+            // Get result from ContextManager for condition evaluation
+            const sourceNode = dag.nodes.find(n => n.id === edge.from);
+            const ctx = this.coordinator.contextManager.getContext(sourceNode?.agentName || edge.from);
+
+            const conditionMet = this.evaluateCondition(edge.condition, ctx?.lastTransactionResult);
             if (!conditionMet) {
                 console.log(`⏭️  Edge ${edge.id} condition not met, skipping target ${edge.to}`);
-                return null;
+                return;
             }
         }
 
         // Execute target node
-        return await this.executeNode(dag, edge.to, currentResult);
+        await this.executeNode(dag, edge.to, null);
     }
 
     /**
@@ -292,17 +320,6 @@ export class DAGExecutor {
             default:
                 return true;
         }
-    }
-
-    /**
-     * Get accumulated result from all incoming edges
-     */
-    private getAccumulatedResult(dag: DAGDefinition, nodeId: string): any {
-        const incomingEdges = dag.edges.filter(e => e.to === nodeId);
-        const results = incomingEdges.map(edge => this.context.nodeResults.get(edge.from));
-
-        // Return the last non-null result
-        return results.reverse().find(r => r !== null && r !== undefined);
     }
 
     /**
@@ -497,17 +514,4 @@ export class DAGExecutor {
         });
     }
 
-    /**
-     * Generate unique execution ID
-     */
-    private generateExecutionId(): string {
-        return `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    /**
-     * Get execution context (for debugging/monitoring)
-     */
-    getExecutionContext(): DAGExecutionContext {
-        return this.context;
-    }
 }

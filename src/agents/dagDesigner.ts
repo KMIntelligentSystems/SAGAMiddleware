@@ -2,22 +2,24 @@
  * DAG Designer SDK Agent
  *
  * Autonomous agent that designs DAG workflows by:
- * 1. Reading workflow requirements
- * 2. Understanding available agents and their capabilities
- * 3. Formulating an optimal DAG plan
- * 4. Generating DAGDefinition configuration
+ * 1. Following a step-by-step plan for the desired objective
+ * 2. Concentrating on agent function interactions between steps
+ * 3. Matching plan steps with available agent capabilities
+ * 4. Distinguishing between Claude SDK Agents (powerful, terminal access) and Generic Agents (task-specific)
+ * 5. Generating DAGDefinition configuration with proper flow types
  */
 
 import { BaseSDKAgent } from './baseSDKAgent.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-// import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
-// import { z } from 'zod';
+import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
 import {
     DAGDefinition,
     WorkflowRequirements,
     AvailableAgent,
     DAGDesignResult
 } from '../types/dag.js';
+import * as fs from 'fs';
 
 export interface DAGDesignerInput {
     workflowRequirements: WorkflowRequirements;
@@ -41,15 +43,125 @@ export class DAGDesigner extends BaseSDKAgent {
 
     /**
      * Setup tools for autonomous DAG design
-     * TEMPORARILY DISABLED - SDK subprocess crashes with custom tools
-     * Will add tools back after debugging SDK configuration
+     * Local tool to output validated DAG definition
      */
     private setupDesignTools(): void {
-        // TODO: Re-enable custom tools once SDK configuration is fixed
-        // The Claude SDK subprocess crashes when creating custom MCP servers
-        // For now, the agent will work without the helper tools
-        console.log('ℹ️  DAG Designer running without custom tools (to avoid SDK crash)');
-        console.log('   Agent will design DAGs based on prompt instructions only');
+        // Tool: Output the designed DAG definition
+        const outputDAGTool = tool(
+            'output_dag_definition',
+            'Output the final DAG definition as a validated DAGDefinition object. Use this tool to submit your designed DAG after validating it follows all the rules.',
+            {
+                dag: z.object({
+                    id: z.string().describe('Unique DAG identifier'),
+                    name: z.string().describe('DAG name'),
+                    description: z.string().describe('Brief description of what this DAG does'),
+                    version: z.string().describe('Version (e.g., "1.0.0")'),
+                    nodes: z.array(z.object({
+                        id: z.string(),
+                        type: z.enum(['entry', 'agent', 'sdk_agent', 'tool_agent', 'exit']),
+                        agentName: z.string(),
+                        prompt: z.string().optional(),
+                        metadata: z.record(z.any()).optional(),
+                        stepConfig: z.any().optional()
+                    })),
+                    edges: z.array(z.object({
+                        id: z.string(),
+                        from: z.string(),
+                        to: z.string(),
+                        flowType: z.enum(['llm_call', 'context_pass', 'execute_agents', 'sdk_agent', 'validation', 'autonomous_decision']),
+                        condition: z.object({
+                            type: z.string(),
+                            expression: z.string()
+                        }).optional(),
+                        metadata: z.record(z.any()).optional()
+                    })),
+                    entryNode: z.string(),
+                    exitNodes: z.array(z.string())
+                }).describe('The complete DAG definition object')
+            },
+            async (args) => {
+                return this.handleOutputDAG(args);
+            }
+        );
+
+        // Create MCP server with the tool
+        const mcpServer = createSdkMcpServer({
+            name: 'dag-designer',
+            tools: [outputDAGTool]
+        });
+
+        // Add MCP server to options
+        this.options.mcpServers = {
+            'dag-designer': mcpServer
+        } as any;
+
+        console.log('✅ DAG Designer tools setup complete');
+    }
+
+    /**
+     * Handler for output_dag_definition tool
+     * Validates and stores the DAG definition in context
+     */
+    private async handleOutputDAG(args: any) {
+        try {
+            console.log('🎯 output_dag_definition tool called');
+
+            const dag = args.dag as DAGDefinition;
+
+            // Validate the DAG structure
+            const validation = this.validateDAGStructure(dag);
+
+            if (!validation.valid) {
+                console.error('❌ DAG validation failed:');
+                validation.errors.forEach(err => console.error(`   - ${err}`));
+
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: JSON.stringify({
+                            success: false,
+                            errors: validation.errors,
+                            message: 'DAG validation failed. Please fix the errors and try again.'
+                        }, null, 2)
+                    }],
+                    isError: true
+                };
+            }
+
+            console.log('✅ DAG validated successfully');
+            console.log(`   Nodes: ${dag.nodes.length}`);
+            console.log(`   Edges: ${dag.edges.length}`);
+
+            // Store the validated DAG in context
+            this.setContext({
+                designedDAG: dag,
+                validation: validation,
+                timestamp: new Date()
+            });
+
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                        success: true,
+                        message: 'DAG definition validated and stored successfully',
+                        nodeCount: dag.nodes.length,
+                        edgeCount: dag.edges.length,
+                        warnings: validation.warnings
+                    }, null, 2)
+                }]
+            };
+
+        } catch (error) {
+            console.error('❌ Error in handleOutputDAG:', error);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error processing DAG: ${error instanceof Error ? error.message : String(error)}`
+                }],
+                isError: true
+            };
+        }
     }
 
     /**
@@ -77,47 +189,33 @@ export class DAGDesigner extends BaseSDKAgent {
             // Build design prompt
             const prompt = this.buildDesignPrompt(input.workflowRequirements, input.availableAgents);
 
-            // Execute design query
+            // Execute design query - agent will call output_dag_definition tool
             console.log('🤔 Analyzing requirements and formulating DAG plan...');
-            const output = await this.executeQuery(prompt);
+            await this.executeQuery(prompt);
 
-            // Parse the DAG design from output
-            const dagDesign = this.parseDAGFromOutput(output);
+            // Retrieve the DAG from context (stored by output_dag_definition tool)
+            const ctx = this.contextManager.getContext('DAGDesigner') as WorkingMemory;
+            const designedDAG = ctx?.designedDAG as DAGDefinition;
 
-            if (!dagDesign) {
+            if (!designedDAG) {
                 return {
                     agentName: 'DAGDesigner',
                     result: '',
                     success: false,
                     timestamp: new Date(),
-                    error: 'Failed to parse DAG design from agent output'
+                    error: 'Agent did not output a DAG definition using the output_dag_definition tool'
                 };
             }
 
-            // Validate the designed DAG
-            const validation = this.validateDAGStructure(dagDesign);
-
-            if (!validation.valid) {
-                console.error('❌ Designed DAG failed validation:');
-                validation.errors.forEach(err => console.error(`   - ${err}`));
-                return {
-                    agentName: 'DAGDesigner',
-                    result: '',
-                    success: false,
-                    timestamp: new Date(),
-                    error: `DAG validation failed: ${validation.errors.join(', ')}`
-                };
-            }
-
-            console.log('✅ DAG design validated successfully');
-            console.log(`   Nodes: ${dagDesign.nodes.length}`);
-            console.log(`   Edges: ${dagDesign.edges.length}`);
+            console.log('✅ DAG design retrieved from context');
+            console.log(`   Nodes: ${designedDAG.nodes.length}`);
+            console.log(`   Edges: ${designedDAG.edges.length}`);
 
             const result: DAGDesignResult = {
                 success: true,
-                dag: dagDesign,
+                dag: designedDAG,
                 reasoning: 'DAG designed autonomously based on workflow requirements',
-                warnings: validation.warnings
+                warnings: ctx?.validation?.warnings || []
             };
 
             return {
@@ -156,230 +254,103 @@ export class DAGDesigner extends BaseSDKAgent {
         requirements: WorkflowRequirements,
         availableAgents: AvailableAgent[]
     ): string {
-        return `You are a DAG Designer agent. Your task is to design an optimal Directed Acyclic Graph (DAG) workflow based on the requirements and available agents.
+        return `You are a DAG Designer agent. Your task is to design an optimal Directed Acyclic Graph (DAG) workflow by following a step-by-step plan and mapping agent function interactions.
+
+# CRITICAL: YOU MUST READ THE CODEBASE FILES FIRST
+
+**STOP! Before designing anything, you MUST use your file reading tools to examine these files in this exact order:**
+
+1. **FIRST: Read /src/config/agentDefinitions.ts**
+   - See AGENT_DEFINITIONS array - these are ALL the Generic agents you can use
+   - See SDK_AGENTS list - these are ALL the SDK agents available
+   - DO NOT invent agent names not in these lists
+
+2. **SECOND: Read /src/workflows/dagExecutor.ts** (focus on lines 40-54, 192-212, 218-276)
+   - Line 46-53: strategyMap - shows which flowTypes are valid
+   - Line 192-212: instantiateSDKAgent - shows which SDK agents can be instantiated
+   - Line 218-276: executeNodeWithStrategy - shows how flowTypes map to strategies
+
+3. **THIRD: Read /src/process/FlowStrategies.ts** (lines 1-398)
+   - Each strategy implementation shows exactly how that flowType works
+   - Line 33-82: LLMCallStrategy
+   - Line 89-123: ContextPassStrategy
+   - Line 134-244: ExecuteAgentsStrategy
+   - Line 296-323: SDKAgentStrategy
+   - Line 335-370: ValidationStrategy
+
+
+
 
 # WORKFLOW REQUIREMENTS
 
-**Objective:** ${requirements.objective}
+${JSON.stringify(requirements, null, 2)}
 
-**Input Data:**
-- Type: ${requirements.inputData.type}
-- Source: ${requirements.inputData.source}
-${requirements.inputData.schema ? `- Schema: ${JSON.stringify(requirements.inputData.schema)}` : ''}
+**Agent Type Mapping:**
+- \`agentType: "python_coding"\` → Use ExecuteAgentsStrategy with tool agents
+- \`agentType: "functional"\` → Use LLMCallStrategy with Generic agents
 
-**Output Expectation:**
-- Type: ${requirements.outputExpectation.type}
-${requirements.outputExpectation.format ? `- Format: ${requirements.outputExpectation.format}` : ''}
-${requirements.outputExpectation.quality ? `- Quality: ${requirements.outputExpectation.quality.join(', ')}` : ''}
 
-**Constraints:**
-${requirements.constraints?.maxExecutionTime ? `- Max execution time: ${requirements.constraints.maxExecutionTime}ms` : ''}
-${requirements.constraints?.mustIncludeAgents ? `- Must include: ${requirements.constraints.mustIncludeAgents.join(', ')}` : ''}
-${requirements.constraints?.mustExcludeAgents ? `- Must exclude: ${requirements.constraints.mustExcludeAgents.join(', ')}` : ''}
-${requirements.constraints?.parallelismAllowed !== undefined ? `- Parallelism allowed: ${requirements.constraints.parallelismAllowed}` : ''}
-${requirements.constraints?.executionOrder ? `- Execution order: ${requirements.constraints.executionOrder}` : ''}
+# AVAILABLE AGENT TYPES
 
-${requirements.agents && requirements.agents.length > 0 ? `
-# FRONTEND-SPECIFIED PYTHON AGENTS (CRITICAL)
+**Two Types of Agents:**
 
-The frontend has specified ${requirements.agents.length} Python agents that MUST be executed using the execute_agents flow type.
-These agents form a sequential data processing pipeline that must be incorporated into your DAG design.
+1. **SDK Agents** (e.g., DataProfiler, D3JSCodeValidator) - Claude SDK agents with terminal/file access
+   - Instantiated in dagExecutor.ts via instantiateSDKAgent()
+   - Use flowType: "sdk_agent" with node type: "sdk_agent"
+   - Can read files, execute code, make complex decisions
 
-${requirements.agents.map((agent, idx) => `
-## Agent ${idx + 1}: ${agent.name}
-- **Description:** ${agent.description}
-- **Task:** ${agent.task}
-- **Input From:** ${agent.inputFrom || 'Entry (first agent)'}
-- **Output Schema:** ${JSON.stringify(agent.outputSchema)}
-`).join('\n')}
+2. **Generic Agents** (e.g., D3JSCodingAgent, ConversationAgent) - LLM-based agents from agentDefinitions.ts
+   - Retrieved from coordinator.agents registry
+   - Use flowType: "llm_call" with node type: "agent"
+   - Process context and generate outputs via LLM calls
 
-**CRITICAL INSTRUCTIONS FOR FRONTEND AGENTS:**
-1. You MUST create nodes for each of these ${requirements.agents.length} Python agents
-2. Connect them using "execute_agents" flow type
-3. The task descriptions will be converted to Python code by ExecuteAgentsStrategy
-4. These agents run sequentially (each depends on previous agent's output via _prev_result)
-5. After the Python agents complete, route their output to D3 visualization/validation agents
-6. Include these agents as "agent" type nodes with agentName matching the frontend agent name
-` : ''}
+**CRITICAL RULES FROM THE CODE:**
+- Entry node → first SDK agent: Use flowType "context_pass"
+- SDK agent → next node: Use flowType "sdk_agent"
+- Generic agent → next agent: Use flowType "llm_call"
+- For Python execution: Use flowType "execute_agents"
+- For branching (retry/success): Use flowType "autonomous_decision" WITHOUT creating cycles
+- **NO CYCLES ALLOWED** - Use the branching pattern from the example, NOT loops
 
-# AVAILABLE AGENTS
 
-${availableAgents.map(agent => `
-## ${agent.name} (${agent.type})
-- **Description:** ${agent.description}
-- **Capabilities:** ${agent.capabilities.join(', ')}
-- **Requires:** ${agent.inputRequirements.join(', ')}
-- **Provides:** ${agent.outputProvides.join(', ')}
-${agent.tools ? `- **Tools:** ${agent.tools.join(', ')}` : ''}
-${agent.estimatedDuration ? `- **Est. Duration:** ${agent.estimatedDuration}ms` : ''}
-`).join('\n')}
+**YOUR TASK:** After your analysis of the execution environment and of the steps provided in the user's workflow plan, design a DAG that matches the workflow plan with the known and understood agents which can be rendered into flow strategies via the dagExecutor.
 
-# YOUR TASK
+# CRITICAL: USE THE output_dag_definition TOOL
 
-Design an optimal DAG that fulfills the workflow requirements using the available agents.
+After designing your DAG based on the workflow requirements and codebase analysis, you MUST call the \`output_dag_definition\` tool to submit your design.
 
-**Design Process:**
-1. Analyze the workflow objective and break it down into steps
-2. Review the available agents list above and select suitable agents
-3. Determine the optimal sequence and flow between agents
-4. Consider parallel execution opportunities where applicable
-5. Ensure your design is a valid DAG (acyclic, all nodes reachable from entry)
+**DO NOT output JSON directly in your response. Instead, call the tool with your DAG object:**
 
-**Output Format:**
-You MUST output a valid JSON object with this exact structure:
-
-\`\`\`json
-{
-  "id": "unique_dag_id",
-  "name": "DAGName",
-  "description": "What this DAG does",
-  "version": "1.0.0",
-  "nodes": [
-    {
-      "id": "node_1",
-      "type": "entry",
-      "agentName": "UserInput",
-      "metadata": {
-        "description": "Entry point"
-      }
-    },
-    {
-      "id": "node_2",
-      "type": "agent",
-      "agentName": "AgentName",
-      "prompt": "Optional prompt override",
-      "metadata": {
-        "description": "What this node does"
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": "edge_1",
-      "from": "node_1",
-      "to": "node_2",
-      "flowType": "llm_call",
-      "metadata": {
-        "description": "What flows through this edge"
-      }
-    }
-  ],
-  "entryNode": "node_1",
-  "exitNodes": ["final_node_id"]
-}
+\`\`\`
+output_dag_definition({
+  dag: {
+    id: "unique_dag_id",
+    name: "DAGName",
+    description: "Brief description",
+    version: "1.0.0",
+    nodes: [
+      {"id": "entry", "type": "entry", "agentName": "UserInput"},
+      {"id": "step1", "type": "sdk_agent", "agentName": "DataProfiler", "metadata": {}},
+      ...
+    ],
+    edges: [
+      {"id": "e1", "from": "node_id", "to": "node_id", "flowType": "context_pass"},
+      ...
+    ],
+    entryNode: "entry",
+    exitNodes: ["exit"]
+  }
+})
 \`\`\`
 
-**Flow Types Available:**
-- **llm_call**: GenericAgent LLM execution
-- **context_pass**: Pass data between agents without execution
-- **execute_agents**: CRITICAL - Execute Python agents sequentially (use for frontend-specified agents)
-- **sdk_agent**: SDK agent execution (DataProfiler, D3JSDataAnalyzer, etc.)
-- **validation**: Validation flow
-- **autonomous_decision**: Agent makes internal decision (e.g., D3JSCodeValidator chooses success/error path)
+The tool will:
+1. Validate your DAG structure (no cycles, valid nodes, valid edges)
+2. Store the validated DAG as a proper DAGDefinition object
+3. Return success/failure with any validation errors
 
-**Node Types:**
-- **entry**: Entry point (UserInput)
-- **agent**: GenericAgent (LLM-based)
-- **sdk_agent**: BaseSDKAgent (Claude SDK)
-- **tool_agent**: Tool-calling agent
-- **exit**: Exit point (UserOutput)
-
-**CRITICAL REQUIREMENTS:**
-1. The DAG must be acyclic (no loops)
-2. All nodes must be reachable from the entry node
-3. There must be at least one exit node
-4. Use appropriate flow types between agents
-5. Consider parallel paths where beneficial
-6. Output ONLY valid JSON, no explanations outside the JSON
-${requirements.agents && requirements.agents.length > 0 ? `
-7. **MUST include frontend Python agents with execute_agents flow type**
-8. Store frontend agent specs in a node's context so ExecuteAgentsStrategy can access them
-` : ''}
-
-${requirements.agents && requirements.agents.length > 0 ? `
-**EXAMPLE STRUCTURE FOR FRONTEND AGENTS:**
-
-\`\`\`json
-{
-  "nodes": [
-    {
-      "id": "entry",
-      "type": "entry",
-      "agentName": "UserInput"
-    },
-    {
-      "id": "frontend_agents_executor",
-      "type": "agent",
-      "agentName": "FrontendAgentsExecutor",
-      "metadata": {
-        "description": "Executes ${requirements.agents.length} frontend-specified Python agents",
-        "frontendAgents": ${JSON.stringify(requirements.agents)}
-      }
-    },
-    {
-      "id": "d3_validator",
-      "type": "sdk_agent",
-      "agentName": "D3JSCodeValidator"
-    },
-    {
-      "id": "exit",
-      "type": "exit",
-      "agentName": "UserOutput"
-    }
-  ],
-  "edges": [
-    {
-      "from": "entry",
-      "to": "frontend_agents_executor",
-      "flowType": "context_pass"
-    },
-    {
-      "from": "frontend_agents_executor",
-      "to": "d3_validator",
-      "flowType": "execute_agents"
-    },
-    {
-      "from": "d3_validator",
-      "to": "exit",
-      "flowType": "autonomous_decision"
-    }
-  ]
-}
-\`\`\`
-
-The frontendAgents metadata will be read by ExecuteAgentsStrategy to execute each Python agent.
-` : ''}
-
-Begin your design process now.`;
+Begin your design. After analyzing the codebase files and workflow requirements, call the output_dag_definition tool with your complete DAG design.`;
     }
 
-    /**
-     * Parse DAG definition from agent output
-     */
-    private parseDAGFromOutput(output: string): DAGDefinition | null {
-        try {
-            // Extract JSON from output (may be wrapped in markdown code blocks)
-            const jsonMatch = output.match(/```json\s*([\s\S]*?)\s*```/) ||
-                             output.match(/```\s*([\s\S]*?)\s*```/) ||
-                             [null, output];
-
-            const jsonStr = jsonMatch[1] || output;
-            const dag = JSON.parse(jsonStr.trim());
-
-            // Validate basic structure
-            if (!dag.nodes || !dag.edges || !dag.entryNode || !dag.exitNodes) {
-                console.error('Invalid DAG structure: missing required fields');
-                return null;
-            }
-
-            return dag as DAGDefinition;
-
-        } catch (error) {
-            console.error('Failed to parse DAG from output:', error);
-            console.error('Output was:', output);
-            return null;
-        }
-    }
 
     /**
      * Validate DAG structure

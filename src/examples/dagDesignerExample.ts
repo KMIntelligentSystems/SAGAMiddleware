@@ -10,6 +10,8 @@ import { DAGDesigner } from '../agents/dagDesigner.js';
 import { DAGExecutor } from '../workflows/dagExecutor.js';
 import { extractAvailableAgents } from '../utils/agentRegistry.js';
 import { WorkflowRequirements, DAGDesignResult } from '../types/dag.js';
+import { AgentResult } from '../types/index.js';
+
 
 /**
  * Example 1: Design D3 Visualization Workflow with Frontend Agent Specifications
@@ -21,109 +23,105 @@ export async function designD3VisualizationWorkflow(coordinator: SagaCoordinator
 
     // Step 1: Define workflow requirements (from actual frontend output)
     const requirements: WorkflowRequirements = {
-        objective: 'Create D3.js interactive histogram with intelligent outlier handling for prices dataset using 4-agent workflow with sophisticated statistical analysis',
-
-        inputData: {
-            type: 'csv_file',
-            source: 'C:/repos/SAGAMiddleware/data/prices.csv',
-            schema: {
-                columns: ['price'],
-                rowCount: 10000,
-                characteristics: 'Right-skewed distribution with extreme outliers (23.0-9502.0), dense region 50-500'
-            }
-        },
-
-        // Frontend-specified Python agents (CRITICAL for ExecuteAgentsStrategy)
-        agents: [
-            {
-                name: 'DataProfiler',
-                description: 'Data Profiler & Statistical Analyzer',
-                task: 'Load the complete CSV file and generate comprehensive statistical profile including min, max, quartiles, mean, median, standard deviation, skewness, and outlier detection using both IQR method and Z-score analysis. Count total records and identify extreme values.',
-                inputFrom: null,
-                outputSchema: {
-                    filepath: 'string',
-                    row_count: 'int',
-                    statistics: {
-                        min: 'float',
-                        max: 'float',
-                        mean: 'float',
-                        median: 'float',
-                        q1: 'float',
-                        q3: 'float',
-                        std: 'float',
-                        skewness: 'float',
-                        kurtosis: 'float'
-                    },
-                    outliers: {
-                        iqr_outliers: {
-                            count: 'int',
-                            threshold_low: 'float',
-                            threshold_high: 'float'
-                        }
-                    }
-                }
-            },
-            {
-                name: 'HistogramParametersOptimizer',
-                description: 'Histogram Parameters Optimizer',
-                task: 'Analyze the statistical profile to determine optimal histogram parameters. Calculate appropriate bin count using multiple methods (Freedman-Diaconis, Sturges, Scott\'s rule), determine outlier handling strategy, assess if data transformation is needed, and recommend visualization range for best user experience.',
-                inputFrom: 'DataProfiler',
-                outputSchema: {
-                    bin_analysis: {
-                        freedman_diaconis_bins: 'int',
-                        sturges_bins: 'int',
-                        scotts_bins: 'int',
-                        recommended_bins: 'int',
-                        bin_width: 'float'
-                    },
-                    outlier_handling: {
-                        strategy: 'string',
-                        cap_percentile: 'float'
-                    }
-                }
-            },
-            {
-                name: 'DataPreprocessor',
-                description: 'Data Preprocessor & Binner',
-                task: 'Apply the recommended outlier handling and data transformations. Create optimized datasets for visualization - both the main histogram data and outlier information. Generate precise bin assignments and calculate frequencies. Prepare all data structures needed for D3.js consumption.',
-                inputFrom: 'HistogramParametersOptimizer',
-                outputSchema: {
-                    processed_data: {
-                        main_dataset: 'list',
-                        outliers_removed: 'list',
-                        original_count: 'int',
-                        processed_count: 'int'
-                    },
-                    binned_data: 'list'
-                }
-            },
-            {
-                name: 'D3JSHistogramGenerator',
-                description: 'D3.js Interactive Histogram Generator',
-                task: 'Generate a complete, production-ready D3.js HTML file that creates an interactive histogram with intelligent outlier handling. Include responsive design, tooltips showing bin details and outlier information, axis labels, legend, and zoom/pan functionality. Load data from relative path for portability. Add statistical overlay lines (mean, median) and outlier annotations.',
-                inputFrom: 'DataPreprocessor',
-                outputSchema: {
-                    html_filepath: 'string',
-                    visualization_type: 'string',
-                    status: 'string'
-                }
-            }
-        ],
-
-        outputExpectation: {
-            type: 'html_visualization',
-            format: 'd3_histogram',
-            quality: ['validated', 'data_accurate', 'production_ready', 'interactive_tooltips', 'responsive_design']
-        },
-
-        constraints: {
-            maxExecutionTime: 60000,
-            parallelismAllowed: false, // Sequential execution for agent chain
-            executionOrder: 'sequential',
-            mustIncludeAgents: ['D3JSCodeValidator'], // Still include validation
-            mustExcludeAgents: []
-        }
-    };
+  "objective": "Develop a complete D3.js histogram visualization with dynamic subagent analysis of price distribution data",
+  "inputData": {
+    "type": "csv_file",
+    "source": "C:/repos/SAGAMiddleware/data/prices.csv",
+    "schema": {
+      "columns": [
+        "price"
+      ],
+      "rowCount": 1000,
+      "characteristics": "Single-column price data, range $23-$9,502 with outliers, majority $30-$500, Excel export with UTF-8 BOM, 2 header rows, 5-min intervals"
+    }
+  },
+  "agents": [
+    {
+      "name": "WorkflowInterpreter",
+      "agentType": "python_coding",
+      "task": "Read and analyze price data from CSV file. Create dynamic agent definitions with Python code contexts for optimal histogram analysis including bin count calculation, range determination, and outlier handling strategies",
+      "inputFrom": null,
+      "outputSchema": {
+        "agent_definitions": "dict",
+        "analysis_context": "dict",
+        "data_summary": "dict"
+      }
+    },
+    {
+      "name": "HistogramAnalyzer",
+      "agentType": "python_coding",
+      "task": "Execute histogram data analysis using the agent definitions from WorkflowInterpreter. Calculate optimal bin count, data distribution parameters, outlier thresholds, and complete histogram configuration",
+      "inputFrom": "WorkflowInterpreter",
+      "outputSchema": {
+        "optimal_bins": "int",
+        "data_range": "dict",
+        "distribution_stats": "dict",
+        "histogram_config": "dict"
+      }
+    },
+    {
+      "name": "ResultsValidator",
+      "agentType": "functional",
+      "task": "Validate the histogram analysis results for statistical accuracy, completeness, and optimal parameter selection",
+      "inputFrom": "HistogramAnalyzer",
+      "outputSchema": {
+        "validation_status": "string",
+        "validated_results": "dict",
+        "validation_notes": "string"
+      }
+    },
+    {
+      "name": "D3HistogramCoder",
+      "agentType": "functional",
+      "task": "Generate complete D3.js histogram visualization HTML code using the validated optimal parameters and histogram configuration",
+      "inputFrom": "ResultsValidator",
+      "outputSchema": {
+        "html_code": "string",
+        "js_code": "string",
+        "output_path": "string"
+      }
+    },
+    {
+      "name": "HTMLValidator",
+      "agentType": "functional",
+      "task": "Use Playwright to analyze the generated HTML file, validate SVG histogram elements against requirements, check for proper D3.js rendering. On validation failure, coordinate with D3HistogramCoder for one retry attempt with corrections",
+      "inputFrom": "D3HistogramCoder",
+      "outputSchema": {
+        "svg_validation": "dict",
+        "requirements_check": "dict",
+        "playwright_results": "dict",
+        "retry_coordination": "dict"
+      }
+    },
+    {
+      "name": "FinalValidator",
+      "agentType": "functional",
+      "task": "Handle final validation results and conversation termination. Process HTMLValidator output, manage single retry attempt if needed, and provide final pass/fail determination for the complete histogram workflow",
+      "inputFrom": "HTMLValidator",
+      "outputSchema": {
+        "final_result": "string",
+        "conversation_status": "string",
+        "output_files": "list",
+        "workflow_completion": "dict"
+      }
+    }
+  ],
+  "outputExpectation": {
+    "type": "html_visualization",
+    "format": "d3_histogram",
+    "quality": [
+      "validated",
+      "production_ready",
+      "responsive",
+      "accessible"
+    ]
+  },
+  "constraints": {
+    "parallelismAllowed": false,
+    "executionOrder": "sequential",
+    "maxExecutionTime": 300
+  }
+};
 
     // Step 2: Extract available agents from coordinator
     const availableAgents = extractAvailableAgents(coordinator);
@@ -144,8 +142,14 @@ export async function designD3VisualizationWorkflow(coordinator: SagaCoordinator
     // Step 5: Execute DAG Designer
     console.log('🎨 Invoking DAG Designer...');
     console.log('Expected: DAG Designer should incorporate frontend agents using execute_agents flow type\n');
+  let result: AgentResult = {
+      agentName: 'cycle_start',
+      result: '',//visualizationGroupingAgentsResult groupingAgentResult,groupingAgentFailedResult,
+      success: true,
+      timestamp: new Date()
+    };
 
-    const result = await dagDesigner.execute({
+    result = await dagDesigner.execute({
         workflowRequirements: requirements,
         availableAgents: availableAgents
     });
