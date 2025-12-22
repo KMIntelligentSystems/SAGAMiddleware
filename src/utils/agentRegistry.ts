@@ -73,19 +73,7 @@ function buildAgentInfo(name: string, agent: any): AvailableAgent | null {
  */
 const AGENT_CATALOG: Record<string, Omit<AvailableAgent, 'name' | 'type'>> = {
     // Entry/Exit Agents
-    'UserInput': {
-        description: 'Entry point that receives user input/query',
-        capabilities: ['user_input', 'query_parsing'],
-        inputRequirements: [],
-        outputProvides: ['user_query', 'user_requirements']
-    },
-
-    'UserOutput': {
-        description: 'Exit point that delivers final results to user',
-        capabilities: ['user_output', 'result_formatting'],
-        inputRequirements: ['final_result'],
-        outputProvides: []
-    },
+ 
 
     'ConversationAgent': {
         description: 'Terminal agent that returns results to user and terminates process',
@@ -113,14 +101,6 @@ const AGENT_CATALOG: Record<string, Omit<AvailableAgent, 'name' | 'type'>> = {
         estimatedDuration: 5000
     },
 
-    'D3JSDataAnalyzer': {
-        description: 'SDK agent that performs D3-specific data analysis for visualization',
-        capabilities: ['d3_data_analysis', 'visualization_planning', 'csv_analysis'],
-        inputRequirements: ['csv_file_path', 'visualization_requirements'],
-        outputProvides: ['d3_data_analysis', 'visualization_config'],
-        tools: ['csv_reader', 'data_inspector'],
-        estimatedDuration: 4000
-    },
 
     // Code Generation Agents
     'D3JSCoordinatingAgent': {
@@ -163,15 +143,6 @@ const AGENT_CATALOG: Record<string, Omit<AvailableAgent, 'name' | 'type'>> = {
         estimatedDuration: 10000
     },
 
-    'D3JSCodeUpdater': {
-        description: 'Updates D3 code based on validation feedback or user comments',
-        capabilities: ['code_correction', 'd3_code_update', 'error_fixing'],
-        inputRequirements: ['existing_code', 'validation_report', 'user_comment'],
-        outputProvides: ['updated_code'],
-        tools: ['read_analysis'],
-        estimatedDuration: 8000
-    },
-
     // Tool Agents
     'ToolCallingAgent': {
         description: 'Executes Python code via MCP server',
@@ -182,30 +153,6 @@ const AGENT_CATALOG: Record<string, Omit<AvailableAgent, 'name' | 'type'>> = {
         estimatedDuration: 3000
     },
 
-    // Structure Generation
-    'AgentStructureGenerator': {
-        description: 'SDK agent that generates agent structures and workflow plans',
-        capabilities: ['agent_structure_generation', 'workflow_planning'],
-        inputRequirements: ['user_requirements', 'data_analysis'],
-        outputProvides: ['agent_structures', 'workflow_plan'],
-        estimatedDuration: 5000
-    },
-
-    // DAG Designer
-    'DAGDesigner': {
-        description: 'SDK agent that autonomously designs DAG workflows based on requirements and available agents',
-        capabilities: [
-            'dag_design',
-            'workflow_optimization',
-            'agent_selection',
-            'flow_planning',
-            'autonomous_architecture'
-        ],
-        inputRequirements: ['workflow_requirements', 'available_agents'],
-        outputProvides: ['dag_definition', 'execution_plan'],
-        tools: ['query_agent_capabilities', 'find_agents_by_capability', 'suggest_flow_type', 'validate_dag_design'],
-        estimatedDuration: 15000
-    }
 };
 
 /**
@@ -220,11 +167,7 @@ export function getAgentInfo(agentName: string): AvailableAgent | null {
     // Determine type based on known SDK agents
     const sdkAgents = [
         'DataProfiler',
-        'D3JSDataAnalyzer',
         'D3JSCodeValidator',
-        'D3JSCodeUpdater',
-        'AgentStructureGenerator',
-        'DAGDesigner'
     ];
 
     const type = sdkAgents.includes(agentName) ? 'sdk' :

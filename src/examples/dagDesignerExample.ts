@@ -162,6 +162,13 @@ export async function designD3VisualizationWorkflow(coordinator: SagaCoordinator
     const designResult = result.result as DAGDesignResult;
     const dag = designResult.dag!;
 
+    // Save DAG to file for reuse
+    const fs = await import('fs/promises');
+    const dagFilePath = './data/designed_dags/d3_histogram_dag.json';
+    await fs.mkdir('./data/designed_dags', { recursive: true });
+    await fs.writeFile(dagFilePath, JSON.stringify(dag, null, 2));
+    console.log(`\n💾 DAG saved to: ${dagFilePath}`);
+
     // Step 6: Display designed DAG
     console.log('\n✅ DAG Design Complete!\n');
     console.log('📊 DAG Structure:');

@@ -8,7 +8,7 @@
 import { MCPPythonCoderResultPrompt, histogramInterpretationPrompt } from './visualizationSaga.js';
 
 export interface SDKAgentStep {
-    transactionType: 'DataProfiler' | 'AgentStructureGenerator' | 'D3JSCodeGenerator' | 'D3JSCodeUpdater' | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater' | 'D3JSDataAnalyzer';
+    transactionType: 'DataProfiler'  | 'D3JSCodeValidator' |'AgentExecutor' | 'UserReview' | 'PythonCodeUpdater';
     name: string;
     description: string;
     inputFrom?: string; // Previous step's output
@@ -57,44 +57,6 @@ export const DATA_PROFILING_PIPELINE: PipelineConfig = {
                     { agent: 'TransactionGroupingAgent', flowType: 'llm_call', targetAgent: 'DataProfiler' }
                 ]
             }
-        }, {
-            transactionType: 'D3JSDataAnalyzer',
-            name: 'DataAnalyzingStep',
-            description: 'Analyze CSV data and generate technical specifications',
-            processConfig: {
-                processType: 'agent',
-                isExecutable: false,
-                prompts: [
-                    {
-                        agent: 'TransactionGroupingAgent',
-                        prompt: 'Your task is to extract the part of the user request which pertains to the d3 js visualization. The output will be formatted as JSON. Include a specific entry for the full file path'
-                    }
-                ],
-                controlFlow: [
-                    { agent: 'TransactionGroupingAgent', flowType: 'llm_call', targetAgent: 'D3JSDataAnalyzer' }
-                ]
-            }
-        },
-        
-        {
-         transactionType: 'AgentStructureGenerator',
-            name: 'AgentGenerationStep',
-            description: 'Generate agent structures in [AGENT:...] format',
-            processConfig: {
-                processType: 'subAgent',
-                isExecutable: true,
-                prompts: [
-                    {
-                        agent: 'D3JSCoordinatingAgent',
-                        prompt: MCPPythonCoderResultPrompt
-                    }
-                ],
-                controlFlow: [
-                     { agent: 'D3JSDataAnalyzer', flowType: 'context_pass', targetAgent: 'D3JSCoordinatingAgent' },
-                     { agent: 'DataProfiler', flowType: 'execute_agents', targetAgent: 'D3JSCoordinatingAgent' },
-                     { agent: 'D3JSCoordinatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCodingAgent' }
-                ]
-            }
         }
     ],
     onComplete: 'proceed_to_visualization'
@@ -113,29 +75,7 @@ export const D3_VISUALIZATION_PIPELINE: PipelineConfig = {
     name: 'D3VisualizationPipeline',
     description: 'Pipeline for D3 code generation and validation',
     steps: [
-        {
-            transactionType: 'D3JSCodeGenerator',
-            name: 'D3CodeGenerationStep',
-            description: 'Generate D3.js visualization code',
-            inputFrom: 'agentStructures',
-            outputKey: 'd3jsCode',
-            processConfig: {
-                processType: 'subAgent',
-                isExecutable: false,
-                prompts: [
-                    {
-                        agent: 'D3JSCodingAgent',
-                        prompt: histogramInterpretationPrompt
-                    }
-                ],
-                controlFlow: [
-                  // { agent: 'ValidatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCoordinatingAgent' },
-                   { agent: 'D3JSCoordinatingAgent', flowType: 'llm_call', targetAgent: 'D3JSCodingAgent' },
-                   { agent: 'D3JSCodingAgent', flowType: 'llm_call', targetAgent: 'ValidatingAgent' }
-                ],
-             //   testWithPlaywright: true
-            }
-        },
+       
         {
             transactionType: 'D3JSCodeValidator',
             name: 'D3CodeValidationStep',
@@ -167,22 +107,7 @@ export const D3_CODE_UPDATE_PIPELINE: PipelineConfig = {
     name: 'D3CodeUpdatePipeline',
     description: 'Pipeline for updating existing D3 code based on feedback',
     steps: [
-        {
-            transactionType: 'D3JSCodeUpdater',
-            name: 'UpdateExistingCodeStep',
-            description: 'Update existing D3 code based on user comments',
-            outputKey: 'updatedCode',
-            processConfig: {
-                processType: 'agent',
-                isExecutable: false,
-                prompts: [],
-                controlFlow: [
-                    { agent: 'ConversationAgent', flowType: 'llm_call', targetAgent: 'D3JSCodeUpdater' }
-                ],
-                renderVisualization: true,
-                testWithPlaywright: true
-            }
-        }
+      
     ],
     onComplete: 'send_to_user'
 };

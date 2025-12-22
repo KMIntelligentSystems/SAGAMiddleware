@@ -191,11 +191,24 @@ export class DAGDesigner extends BaseSDKAgent {
 
             // Execute design query - agent will call output_dag_definition tool
             console.log('🤔 Analyzing requirements and formulating DAG plan...');
-            await this.executeQuery(prompt);
+            try {
+                await this.executeQuery(prompt);
+            } catch (error) {
+                // Agent may not return text if it only calls the tool
+                // Check if the tool was called successfully by looking for the DAG in context
+                const ctx = this.contextManager.getContext('DAGDesigner') as WorkingMemory;
+                const designedDAG = (ctx?.lastTransactionResult as any)?.designedDAG;
+                if (!designedDAG) {
+                    // Tool wasn't called, re-throw the error
+                    throw error;
+                }
+                // Tool was called successfully, continue
+                console.log('✅ Tool called successfully (no text output expected)');
+            }
 
             // Retrieve the DAG from context (stored by output_dag_definition tool)
             const ctx = this.contextManager.getContext('DAGDesigner') as WorkingMemory;
-            const designedDAG = ctx?.designedDAG as DAGDefinition;
+            const designedDAG = (ctx?.lastTransactionResult as any)?.designedDAG as DAGDefinition;
 
             if (!designedDAG) {
                 return {
@@ -215,7 +228,7 @@ export class DAGDesigner extends BaseSDKAgent {
                 success: true,
                 dag: designedDAG,
                 reasoning: 'DAG designed autonomously based on workflow requirements',
-                warnings: ctx?.validation?.warnings || []
+                warnings: (ctx?.lastTransactionResult as any)?.validation?.warnings || []
             };
 
             return {
@@ -254,101 +267,71 @@ export class DAGDesigner extends BaseSDKAgent {
         requirements: WorkflowRequirements,
         availableAgents: AvailableAgent[]
     ): string {
-        return `You are a DAG Designer agent. Your task is to design an optimal Directed Acyclic Graph (DAG) workflow by following a step-by-step plan and mapping agent function interactions.
+        return `# YOUR ONLY TASK: CALL output_dag_definition TOOL
 
-# CRITICAL: YOU MUST READ THE CODEBASE FILES FIRST
+You will design a DAG workflow, but you MUST submit it by calling the output_dag_definition tool.
 
-**STOP! Before designing anything, you MUST use your file reading tools to examine these files in this exact order:**
+**CRITICAL:** Do NOT write explanations. Do NOT output JSON in text. ONLY call the tool.
 
-1. **FIRST: Read /src/config/agentDefinitions.ts**
-   - See AGENT_DEFINITIONS array - these are ALL the Generic agents you can use
-   - See SDK_AGENTS list - these are ALL the SDK agents available
-   - DO NOT invent agent names not in these lists
+The tool call IS your design submission. Nothing else counts.
 
-2. **SECOND: Read /src/workflows/dagExecutor.ts** (focus on lines 40-54, 192-212, 218-276)
-   - Line 46-53: strategyMap - shows which flowTypes are valid
-   - Line 192-212: instantiateSDKAgent - shows which SDK agents can be instantiated
-   - Line 218-276: executeNodeWithStrategy - shows how flowTypes map to strategies
+---
 
-3. **THIRD: Read /src/process/FlowStrategies.ts** (lines 1-398)
-   - Each strategy implementation shows exactly how that flowType works
-   - Line 33-82: LLMCallStrategy
-   - Line 89-123: ContextPassStrategy
-   - Line 134-244: ExecuteAgentsStrategy
-   - Line 296-323: SDKAgentStrategy
-   - Line 335-370: ValidationStrategy
+# STEP 1: READ THESE CODEBASE FILES
 
+Use your file reading tools to examine these files in order:
 
+1. **/src/config/sdkAgentsGuide.md**
+   - **READ THIS FIRST** - Critical guide for SDK agents behavior and branching
+   - DataProfiler and D3JSCodeValidator special handling rules
 
+2. **/src/config/agentDefinitions.ts**
+   - AGENT_DEFINITIONS array = ALL Generic agents available
+   - SDK_AGENTS list = ALL SDK agents available
+   - DO NOT use agents not in these lists
 
-# WORKFLOW REQUIREMENTS
+3. **/src/workflows/dagExecutor.ts** (lines 46-53, 192-212, 218-276)
+   - strategyMap: valid flowTypes
+   - instantiateSDKAgent: which SDK agents exist
+   - executeNodeWithStrategy: how flowTypes map to strategies
+
+4. **/src/process/FlowStrategies.ts** (lines 33-370)
+   - LLMCallStrategy: Generic agent LLM execution
+   - ContextPassStrategy: Pass context without execution
+   - ExecuteAgentsStrategy: Python agents via MCP
+   - SDKAgentStrategy: SDK agent execution
+   - ValidationStrategy: Validation with merge
+
+---
+
+# STEP 2: UNDERSTAND REQUIREMENTS
 
 ${JSON.stringify(requirements, null, 2)}
 
 **Agent Type Mapping:**
-- \`agentType: "python_coding"\` → Use ExecuteAgentsStrategy with tool agents
-- \`agentType: "functional"\` → Use LLMCallStrategy with Generic agents
+- \`agentType: "python_coding"\` → These agents must be created by DataProfiler SDK agent. Create ONE DataProfiler node. DataProfiler output uses \`execute_agents\` flowType (ExecuteAgentsStrategy).
+- \`agentType: "functional"\` → Use existing Generic agents from agentDefinitions.ts with \`llm_call\` flowType (LLMCallStrategy)
 
+**Flow Type Rules:**
+- Entry → first agent: \`context_pass\`
+- SDK agent → next: \`sdk_agent\`
+- Generic agent → next: \`llm_call\`
+- Python execution: \`execute_agents\`
+- Branching (no cycles): \`autonomous_decision\`
 
-# AVAILABLE AGENT TYPES
+**Agent Types:**
+- **SDK Agents**: DataProfiler, D3JSCodeValidator (in dagExecutor.ts instantiateSDKAgent)
+- **Generic Agents**: From agentDefinitions.ts AGENT_DEFINITIONS array
 
-**Two Types of Agents:**
+---
 
-1. **SDK Agents** (e.g., DataProfiler, D3JSCodeValidator) - Claude SDK agents with terminal/file access
-   - Instantiated in dagExecutor.ts via instantiateSDKAgent()
-   - Use flowType: "sdk_agent" with node type: "sdk_agent"
-   - Can read files, execute code, make complex decisions
+# STEP 3: CALL THE TOOL
 
-2. **Generic Agents** (e.g., D3JSCodingAgent, ConversationAgent) - LLM-based agents from agentDefinitions.ts
-   - Retrieved from coordinator.agents registry
-   - Use flowType: "llm_call" with node type: "agent"
-   - Process context and generate outputs via LLM calls
+After reading the files and understanding requirements, call output_dag_definition with your complete DAG:
 
-**CRITICAL RULES FROM THE CODE:**
-- Entry node → first SDK agent: Use flowType "context_pass"
-- SDK agent → next node: Use flowType "sdk_agent"
-- Generic agent → next agent: Use flowType "llm_call"
-- For Python execution: Use flowType "execute_agents"
-- For branching (retry/success): Use flowType "autonomous_decision" WITHOUT creating cycles
-- **NO CYCLES ALLOWED** - Use the branching pattern from the example, NOT loops
+output_dag_definition({ dag: { id, name, description, version, nodes, edges, entryNode, exitNodes } })
 
-
-**YOUR TASK:** After your analysis of the execution environment and of the steps provided in the user's workflow plan, design a DAG that matches the workflow plan with the known and understood agents which can be rendered into flow strategies via the dagExecutor.
-
-# CRITICAL: USE THE output_dag_definition TOOL
-
-After designing your DAG based on the workflow requirements and codebase analysis, you MUST call the \`output_dag_definition\` tool to submit your design.
-
-**DO NOT output JSON directly in your response. Instead, call the tool with your DAG object:**
-
-\`\`\`
-output_dag_definition({
-  dag: {
-    id: "unique_dag_id",
-    name: "DAGName",
-    description: "Brief description",
-    version: "1.0.0",
-    nodes: [
-      {"id": "entry", "type": "entry", "agentName": "UserInput"},
-      {"id": "step1", "type": "sdk_agent", "agentName": "DataProfiler", "metadata": {}},
-      ...
-    ],
-    edges: [
-      {"id": "e1", "from": "node_id", "to": "node_id", "flowType": "context_pass"},
-      ...
-    ],
-    entryNode: "entry",
-    exitNodes: ["exit"]
-  }
-})
-\`\`\`
-
-The tool will:
-1. Validate your DAG structure (no cycles, valid nodes, valid edges)
-2. Store the validated DAG as a proper DAGDefinition object
-3. Return success/failure with any validation errors
-
-Begin your design. After analyzing the codebase files and workflow requirements, call the output_dag_definition tool with your complete DAG design.`;
+Do it now. No explanations. Just call the tool.`;
     }
 
 

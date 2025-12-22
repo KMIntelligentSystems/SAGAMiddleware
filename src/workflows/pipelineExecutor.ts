@@ -9,10 +9,7 @@ import { PipelineConfig, PipelineExecutionState, SDKAgentStep } from '../types/p
 import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
 import { DataProfiler } from '../agents/dataProfiler.js';
 import { AgentStructureGenerator } from '../agents/agentStructureGenerator.js';
-import { D3JSCodeGenerator } from '../agents/d3jsCodeGenerator.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
-import { D3JSCodeUpdater } from '../agents/d3jsCodeUpdater.js';
-import { D3JSDataAnalyzer } from '../agents/d3jsDataAnalyzer.js';
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 
@@ -150,17 +147,9 @@ export class PipelineExecutor {
         switch (transactionType) {
             case 'DataProfiler':
                 return new DataProfiler(contextManager);
-            case 'AgentStructureGenerator':
-                return new AgentStructureGenerator(contextManager);
-            case 'D3JSCodeGenerator':
-                return new D3JSCodeGenerator(contextManager);
-            case 'D3JSCodeUpdater':
-                return new D3JSCodeUpdater(contextManager);
             case 'D3JSCodeValidator':
                 // Pass coordinator for autonomous decision-making tools
                 return new D3JSCodeValidator(contextManager, this.coordinator);
-             case 'D3JSDataAnalyzer':
-                return new D3JSDataAnalyzer(contextManager);
             default:
                 throw new Error(`Unknown transaction type: ${transactionType}`);
         }

@@ -46,7 +46,8 @@
 		"event-bus": "npx ts-node --esm ./src/eventBus/index.ts",
 		"hybrid": "npx ts-node --esm ./src/examples/hybridSagaWorkflow.ts",
 		"human-loop": "npx ts-node --esm ./src/examples/humanInLoopSagaExample.ts",
-		"event-server": "npx ts-node --esm ./src/eventBus/testEventBusServer.ts"
+		"event-server": "npx ts-node --esm ./src/eventBus/testEventBusServer.ts",
+		"test-dag": "npx ts-node --esm ./src/examples/testWithSavedDAG.ts"
 	},
 	"devDependencies": {
 		"typescript": "^5.8.3"
