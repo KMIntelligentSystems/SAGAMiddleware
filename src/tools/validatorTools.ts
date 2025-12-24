@@ -8,6 +8,7 @@
 
 import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
 import { AgentResult } from '../types/index.js';
+import { histogramValidationPrompt } from '../types/visualizationSaga.js';
 
 export interface ValidatorToolContext {
   coordinator: SagaCoordinator;
@@ -107,13 +108,14 @@ Output ONLY the complete, corrected HTML/JavaScript code with no explanations or
     // Clear agent context to avoid contamination
     codingAgent.deleteContext();
 
-    // Update D3JSCodingAgent's context with validation data
+    // Update D3JSCodingAgent's context with validation data AND retry prompt
     context.coordinator.contextManager.updateContext('D3JSCodingAgent', {
       originalCode: params.originalCode,
       validationErrors: params.validationErrors,
       validationReport: params.validationReport,
       validationStatus: 'FAILED',
       correctionAttempt: true,
+      prompt: histogramValidationPrompt,  // Set retry prompt for code correction
       timestamp: new Date()
     });
 

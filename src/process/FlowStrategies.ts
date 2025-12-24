@@ -10,6 +10,7 @@ import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import * as fs from 'fs';
+import { getPrompt, hasPrompt } from '../config/promptRegistry.js';
 
 /**
  * Flow Strategy Interface
@@ -21,7 +22,8 @@ export interface FlowStrategy {
         targetAgent: string,
         contextManager: ContextManager,
         userQuery?: string,
-        agentsRegistry?: Map<string, GenericAgent>
+        agentsRegistry?: Map<string, GenericAgent>,
+        nodeMetadata?: any  // NEW: Target node metadata for prompt injection
     ): Promise<AgentResult>;
 }
 
@@ -44,11 +46,17 @@ export const LLMCallStrategy: FlowStrategy = {
 
         console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} with LLM call`);
 
+        // Get the agent's context from ContextManager BEFORE clearing
+        const agentCtx = contextManager.getContext(agent.getName()) as WorkingMemory;
+
+        // NEW: Check if there's a dynamic prompt in the agent's context and apply it
+        if (agentCtx?.prompt) {
+            console.log(`📝 LLMCallStrategy: Setting dynamic prompt for ${agent.getName()} from context`);
+            agent.setTaskDescription(agentCtx.prompt);
+        }
+
         // Clear agent's internal context to avoid contamination from previous executions
         agent.deleteContext();
-
-        // Get the agent's context from ContextManager
-        const agentCtx = contextManager.getContext(agent.getName()) as WorkingMemory;
 
         // Build context data from ContextManager (includes pythonAnalysis, userQuery, etc.)
         const contextData: Record<string, any> = {};
@@ -90,7 +98,10 @@ export const ContextPassStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
-        contextManager: ContextManager
+        contextManager: ContextManager,
+        userQuery?: string,
+        agentsRegistry?: Map<string, GenericAgent>,
+        nodeMetadata?: any
     ): Promise<AgentResult> {
         console.log(`🔄 ContextPassStrategy: Passing context from ${agent.getName()} to ${targetAgent}`);
 
@@ -137,7 +148,8 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         targetAgent: string,
         contextManager: ContextManager,
         userQuery?: string,
-        agentsRegistry?: Map<string, GenericAgent>
+        agentsRegistry?: Map<string, GenericAgent>,
+        nodeMetadata?: any  // NEW: For passing target node metadata with prompt
     ): Promise<AgentResult> {
         console.log(`🔄 ExecuteAgentsStrategy: Executing agents created by ${agent.getName()}`);
 
@@ -231,13 +243,30 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
 finalResult.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_2.txt', 'utf-8');
         // Store final result in target agent's context
         console.log('EXECUTIONSTRATEGY', targetAgent)
-        contextManager.updateContext(targetAgent, {
+
+        // Build context update with result and optional prompt
+        const contextUpdate: any = {
             lastTransactionResult: finalResult.result,
             hasError: !finalResult.success,
             success: finalResult.success,
             transactionId: agentName,
             timestamp: new Date()
-        });
+        };
+
+        // NEW: Inject prompt if provided in node metadata
+        if (nodeMetadata?.prompt) {
+            // Check if it's a prompt key (from registry) or direct prompt text
+            if (hasPrompt(nodeMetadata.prompt)) {
+                contextUpdate.prompt = getPrompt(nodeMetadata.prompt);
+                console.log(`📝 ExecuteAgentsStrategy: Injecting prompt '${nodeMetadata.prompt}' for ${targetAgent}`);
+            } else {
+                // Direct prompt text
+                contextUpdate.prompt = nodeMetadata.prompt;
+                console.log(`📝 ExecuteAgentsStrategy: Injecting direct prompt for ${targetAgent}`);
+            }
+        }
+
+        contextManager.updateContext(targetAgent, contextUpdate);
 
         console.log(`✅ ExecuteAgentsStrategy: Results stored in ${targetAgent} context`);
         return finalResult;
@@ -297,7 +326,10 @@ export const SDKAgentStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
-        contextManager: ContextManager
+        contextManager: ContextManager,
+        userQuery?: string,
+        agentsRegistry?: Map<string, GenericAgent>,
+        nodeMetadata?: any
     ): Promise<AgentResult> {
         // Only SDK agents allowed in this strategy
         if (!(agent instanceof BaseSDKAgent)) {
@@ -337,7 +369,9 @@ export const ValidationStrategy: FlowStrategy = {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
-        userQuery?: string
+        userQuery?: string,
+        agentsRegistry?: Map<string, GenericAgent>,
+        nodeMetadata?: any
     ): Promise<AgentResult> {
         if (!(agent instanceof GenericAgent)) {
             throw new Error(`ValidationStrategy requires GenericAgent, got: ${agent.constructor.name}`);

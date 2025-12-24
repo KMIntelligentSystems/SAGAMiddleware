@@ -25,7 +25,7 @@ import {
     ExecuteAgentsStrategy,
     SDKAgentStrategy,
     ValidationStrategy
-} from '../process/FlowStrategies.js';
+} from '../process/flowStrategies.js';
 
 export class DAGExecutor {
     private coordinator: SagaCoordinator;
@@ -227,6 +227,10 @@ export class DAGExecutor {
         console.log(`   Strategy: ${primaryEdge.flowType}`);
         console.log(`   Source: ${sourceAgentName} → ${node.agentName}`);
 
+        // NEW: Get target node metadata for prompt injection
+        // This allows strategies to inject prompts into the target agent's context
+        const targetNodeMetadata = node.metadata;
+
         // Determine what to pass to strategy based on flowType (like SagaCoordinator does)
         let agentOrName: any;
 
@@ -260,7 +264,8 @@ export class DAGExecutor {
             node.agentName,
             this.coordinator.contextManager,
             undefined, // userQuery - can be passed if needed
-            this.coordinator.agents // agents registry for ExecuteAgentsStrategy
+            this.coordinator.agents, // agents registry for ExecuteAgentsStrategy
+            targetNodeMetadata // NEW: Pass target node metadata for prompt injection
         );
     }
 
