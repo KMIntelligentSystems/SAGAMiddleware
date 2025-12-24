@@ -267,9 +267,7 @@ export class DAGDesigner extends BaseSDKAgent {
         requirements: WorkflowRequirements,
         availableAgents: AvailableAgent[]
     ): string {
-        return ''
-        
-        `# YOUR ONLY TASK: CALL output_dag_definition TOOL
+        return `# YOUR ONLY TASK: CALL output_dag_definition TOOL
 
 You will design a DAG workflow, but you MUST submit it by calling the output_dag_definition tool.
 
