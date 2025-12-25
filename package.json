@@ -25,7 +25,7 @@
 	"main": "./src/examples/usage.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"start": "node ./visualization-saga-main.js",
+		"start": "node ./dist/workflows/sagaWorkflow.js",
 		"run": "node ./src/index.js",
 		"dev": "lite-server",
 		"build": "npx tsc",
