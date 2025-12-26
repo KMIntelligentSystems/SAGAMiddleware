@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Event Bus configuration
-const EVENT_BUS_URL = process.env.EVENT_BUS_URL || 'http://localhost:3003';
+const EVENT_BUS_URL = process.env.EVENT_BUS_URL || 'http://127.0.0.1:3003';
 const SAGA_SERVICE_NAME = process.env.SAGA_SERVICE_NAME || 'saga-middleware-service';
 
 /**

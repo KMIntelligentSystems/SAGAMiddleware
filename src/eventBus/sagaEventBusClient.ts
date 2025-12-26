@@ -10,7 +10,7 @@ export class SAGAEventBusClient {
   private eventBusUrl: string;
   private isInitialized: boolean = false;
 
-  constructor(eventBusUrl: string = 'http://localhost:3003') {
+  constructor(eventBusUrl: string = 'http://127.0.0.1:3003') {
     this.eventBusUrl = eventBusUrl;
   //  this.visualizationProcessor = new VisualizationSAGAProcessor();
     this.initializeConnection();

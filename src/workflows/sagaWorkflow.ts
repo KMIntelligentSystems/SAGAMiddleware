@@ -109,6 +109,7 @@ export class SagaWorkflow {
     // Pass all servers to coordinator
     this.coordinator = new SagaCoordinator(mcpServers);
 
+    console.log('🔍 DEBUG: Event Bus URL:', config.eventBus.url);
     this.eventBusClient = new SAGAEventBusClient(config.eventBus.url);
     
     // Initialize TransactionRegistry
@@ -135,13 +136,15 @@ export class SagaWorkflow {
     console.log('🚀 Initializing Visualization SAGA Processor...');
     
     // Initialize TransactionRegistry first set up event bus listener
-    await this.transactionRegistry.initialize();
-    
+    // COMMENTED OUT - Not needed, old code causing connection issues
+    // await this.transactionRegistry.initialize();
+
     // Register default visualization transaction set
     this.registerDefaultTransactionSet();
-    
+
     // Initialize ContextRegistry after TransactionRegistry (requirement #4)
-    await this.contextRegistry.initialize();
+    // COMMENTED OUT - Not needed, old code causing connection issues
+    // await this.contextRegistry.initialize();
    
     
     // Register default context set for the visualization transaction set
@@ -839,7 +842,7 @@ export async function runVisualizationSAGAExample(): Promise<void> {
         persistence: 'redis://localhost:6379'
       },
       eventBus: {
-        url: 'http://localhost:3003',
+        url: 'http://127.0.0.1:3003',
         topics: ['saga_events', 'human_events'],
         retryAttempts: 3
       },
