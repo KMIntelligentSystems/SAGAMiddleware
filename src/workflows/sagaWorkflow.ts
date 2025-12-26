@@ -842,7 +842,7 @@ export async function runVisualizationSAGAExample(): Promise<void> {
         persistence: 'redis://localhost:6379'
       },
       eventBus: {
-        url: 'http://127.0.0.1:3003',
+        url: process.env.EVENT_BUS_URL || 'http://127.0.0.1:3003',
         topics: ['saga_events', 'human_events'],
         retryAttempts: 3
       },
