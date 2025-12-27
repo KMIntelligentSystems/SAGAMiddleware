@@ -76,8 +76,33 @@ export class SagaWorkflow {
   constructor(config: HumanInLoopConfig) {
     this.config = config;
     this.currentThreadId= '';
+
+    // Determine if running on Railway or locally
+    const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+
     // Create multiple MCP server configurations
-    const mcpServers = {
+    const mcpServers = isRailway ? {
+      // Railway deployment - use HTTP transport with environment URLs
+      rag: createMCPServerConfig({
+        name: "rag-server",
+        transport: "http",
+        url: process.env.RAG_MCP_URL || 'http://localhost:3001',
+        timeout: 600000
+      }),
+      execution: createMCPServerConfig({
+        name: "execution-server",
+        transport: "http",
+        url: process.env.CODEGEN_MCP_URL || 'http://localhost:3002',
+        timeout: 300000
+      }),
+      playwright: createMCPServerConfig({
+        name: "playwright-server",
+        transport: "http",
+        url: process.env.PLAYWRIGHT_MCP_URL || 'http://localhost:3003',
+        timeout: 300000
+      })
+    } : {
+      // Local development - use stdio transport with local paths
       rag: createMCPServerConfig({
         name: "rag-server",
         transport: "stdio",
