@@ -79,9 +79,10 @@ export class DataProfiler extends BaseSDKAgent {
             tools: [createAgentTool]
         });
 
-        // Add MCP server to options - SDK expects the server instance directly
+        // Add MCP server to options - merge with existing servers (like Railway HTTP servers)
         this.options.mcpServers = {
-            'agent-creator': mcpServer
+            ...this.options.mcpServers,  // Keep existing servers (Railway HTTP MCP servers)
+            'agent-creator': mcpServer    // Add local tool server
         } as any;
     }
 

@@ -86,9 +86,10 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             tools: [analyzeD3OutputTool, triggerConversationTool, triggerCodeCorrectionTool]
         });
 
-        // Add MCP server to options
+        // Add MCP server to options - merge with existing servers (like Railway HTTP servers)
         this.options.mcpServers = {
-            'd3-validator': mcpServer
+            ...this.options.mcpServers,  // Keep existing servers (Railway HTTP MCP servers)
+            'd3-validator': mcpServer     // Add local tool server
         } as any;
     }
 

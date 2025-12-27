@@ -90,9 +90,10 @@ export class DAGDesigner extends BaseSDKAgent {
             tools: [outputDAGTool]
         });
 
-        // Add MCP server to options
+        // Add MCP server to options - merge with existing servers (like Railway HTTP servers)
         this.options.mcpServers = {
-            'dag-designer': mcpServer
+            ...this.options.mcpServers,  // Keep existing servers (Railway HTTP MCP servers)
+            'dag-designer': mcpServer     // Add local tool server
         } as any;
 
         console.log('✅ DAG Designer tools setup complete');
