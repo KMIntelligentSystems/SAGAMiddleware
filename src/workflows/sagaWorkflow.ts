@@ -560,13 +560,16 @@ Focus: Only array extraction
    private registerAgents(): void {
       console.log('🔧 Registering Visualization SAGA agents...');
 
+      // Check if running on Railway
+      const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+
       // Get all llmPrompts and extract unique agent names
       const contextSet = this.contextRegistry.getContextSetForTransactionSet('visualization');
       if (!contextSet) {
         throw new Error('No context set found for visualization transaction set');
       }
       const uniqueAgentNames = [...new Set(contextSet.llmPrompts.map(prompt => prompt.agentName))];
-      
+
       // Extract agent types for each unique agent
       const agentTypes = new Map<string, string>();
       for (const prompt of contextSet.llmPrompts) {
@@ -584,13 +587,14 @@ Focus: Only array extraction
         let agent: AgentDefinition;
         const agentType = agentTypes.get(agentName);
         const transactionId = agentTransactionMapping.get(agentName);
-        
-        if (agentType === 'tool') {
+
+        if (agentType === 'tool' && !isRailway) {
+          // Only pass MCP config for tool agents when running locally
           agent = this.createAgentFromLLMPrompts(agentName, transactionId, [this.codeGenServerConfig]);
         } else {
           agent = this.createAgentFromLLMPrompts(agentName, transactionId);
         }
-        
+
         this.coordinator.registerAgent(agent);
         console.log(`✅ Registered agent: ${agentName}`);
       }
