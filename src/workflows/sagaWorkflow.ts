@@ -822,6 +822,9 @@ Focus: Only array extraction
 // Main execution function
 //This is entry point
 export async function runVisualizationSAGAExample(): Promise<void> {
+    console.log('🔍 DEBUG: Reading EVENT_BUS_URL from environment:', process.env.EVENT_BUS_URL);
+    console.log('🔍 DEBUG: All environment variables:', Object.keys(process.env).filter(k => k.includes('EVENT')));
+
     const config: HumanInLoopConfig = {
   /*    timeouts: {
         specificationReviewTimeout: 24 * 60 * 60 * 1000, // 24 hours
