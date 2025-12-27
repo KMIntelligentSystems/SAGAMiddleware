@@ -18,13 +18,15 @@ export class SAGAEventBusClient {
 
   private initializeConnection(): void {
     console.log(`🔌 Connecting SAGA Middleware to Event Bus: ${this.eventBusUrl}`);
-    
+
     this.socket = SocketIOClient(this.eventBusUrl, {
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
-      timeout: 10000
+      timeout: 10000,
+      transports: ['websocket', 'polling'], // Try WebSocket first, fallback to polling
+      upgrade: true
     });
 
     this.setupConnectionHandlers();
@@ -62,7 +64,9 @@ export class SAGAEventBusClient {
     });
 
     this.socket.on('connect_error', (error: any) => {
-      console.error('❌ Failed to connect to Event Bus:', error);
+      console.error('❌ Failed to connect to Event Bus:', error.message || error);
+      console.error('   Event Bus URL:', this.eventBusUrl);
+      console.error('   Error details:', JSON.stringify(error, null, 2));
       this.isConnected = false;
     });
 
