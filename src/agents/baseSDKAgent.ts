@@ -18,10 +18,7 @@ export abstract class BaseSDKAgent {
     constructor(agentName: string, maxTurns: number = 15, contextManager?: ContextManager) {
         this.agentName = agentName;
 
-        // Check if running on Railway
-        const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
-
-        // Base options
+        // Base options - SDK agents run locally with Claude Code CLI
         this.options = {
             permissionMode: 'bypassPermissions',
             maxTurns: maxTurns,
@@ -29,27 +26,7 @@ export abstract class BaseSDKAgent {
             model:  'opus' //'claude-opus-4-5-20251101'//sonnet'
         };
 
-        // Add HTTP-based MCP servers when running on Railway
-        if (isRailway) {
-            const executionUrl = process.env.CODEGEN_MCP_URL || 'http://localhost:3002';
-            const playwrightUrl = process.env.PLAYWRIGHT_MCP_URL || 'http://localhost:3004';
-
-            console.log(`🌐 Configuring HTTP MCP servers for Railway deployment`);
-            this.options.mcpServers = {
-                'execution-server': {
-                    type: 'http',
-                    url: executionUrl
-                } as any,
-                'playwright-server': {
-                    type: 'http',
-                    url: playwrightUrl
-                } as any
-            };
-            console.log(`📡 Execution server: ${executionUrl}`);
-            console.log(`📡 Playwright server: ${playwrightUrl}`);
-        } else {
-            console.log(`💻 Running locally - MCP servers will use stdio transport via CLI`);
-        }
+        console.log(`💻 SDK Agent ${agentName} initialized - uses Claude Code CLI locally`);
 
         // Use injected context manager or create a new one
         this.contextManager = contextManager || new ContextManager();
@@ -74,6 +51,7 @@ export abstract class BaseSDKAgent {
         console.log(`\n╔═══════════════════════════════════════════════════════════════╗`);
         console.log(`║  ${this.agentName.padEnd(61)} ║`);
         console.log(`╚═══════════════════════════════════════════════════════════════╝\n`);
+
         let result = '';
         let turnCount = 0;
 
