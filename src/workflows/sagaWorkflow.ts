@@ -820,6 +820,7 @@ Focus: Only array extraction
 
 
 // Main execution function
+//This is entry point
 export async function runVisualizationSAGAExample(): Promise<void> {
     const config: HumanInLoopConfig = {
   /*    timeouts: {
