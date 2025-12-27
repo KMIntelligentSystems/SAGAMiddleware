@@ -82,7 +82,7 @@ export class SagaWorkflow {
 
     // Create multiple MCP server configurations
     const mcpServers = isRailway ? {
-      // Railway deployment - use HTTP transport with environment URLs
+      // Railway deployment - use HTTP transport with environment URLs for code gen and playwright
       rag: createMCPServerConfig({
         name: "rag-server",
         transport: "http",
