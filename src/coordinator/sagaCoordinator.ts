@@ -92,15 +92,23 @@ export class SagaCoordinator extends EventEmitter {
   }
 
   registerAgent(definition: AgentDefinition): void {
+    // Check if running on Railway
+    const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+
     // BEFORE creating GenericAgent, intelligently assign servers based on tools
-    if (definition.agentType === 'tool' && definition.mcpTools && definition.mcpTools.length > 0) {
-      // Use getServersForTools to determine which servers this agent needs
-      definition.mcpServers = this.getServersForTools(definition.mcpTools);
-    } else if (definition.agentType === 'tool' && (!definition.mcpServers || definition.mcpServers.length === 0)) {
-      // Fallback: if it's a tool agent but no tools specified, provide all servers
-      definition.mcpServers = this.getServersForTools(['execute_python']);
-   //   definition.mcpServers = Object.values(this.mcpServers);
-      console.log(`🔧 Tool agent ${definition.name} has no specific tools defined, providing all MCP servers`);
+    // Only assign MCP servers if NOT on Railway (stdio transport not supported)
+    if (!isRailway) {
+      if (definition.agentType === 'tool' && definition.mcpTools && definition.mcpTools.length > 0) {
+        // Use getServersForTools to determine which servers this agent needs
+        definition.mcpServers = this.getServersForTools(definition.mcpTools);
+      } else if (definition.agentType === 'tool' && (!definition.mcpServers || definition.mcpServers.length === 0)) {
+        // Fallback: if it's a tool agent but no tools specified, provide all servers
+        definition.mcpServers = this.getServersForTools(['execute_python']);
+     //   definition.mcpServers = Object.values(this.mcpServers);
+        console.log(`🔧 Tool agent ${definition.name} has no specific tools defined, providing all MCP servers`);
+      }
+    } else {
+      console.log(`⚠️  Skipping MCP server assignment for ${definition.name} on Railway`);
     }
     
     // Configure LLM for this agent if not already set
@@ -125,7 +133,7 @@ if(definition.agentType === 'tool'){
     }
     */
     console.log(`🔧 Registered agent: ${definition.name}`);
-    console.log(`🔧 MCP servers: ${definition.mcpServers?.map(s => s.name).join(', ') || 'none'}`);
+    console.log(`🔧 MCP servers: ${definition.mcpServers?.map(s => s.name).join(', ') || 'none (Railway mode)'}`);
     console.log(`🔧 MCP tools: ${definition.mcpTools?.join(', ') || 'none'}`);
   }
 
