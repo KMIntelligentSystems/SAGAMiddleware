@@ -17,12 +17,40 @@ export abstract class BaseSDKAgent {
 
     constructor(agentName: string, maxTurns: number = 15, contextManager?: ContextManager) {
         this.agentName = agentName;
+
+        // Check if running on Railway
+        const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+
+        // Base options
         this.options = {
             permissionMode: 'bypassPermissions',
             maxTurns: maxTurns,
             cwd: process.cwd(),
             model:  'opus' //'claude-opus-4-5-20251101'//sonnet'
         };
+
+        // Add HTTP-based MCP servers when running on Railway
+        if (isRailway) {
+            const executionUrl = process.env.CODEGEN_MCP_URL || 'http://localhost:3002';
+            const playwrightUrl = process.env.PLAYWRIGHT_MCP_URL || 'http://localhost:3004';
+
+            console.log(`🌐 Configuring HTTP MCP servers for Railway deployment`);
+            this.options.mcpServers = {
+                'execution-server': {
+                    type: 'http',
+                    url: executionUrl
+                } as any,
+                'playwright-server': {
+                    type: 'http',
+                    url: playwrightUrl
+                } as any
+            };
+            console.log(`📡 Execution server: ${executionUrl}`);
+            console.log(`📡 Playwright server: ${playwrightUrl}`);
+        } else {
+            console.log(`💻 Running locally - MCP servers will use stdio transport via CLI`);
+        }
+
         // Use injected context manager or create a new one
         this.contextManager = contextManager || new ContextManager();
     }
