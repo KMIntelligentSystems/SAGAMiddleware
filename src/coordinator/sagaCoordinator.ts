@@ -94,6 +94,7 @@ export class SagaCoordinator extends EventEmitter {
   registerAgent(definition: AgentDefinition): void {
     // Check if running on Railway
     const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+    console.log('IS RAILWAY', isRailway)
 
     // BEFORE creating GenericAgent, intelligently assign servers based on tools
     // Only assign MCP servers if NOT on Railway (stdio transport not supported)
