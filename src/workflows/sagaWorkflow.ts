@@ -175,16 +175,21 @@ export class SagaWorkflow {
     // Register default context set for the visualization transaction set
     this.registerDefaultContextSet();
     
-    // Connect to MCP servers
-    try {
-    //  await connectToMCPServer(this.ragServerConfig);
-      await connectToMCPServer(this.codeGenServerConfig);
-      console.log('✅ Connected to CodeGen MCP server');
+    // Connect to MCP servers (only on local - Railway doesn't support stdio transport)
+    const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+    if (!isRailway) {
+      try {
+      //  await connectToMCPServer(this.ragServerConfig);
+        await connectToMCPServer(this.codeGenServerConfig);
+        console.log('✅ Connected to CodeGen MCP server');
 
-      await connectToMCPServer(this.playwrightServerConfig);
-      console.log('✅ Connected to Playwright MCP server');
-    } catch (error) {
-      throw new Error(`Failed to connect to MCP servers: ${error}`);
+        await connectToMCPServer(this.playwrightServerConfig);
+        console.log('✅ Connected to Playwright MCP server');
+      } catch (error) {
+        throw new Error(`Failed to connect to MCP servers: ${error}`);
+      }
+    } else {
+      console.log('⚠️  Skipping MCP server connections on Railway (HTTP transport not yet supported by MCP SDK)');
     }
 
     // Ensure data is indexed
