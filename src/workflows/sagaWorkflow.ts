@@ -873,9 +873,12 @@ export async function runVisualizationSAGAExample(): Promise<void> {
 
     console.log('\n✨ Visualization SAGA processing complete!');
     console.log('🔄 Listening for more messages...');
-    
-    // Keep the process alive to continue listening for events
-    // The socket event listeners will handle incoming messages
+
+    // Keep the process alive - the event bus socket handlers will process messages
+    // Use setInterval to prevent the process from exiting
+    setInterval(() => {
+      // Just keep alive, actual work is done by socket event handlers
+    }, 60000);
 
   } catch (error) {
     console.error('💥 Visualization SAGA processing failed:', error);
@@ -884,6 +887,6 @@ export async function runVisualizationSAGAExample(): Promise<void> {
 }
 
 // Execute if run directly
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1].endsWith('visualizationSagaProcessing.js') || process.argv[1].endsWith('visualizationSagaProcessing.ts')) {
+if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1].endsWith('sagaWorkflow.js') || process.argv[1].endsWith('sagaWorkflow.ts') || process.argv[1].endsWith('visualizationSagaProcessing.js') || process.argv[1].endsWith('visualizationSagaProcessing.ts')) {
   runVisualizationSAGAExample();
 }
