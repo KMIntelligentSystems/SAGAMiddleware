@@ -77,39 +77,26 @@ export class SagaWorkflow {
     this.config = config;
     this.currentThreadId= '';
 
-    // Determine if running on Railway or locally
-    const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
+    // Check if MCP server URLs are configured (Railway deployment or remote access)
+    const useRemoteMCP = process.env.CODEGEN_MCP_URL || process.env.PLAYWRIGHT_MCP_URL;
 
     // Create multiple MCP server configurations
-    const mcpServers = isRailway ? {
-      // Railway deployment - use HTTP transport with environment URLs for code gen and playwright
-      rag: createMCPServerConfig({
-        name: "rag-server",
-        transport: "http",
-        url: process.env.RAG_MCP_URL || 'http://localhost:3001',
-        timeout: 600000
-      }),
+    const mcpServers = useRemoteMCP ? {
+      // Remote MCP servers (Railway) - use HTTP/SSE transport
       execution: createMCPServerConfig({
         name: "execution-server",
-        transport: "http",
-        url: process.env.CODEGEN_MCP_URL || 'http://localhost:3002',
+        transport: "sse",
+        url: process.env.CODEGEN_MCP_URL || 'https://codegen-mcp-server-production-043c.up.railway.app',
         timeout: 300000
       }),
       playwright: createMCPServerConfig({
         name: "playwright-server",
-        transport: "http",
-        url: process.env.PLAYWRIGHT_MCP_URL || 'http://localhost:3003',
+        transport: "sse",
+        url: process.env.PLAYWRIGHT_MCP_URL || 'https://langgraph-mcp-server-production.up.railway.app',
         timeout: 300000
       })
     } : {
       // Local development - use stdio transport with local paths
-      rag: createMCPServerConfig({
-        name: "rag-server",
-        transport: "stdio",
-        command: "node",
-        args: ["C:/repos/rag-mcp-server/dist/server.js", "--stdio"],
-        timeout: 600000
-      }),
       execution: createMCPServerConfig({
         name: "execution-server",
         transport: "stdio",
@@ -126,8 +113,8 @@ export class SagaWorkflow {
       })
     };
 
-    // Store for backward compatibility
-    this.ragServerConfig = mcpServers.rag;
+    // Store for backward compatibility (rag-server removed as not currently deployed)
+    this.ragServerConfig = null as any;
     this.codeGenServerConfig = mcpServers.execution;
     this.playwrightServerConfig = mcpServers.playwright;
     
@@ -175,21 +162,15 @@ export class SagaWorkflow {
     // Register default context set for the visualization transaction set
     this.registerDefaultContextSet();
     
-    // Connect to MCP servers (only on local - Railway doesn't support stdio transport)
-    const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
-    if (!isRailway) {
-      try {
-      //  await connectToMCPServer(this.ragServerConfig);
-        await connectToMCPServer(this.codeGenServerConfig);
-        console.log('✅ Connected to CodeGen MCP server');
+    // Connect to MCP servers (both local stdio and remote HTTP/SSE)
+    try {
+      await connectToMCPServer(this.codeGenServerConfig);
+      console.log('✅ Connected to CodeGen MCP server');
 
-        await connectToMCPServer(this.playwrightServerConfig);
-        console.log('✅ Connected to Playwright MCP server');
-      } catch (error) {
-        throw new Error(`Failed to connect to MCP servers: ${error}`);
-      }
-    } else {
-      console.log('⚠️  Skipping MCP server connections on Railway (HTTP transport not yet supported by MCP SDK)');
+      await connectToMCPServer(this.playwrightServerConfig);
+      console.log('✅ Connected to Playwright MCP server');
+    } catch (error) {
+      throw new Error(`Failed to connect to MCP servers: ${error}`);
     }
 
     // Ensure data is indexed

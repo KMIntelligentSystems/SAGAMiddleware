@@ -4,6 +4,7 @@ import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
 import { globalDataProcessor, ProcessedDataWithKey } from '../processing/dataResultProcessor.js';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
   CallToolResultSchema,
   ListToolsResultSchema,
@@ -193,10 +194,17 @@ export class MCPClientManagerImpl implements MCPClientManager {
           args: serverConfig.args || [],
           env: serverConfig.env
         });
-      } else if (serverConfig.transport === 'http') {
-        // HTTP transport implementation would go here
-        // For now, we'll throw an error as it's not implemented
-        throw new Error('HTTP transport not yet implemented');
+      } else if (serverConfig.transport === 'http' || serverConfig.transport === 'sse') {
+        // HTTP/SSE transport for remote MCP servers (e.g., Railway)
+        if (!serverConfig.url) {
+          throw new Error(`HTTP/SSE transport requires url for server ${serverConfig.name}`);
+        }
+
+        transport = new SSEClientTransport(
+          new URL(serverConfig.url)
+        );
+
+        console.log(`🌐 Using HTTP/SSE transport for ${serverConfig.name} at ${serverConfig.url}`);
       } else {
         throw new Error(`Unsupported transport type: ${serverConfig.transport}`);
       }

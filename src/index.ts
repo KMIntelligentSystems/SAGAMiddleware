@@ -69,7 +69,7 @@ export function createMCPServerConfig(config: {
   name: string;
   command?: string;
   args?: string[];
-  transport: 'stdio' | 'http';
+  transport: 'stdio' | 'http' | 'sse';
   url?: string;
   env?: Record<string, string>;
   timeout?: number;
