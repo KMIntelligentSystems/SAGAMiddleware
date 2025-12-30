@@ -25,7 +25,7 @@ import {
     ExecuteAgentsStrategy,
     SDKAgentStrategy,
     ValidationStrategy
-} from '../process/flowStrategies.js';
+} from '../process/FlowStrategies.js';
 
 
 

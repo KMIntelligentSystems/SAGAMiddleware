@@ -8,7 +8,7 @@ import {
   MCPServerConfig
 } from '../types/index.js';
 import { ProcessFlowStep } from '../types/pipelineConfig.js';
-import { getFlowStrategy } from '../process/flowStrategies.js';
+import { getFlowStrategy } from '../process/FlowStrategies.js';
 import {
   SagaState,
   SagaTransaction,
