@@ -56,7 +56,7 @@ export const LLMCallStrategy: FlowStrategy = {
         }
 
         // Clear agent's internal context to avoid contamination from previous executions
-        agent.deleteContext();
+     //   agent.deleteContext();
 
         // Build context data from ContextManager (includes pythonAnalysis, userQuery, etc.)
         const contextData: Record<string, any> = {};
@@ -103,6 +103,10 @@ export const ContextPassStrategy: FlowStrategy = {
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any
     ): Promise<AgentResult> {
+        if(agent.getName() === 'UserInput'){
+           await agent.execute({});
+        }
+
         console.log(`🔄 ContextPassStrategy: Passing context from ${agent.getName()} to ${targetAgent}`);
 
         // Get the agent's name (works for both GenericAgent and BaseSDKAgent)
@@ -110,6 +114,7 @@ export const ContextPassStrategy: FlowStrategy = {
 
         // Retrieve source context
         const sourceContext = contextManager.getContext(agentName) as WorkingMemory;
+        console.log('SOURCE ', sourceContext?.lastTransactionResult)
 
         if (!sourceContext || !sourceContext.lastTransactionResult) {
             console.warn(`⚠️ No context found for ${agentName}, passing empty context`);
@@ -163,9 +168,47 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         const agentName = agent.getName();
 
         // Retrieve context containing agent definitions
+        await agent.execute({});
         const ctx = contextManager.getContext(agentName) as WorkingMemory;
 
-        if (!ctx || !ctx.lastTransactionResult) {
+        // Create GenericAgents from the agent definitions
+        // ctx.lastTransactionResult contains the array of CreatedAgentInfo from DataProfiler
+        const agentDefinitions = ctx.lastTransactionResult;
+
+        if (!Array.isArray(agentDefinitions)) {
+            throw new Error(`Expected agent definitions to be an array, got: ${typeof agentDefinitions}`);
+        }
+// Validate that Python code correct
+// const validatingAgent = agentsRegistry?.get('ValidatingAgent');
+       
+        const genericAgents = createGenericAgentsFromDefinitions(agentDefinitions);
+
+        console.log(`✅ Created ${genericAgents.length} GenericAgent(s) with taskDescription in context`);
+
+        // Display all agents and their contexts
+        console.log('\n📋 All Created Agents:');
+        genericAgents.forEach((agent, index) => {
+            console.log(`\n[${index + 1}] Agent: ${agent.getName()}`);
+            console.log(`    ID: ${agent.getId()}`);
+            console.log(`    Type: ${agent.getAgentDefinition().agentType}`);
+            console.log(`    Context:`, agent.getContext());
+            console.log(`    Dependencies:`, agent.getDependencies());
+        });
+
+        // Execute the generic agents with linear context (adapted from ExecuteGenericAgentsProcess)
+        const executionResult = await executeGenericAgentsWithLinearContext(
+            genericAgents,
+            toolCallingAgent,
+            contextManager,
+            targetAgent,
+            agentName
+        );
+
+        contextManager.updateContext(targetAgent, {lastTransactionResult: executionResult.result});
+        console.log(`🔄 ExecuteAgentsStrategy: Passing context from running agents to ${targetAgent}`);
+        // Return the execution result
+   //     return executionResult;
+     /*   if (!ctx || !ctx.lastTransactionResult) {
             throw new Error(`No agent definitions found in ${agentName} context`);
         }
 
@@ -176,7 +219,7 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
             console.log(`📋 Found ${agentDefinitions.length} agent definitions to execute`);
         } catch (error) {
             throw new Error(`Failed to parse agent definitions from ${agentName}: ${error}`);
-        }
+        }*/
 
         // Execute each GenericAgent sequentially
         let finalResult: AgentResult = {
@@ -186,7 +229,7 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
             timestamp: new Date()
         };
 
-        for (const agentInfo of agentDefinitions) {
+    /*    for (const agentInfo of agentDefinitions) {
             const definition = agentInfo.definition || agentInfo;
             console.log(`🔧 Executing GenericAgent: ${definition.name} (type: ${definition.agentType})`);
 
@@ -239,7 +282,7 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
                 finalResult = result;
                 console.log(`✅ Agent ${definition.name} completed successfully`);
             }
-        }
+        }*/
 finalResult.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_2.txt', 'utf-8');
         // Store final result in target agent's context
         console.log('EXECUTIONSTRATEGY', targetAgent)
@@ -272,6 +315,265 @@ finalResult.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPR
         return finalResult;
     }
 };
+
+/**
+ * Helper: Create GenericAgents from agent definitions with taskDescription in context
+ * Used by ExecuteAgentsStrategy to convert DataProfiler output into runnable agents
+ *
+ * @param agentDefinitions - Array of AgentDefinition objects (or CreatedAgentInfo objects with .definition property)
+ * @returns Array of GenericAgent instances with taskDescription in their context
+ */
+export function createGenericAgentsFromDefinitions(agentDefinitions: any[]): GenericAgent[] {
+    console.log('🔧 Creating GenericAgents from agent definitions');
+    console.log(`📋 Found ${agentDefinitions.length} agent definition(s) to convert`);
+
+    const genericAgents: GenericAgent[] = [];
+
+    for (const agentInfo of agentDefinitions) {
+        // Handle both AgentDefinition directly or CreatedAgentInfo with .definition property
+        const definition = agentInfo.definition || agentInfo;
+
+        if (!definition.name || !definition.taskDescription) {
+            console.error('Invalid agent definition:', agentInfo);
+            throw new Error('Agent definition must have name and taskDescription');
+        }
+
+        console.log(`🤖 Creating GenericAgent for: ${definition.name} (type: ${definition.agentType})`);
+
+        // Extract the Python code from taskDescription before modifying it
+        const pythonCode = definition.taskDescription;
+
+        // Modify the definition to set taskDescription to placeholder
+        const modifiedDefinition = {
+            ...definition,
+            taskDescription: 'To be completed'
+        };
+
+        // Create the GenericAgent instance with modified definition
+        const genericAgent = new GenericAgent(modifiedDefinition);
+
+        // Set the Python code into the agent's context
+        const contextMessage = `Task: ${pythonCode}`;
+        genericAgent.setContext(contextMessage);
+        console.log(`✅ Set Python code in context for ${definition.name}`);
+
+        genericAgents.push(genericAgent);
+    }
+
+    console.log(`✅ Created ${genericAgents.length} GenericAgent instance(s)`);
+    return genericAgents;
+}
+
+/**
+ * Execute generic agents sequentially with linear context propagation
+ * Adapted from ExecuteGenericAgentsProcess.executeSagaTransactionWithLinearContext
+ *
+ * @param genericAgents - Array of GenericAgent instances to execute
+ * @param toolCallingAgent - The tool calling agent for Python execution
+ * @param contextManager - Context manager for storing results
+ * @param targetAgent - Target agent name for context updates
+ * @param sourceAgent - Source agent name (e.g., DataProfiler)
+ * @returns Final execution result
+ */
+async function executeGenericAgentsWithLinearContext(
+    genericAgents: GenericAgent[],
+    toolCallingAgent: GenericAgent,
+    contextManager: ContextManager,
+    targetAgent: string,
+    sourceAgent: string
+): Promise<AgentResult> {
+    console.log(`🔄 Executing ${genericAgents.length} agents with linear context propagation`);
+
+    let finalResult: AgentResult = {
+        agentName: 'ExecuteGenericAgentsWithLinearContext',
+        result: '',
+        success: true,
+        timestamp: new Date()
+    };
+
+    // Check if we're recovering from an error
+    const ctx = contextManager.getContext(targetAgent) as WorkingMemory;
+    let inError = false;
+    let correctedCode = '';
+    let agentInError = '';
+
+    if (ctx && ctx.hasError) {
+        inError = true;
+        correctedCode = ctx.codeInErrorResult;
+        agentInError = ctx.agentInError;
+        console.log(`⚠️ Recovering from error in agent: ${agentInError}`);
+    }
+
+    // Execute each agent sequentially
+    for (const agent of genericAgents) {
+        const agentName = agent.getName();
+        const agentDef = agent.getAgentDefinition();
+
+        console.log(`\n🔧 Executing agent: ${agentName} (type: ${agentDef.agentType})`);
+
+        if (agentDef.agentType === 'tool') {
+            // Clear previous context from tool calling agent
+            toolCallingAgent.deleteContext();
+
+            let pythonCode = '';
+
+            // If recovering from error and this is the agent that failed, use corrected code
+            if (inError && agentInError === agentName) {
+                pythonCode = cleanPythonCodeForExecution(correctedCode).trim();
+                console.log(`📝 Using corrected code for ${agentName}`);
+            } else {
+                // Extract Python code from agent's context
+                const agentContext = agent.getContext();
+                if (agentContext && agentContext.length > 0) {
+                    // Context is stored as ["Task: <python_code>"]
+                    const contextStr = agentContext[0];
+                    if (contextStr.startsWith('Task: ')) {
+                        pythonCode = contextStr.substring(6).trim();
+                    } else {
+                        pythonCode = contextStr.trim();
+                    }
+                }
+                console.log(`📝 Extracted Python code from context (${pythonCode.length} chars)`);
+            }
+
+            try {
+                // Execute the Python code via ToolCallingAgent
+                const result = await toolCallingAgent.execute({ 'CODE:': pythonCode });
+
+                console.log(`✅ Tool agent ${agentName} execution result:`, {
+                    success: result.success,
+                    resultLength: result.result?.length || 0
+                });
+
+                if (!result.success) {
+                    // Store error state in target context
+                    contextManager.updateContext(targetAgent, {
+                        lastTransactionResult: result.result,
+                        codeInErrorResult: pythonCode,
+                        agentInError: agentName,
+                        hasError: true,
+                        success: false,
+                        transactionId: sourceAgent,
+                        timestamp: new Date()
+                    });
+
+                    finalResult = {
+                        agentName,
+                        result: result.result,
+                        success: false,
+                        error: result.error || result.result,
+                        timestamp: new Date()
+                    };
+
+                    console.error(`❌ Agent ${agentName} failed:`, result.error);
+                    break;
+                }
+
+                // Store successful result
+                finalResult = result;
+
+            } catch (error) {
+                console.error(`❌ Tool execution failed for ${agentName}:`, error);
+                finalResult = {
+                    agentName,
+                    result: `Error: ${error}`,
+                    success: false,
+                    timestamp: new Date()
+                };
+                break;
+            }
+        } else {
+            // Handle non-tool agents (processing agents)
+            console.log(`⚙️ Executing processing agent: ${agentName}`);
+            try {
+                const result = await agent.execute({});
+                if (!result.success) {
+                    console.error(`❌ Agent ${agentName} failed:`, result.error);
+                    finalResult = result;
+                    break;
+                }
+                finalResult = result;
+            } catch (error) {
+                console.error(`❌ Agent execution failed for ${agentName}:`, error);
+                finalResult = {
+                    agentName,
+                    result: `Error: ${error}`,
+                    success: false,
+                    timestamp: new Date()
+                };
+                break;
+            }
+        }
+    }
+
+    // If all agents succeeded, retrieve the persisted result
+    if (finalResult.success) {
+        console.log('✅ All agents completed successfully');
+
+        // Read the final result from the persisted file
+        try {
+            const persistedData = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse.txt', 'utf-8');
+            console.log('📊 Persisted dictionary retrieved successfully');
+
+            finalResult.result = persistedData;
+
+            // Update target context with final success state
+            contextManager.updateContext(targetAgent, {
+                lastTransactionResult: persistedData,
+                hasError: false,
+                success: true,
+                transactionId: sourceAgent,
+                timestamp: new Date()
+            });
+        } catch (error) {
+            console.error('⚠️ Could not read persisted result file:', error);
+            // Continue with existing result if file read fails
+        }
+    }
+
+    return finalResult;
+}
+
+/**
+ * Clean Python code for execution
+ * Simplified version adapted from ExecuteGenericAgentsProcess
+ */
+function cleanPythonCodeForExecution(rawCode: string): string {
+    let cleaned = rawCode.trim();
+
+    // Check if the input is an object string (contains agentName, result, etc.)
+    if (cleaned.includes('agentName:') && cleaned.includes('result:')) {
+        const resultMatch = cleaned.match(/result:\s*(['"])([\s\S]*?)(?=,\s*(?:success|timestamp|\}))/);
+        if (resultMatch) {
+            cleaned = resultMatch[2];
+            cleaned = resultMatch[1] + cleaned;
+        }
+    }
+
+    // Convert escaped newlines to actual newlines
+    cleaned = cleaned.replace(/\\n/g, '\n');
+
+    // Remove string concatenation operators
+    cleaned = cleaned.replace(/'\s*\+\s*\n\s*'/gm, '\n');
+    cleaned = cleaned.replace(/"\s*\+\s*\n\s*"/gm, '\n');
+    cleaned = cleaned.replace(/\s*\+\s*$/gm, '');
+
+    // Remove first and last quotes
+    cleaned = cleaned.trim();
+    cleaned = cleaned.replace(/^['"]/, '');
+    cleaned = cleaned.replace(/['"]$/, '');
+
+    // Handle escaped quotes
+    cleaned = cleaned.replace(/\\'/g, "'");
+    cleaned = cleaned.replace(/\\"/g, '"');
+
+    // Clean up lines while preserving Python indentation
+    const lines = cleaned.split('\n');
+    const trimmedLines = lines.map(line => line.replace(/\s+$/, ''));
+    cleaned = trimmedLines.join('\n').trim();
+
+    return cleaned;
+}
 
 /**
  * Helper: Clean Python code from string format

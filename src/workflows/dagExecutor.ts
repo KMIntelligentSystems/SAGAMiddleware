@@ -27,6 +27,8 @@ import {
     ValidationStrategy
 } from '../process/flowStrategies.js';
 
+
+
 export class DAGExecutor {
     private coordinator: SagaCoordinator;
     private strategyMap: Map<string, any>;
@@ -144,7 +146,13 @@ export class DAGExecutor {
             // Execute the node based on type
             if (node.type === 'entry') {
                 // Entry node - just log, no execution
-                console.log(`   Entry node, continuing...`);
+                const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent')
+                if(node.agentName !== 'ConversationAgent'){   
+                    this.coordinator.contextManager.updateContext(node.agentName, {lastTransactionResult: conversationCtx.lastTransactionResult})
+                    console.log(`   Entry node, continuing...`, node.agentName);
+                }
+               
+                //   Entry node, continuing... conversation-agent
             } else if (node.type === 'exit') {
                 // Exit node - results already in ContextManager
                 console.log(`🏁 Reached exit node: ${nodeId}`);
@@ -234,21 +242,24 @@ export class DAGExecutor {
         // Determine what to pass to strategy based on flowType (like SagaCoordinator does)
         let agentOrName: any;
 
-        if (primaryEdge.flowType === 'context_pass' || primaryEdge.flowType === 'execute_agents' || primaryEdge.flowType === 'autonomous_decision') {
+        if (primaryEdge.flowType === 'context_pass' || primaryEdge.flowType === 'autonomous_decision') {
             // For context-based strategies, pass a name object to look up context in ContextManager
             // autonomous_decision uses ContextPassStrategy - routing determined by edge conditions
             agentOrName = {
                 getName: () => sourceAgentName
             };
             console.log(`📝 Using context key: ${sourceAgentName}`);
-        } else if (primaryEdge.flowType === 'llm_call' || primaryEdge.flowType === 'validation') {
+        } else if (primaryEdge.flowType === 'execute_agents' && sourceNode.type === 'sdk_agent'){// && node.type === 'sdk_agent'
+            agentOrName = this.instantiateSDKAgent(sourceNode);
+        }
+         else if (primaryEdge.flowType === 'llm_call' || primaryEdge.flowType === 'validation') {
             // For LLM calls and validation, get the actual GenericAgent instance
             const genericAgent = this.coordinator.agents.get(node.agentName);
             if (!genericAgent) {
                 throw new Error(`GenericAgent not found in registry: ${node.agentName}`);
             }
             agentOrName = genericAgent;
-        } else if (primaryEdge.flowType === 'sdk_agent') {
+        } else if (primaryEdge.flowType === 'sdk_agent' ) {
             // For SDK agents, instantiate the BaseSDKAgent
             if (node.type !== 'sdk_agent') {
                 throw new Error(`Node ${node.id} has sdk_agent flowType but is not an sdk_agent node type`);

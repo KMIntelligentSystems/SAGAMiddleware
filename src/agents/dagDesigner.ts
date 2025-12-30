@@ -20,6 +20,7 @@ import {
     DAGDesignResult
 } from '../types/dag.js';
 import * as fs from 'fs';
+import { errorMonitor } from 'events';
 
 export interface DAGDesignerInput {
     workflowRequirements: WorkflowRequirements;
@@ -133,13 +134,21 @@ export class DAGDesigner extends BaseSDKAgent {
             console.log(`   Nodes: ${dag.nodes.length}`);
             console.log(`   Edges: ${dag.edges.length}`);
 
+            // Save DAG to file for testing purposes
+            fs.writeFileSync(
+                'C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json',
+                JSON.stringify(dag, null, 2),
+                'utf-8'
+            );
+            console.log('💾 DAG saved to data/DagDesignerOut_tool.json');
+
             // Store the validated DAG in context
-            this.setContext({
+         /*   this.setContext({
                 designedDAG: dag,
                 validation: validation,
                 timestamp: new Date()
-            });
-
+            });*/
+this.setContext(dag);
             return {
                 content: [{
                     type: 'text' as const,
@@ -192,52 +201,19 @@ export class DAGDesigner extends BaseSDKAgent {
 
             // Execute design query - agent will call output_dag_definition tool
             console.log('🤔 Analyzing requirements and formulating DAG plan...');
-            try {
-                await this.executeQuery(prompt);
-            } catch (error) {
-                // Agent may not return text if it only calls the tool
-                // Check if the tool was called successfully by looking for the DAG in context
-                const ctx = this.contextManager.getContext('DAGDesigner') as WorkingMemory;
-                const designedDAG = (ctx?.lastTransactionResult as any)?.designedDAG;
-                if (!designedDAG) {
-                    // Tool wasn't called, re-throw the error
-                    throw error;
-                }
-                // Tool was called successfully, continue
-                console.log('✅ Tool called successfully (no text output expected)');
-            }
+            
+             const output = JSON.parse(fs.readFileSync('C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json', 'utf-8')) as DAGDefinition;//await this.executeQuery(prompt);     // 
+             //For testing set 54sult here, in run set in tool call
+            this.setContext(output);
 
-            // Retrieve the DAG from context (stored by output_dag_definition tool)
-            const ctx = this.contextManager.getContext('DAGDesigner') as WorkingMemory;
-            const designedDAG = (ctx?.lastTransactionResult as any)?.designedDAG as DAGDefinition;
-
-            if (!designedDAG) {
-                return {
-                    agentName: 'DAGDesigner',
-                    result: '',
-                    success: false,
-                    timestamp: new Date(),
-                    error: 'Agent did not output a DAG definition using the output_dag_definition tool'
-                };
-            }
-
-            console.log('✅ DAG design retrieved from context');
-            console.log(`   Nodes: ${designedDAG.nodes.length}`);
-            console.log(`   Edges: ${designedDAG.edges.length}`);
-
-            const result: DAGDesignResult = {
-                success: true,
-                dag: designedDAG,
-                reasoning: 'DAG designed autonomously based on workflow requirements',
-                warnings: (ctx?.lastTransactionResult as any)?.validation?.warnings || []
-            };
-
-            return {
+            const result: AgentResult = {
                 agentName: 'DAGDesigner',
-                result: result,
                 success: true,
+                result: 'designedDAG',
                 timestamp: new Date()
-            };
+            }
+
+            return result;
 
         } catch (error) {
             console.error('❌ DAG Designer error:', error);
@@ -285,6 +261,7 @@ Use your file reading tools to examine these files in order:
 1. **/src/config/sdkAgentsGuide.md**
    - **READ THIS FIRST** - Critical guide for SDK agents behavior and branching
    - DataProfiler and D3JSCodeValidator special handling rules
+   - Pay close attention to their tool calling capability
 
 2. **/src/config/agentDefinitions.ts**
    - AGENT_DEFINITIONS array = ALL Generic agents available
@@ -313,15 +290,16 @@ ${JSON.stringify(requirements, null, 2)}
 - \`agentType: "python_coding"\` → These agents must be created by DataProfiler SDK agent. Create ONE DataProfiler node. DataProfiler output uses \`execute_agents\` flowType (ExecuteAgentsStrategy).
 - \`agentType: "functional"\` → Use existing Generic agents from agentDefinitions.ts with \`llm_call\` flowType (LLMCallStrategy)
 
-**Flow Type Rules:**
+**CRITICAL Flow Type Rules:**
 - Entry → first agent: \`context_pass\`
-- SDK agent → next: \`sdk_agent\`
+- **MANDATORY: ALL SDK Agents (DataProfiler, D3JSCodeValidator) → next node MUST use \`sdk_agent\` flowType**
 - Generic agent → next: \`llm_call\`
 - Python execution: \`execute_agents\`
 - Branching (no cycles): \`autonomous_decision\`
 
 **Agent Types:**
 - **SDK Agents**: DataProfiler, D3JSCodeValidator (in dagExecutor.ts instantiateSDKAgent)
+  - **THESE MUST ALWAYS USE \`sdk_agent\` FLOW TYPE FOR OUTGOING EDGES**
 - **Generic Agents**: From agentDefinitions.ts AGENT_DEFINITIONS array
 
 ---
@@ -336,6 +314,34 @@ Do it now. No explanations. Just call the tool.`;
     
 }
 
+ /**
+     * Parse DAG definition from agent output
+     */
+    private parseDAGFromOutput(output: string): DAGDefinition | null {
+        try {
+            // Extract JSON from output (may be wrapped in markdown code blocks)
+            const jsonMatch = output.match(/```json\s*([\s\S]*?)\s*```/) ||
+                             output.match(/```\s*([\s\S]*?)\s*```/) ||
+                             [null, output];
+
+            const jsonStr = jsonMatch[1] || output;
+            const dag = JSON.parse(jsonStr.trim());
+
+            // Validate basic structure
+            if (!dag.nodes || !dag.edges || !dag.entryNode || !dag.exitNodes) {
+                console.error('Invalid DAG structure: missing required fields');
+                return null;
+            }
+
+            return dag as DAGDefinition;
+
+        } catch (error) {
+            console.error('Failed to parse DAG from output:', error);
+            console.error('Output was:', output);
+            return null;
+        }
+    }
+
 
     /**
      * Validate DAG structure
@@ -347,6 +353,20 @@ Do it now. No explanations. Just call the tool.`;
     } {
         const errors: string[] = [];
         const warnings: string[] = [];
+
+        // Stringify stepConfig in nodes to avoid [Object] display
+        dag.nodes.forEach(node => {
+            if (node.stepConfig && typeof node.stepConfig === 'object') {
+                node.stepConfig = JSON.stringify(node.stepConfig) as any;
+            }
+        });
+
+        // Stringify condition in edges to avoid [Object] display
+        dag.edges.forEach(edge => {
+            if (edge.condition && typeof edge.condition === 'object') {
+                edge.condition = JSON.stringify(edge.condition) as any;
+            }
+        });
 
         // Check nodes
         if (!dag.nodes || dag.nodes.length === 0) {

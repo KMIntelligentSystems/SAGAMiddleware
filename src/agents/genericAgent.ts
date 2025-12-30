@@ -5,7 +5,7 @@ import { OpenAI } from 'openai';
 //import { GoogleGenerativeAI } from '@google/genai';
 import { GoogleGenAI, mcpToTool, FunctionCallingConfigMode } from '@google/genai';
 import * as fs from 'fs';
-import { userVizQuery, sonnetJSONRenderedPythonAnalysis, openaiPythonAnalysisResult } from '../test/histogramData.js'; 
+import { userVizQuery, sonnetJSONRenderedPythonAnalysis, openaiPythonAnalysisResult, geminiConversationAnalysis } from '../test/histogramData.js'; 
 
 // Initialize the client
 const genAI = new GoogleGenAI({
@@ -91,9 +91,14 @@ export class GenericAgent {
       }
 
       const prompt = this.createPrompt();//buildPrompt(contextData);
-        console.log("PROMPT ",prompt)
+       console.log("PROMPT ",prompt)
+
+      if(this,this.definition.name === 'ConversationAgent'){
+         result.result  = geminiConversationAnalysis//await this.invokeLLM(prompt);
+      }
+       
           if(this.definition.name === 'D3JSCodingAgent'){
-             result = await this.invokeLLM(prompt);
+         //    result = await this.invokeLLM(prompt);
           }
    
 
@@ -482,7 +487,6 @@ try {
       contents: prompt,
     });
 
-    console.log('RESPONSE ',resp.text);
   } catch (error) {
     console.error("An error occurred during API call:", error);
   }

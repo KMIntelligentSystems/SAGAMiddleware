@@ -17,76 +17,20 @@ export const AGENT_DEFINITIONS: LLMPromptConfig[] = [
         agentType: 'processing',
         transactionId: 'tx-1',
         backstory: 'Receives workflow requirements from frontend and passes them to DAG Designer for autonomous workflow creation.',
-        taskDescription: `Your role is to receive workflow requirements from the frontend and ensure they are in the correct format for the DAG Designer.
-
-The frontend may send detailed agent specifications in an "agents" array. These are CRITICAL - they specify Python agents that will be executed via ExecuteAgentsStrategy.
-
-IMPORTANT: If frontend includes an "agents" array, PRESERVE IT - this tells DAG Designer which Python agents to create.
-
-Required fields:
-- objective: What the user wants to accomplish
-- inputData: {type, source, schema (optional)}
-- outputExpectation: {type, format (optional), quality (optional)}
-
-Optional but important fields:
-- agents: Array of agent specifications with {name, description, task, inputFrom, outputSchema}
-- constraints: {maxExecutionTime, parallelismAllowed, executionOrder}
-
-Output a clean JSON object with WorkflowRequirements format:
-{
-  "objective": "...",
-  "inputData": {
-    "type": "...",
-    "source": "...",
-    "schema": {...}
-  },
-  "outputExpectation": {
-    "type": "...",
-    "format": "...",
-    "quality": [...]
-  },
-  "agents": [
-    {
-      "name": "...",
-      "description": "...",
-      "task": "...",
-      "inputFrom": null or "PreviousAgentName",
-      "outputSchema": {...}
-    }
-  ],
-  "constraints": {
-    "parallelismAllowed": false,
-    "executionOrder": "sequential"
-  }
-}
-
-Preserve all values provided by the user, especially the agents array if present.`,
-        taskExpectedOutput: 'Complete WorkflowRequirements JSON including agents array if provided by frontend'
+        taskDescription: `Your role is to receive workflow requirements as formatted JSON and provide a natural language summary of the requirements
+        focusing closely on objectives and information relevamt to that objective. This information will be provided as a prompt to a data analyzing agent.
+        So the first agent and next will be relevant but the other agents will have other concerns not directly relevant to data analysis`,
+        taskExpectedOutput: 'Report as directed'
     },
-    {
-        agentName: 'TransactionGroupingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-2',
-        backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
-        taskExpectedOutput: 'Output as expected.'
-    },
-    {
+   {
         agentName: 'DataProfiler',
         agentType: 'processing',
         transactionId: 'tx-2-2',
         backstory: 'You analyze data files and generate technical specifications.',
-        taskDescription: 'Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate comprehensive technical specifications for agent generation. You process user requirements in the context of the actual data.',
-        taskExpectedOutput: 'Detailed technical specification including file structure, data types, transformation requirements, and agent generation guidelines.'
-    },
-    {
-        agentName: 'D3JSCoordinatingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-5',
-        backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: 'Your role is coordinator. You will receive instructions which will indicate your specific task and the output from thinking through the task to provide meaningful instructions for other agents to enable them to execute their tasks',
-        taskExpectedOutput: 'Provide output in expected format.'
-    },
+        taskDescription: `Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate agents provided with Python code for specific data analytical tasks. 
+        You will use a tool to generate these agents.`,
+        taskExpectedOutput: 'Generated agents with specific Python code in their taskDescription field'
+      },
     {
         agentName: 'D3JSCodeValidator',
         agentType: 'processing',
@@ -109,6 +53,15 @@ Preserve all values provided by the user, especially the agents array if present
         taskExpectedOutput: `Javascript d3 js`
     },
     {
+        agentName: 'ValidatingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-3',
+        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs
+        to be amended in the JSON object that does not follow the rules.`,
+        taskDescription: `Your role is part of a validation process`,
+        taskExpectedOutput: 'Return expected output as instructed '
+    },
+    {
         agentName: 'ToolCallingAgent',
         agentType: 'tool',
         transactionId: 'tx-2-1',
@@ -122,63 +75,6 @@ ACTION: Call execute_python with the clean_code as the "code" argument
 DO NOT generate placeholder code. Use ONLY the code provided in your context.
  `,
         taskExpectedOutput: 'Clean python code to be executed'
-    },
-    {
-        agentName: 'DataFilteringAgent',
-        agentType: 'tool',
-        transactionId: 'tx-4',
-        backstory: 'Filter and chunk data for processing pipeline.',
-        taskDescription: 'Your task is to provide a user query to a data store. You must pass the query exactly as it is without modification.',
-        taskExpectedOutput: 'Filtered data chunks ready for presentation processing'
-    },
-    {
-        agentName: 'DataExtractingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-4-1',
-        backstory: 'Provide the search query for a structured query search.',
-        taskDescription: 'Use the inputs provided to create Clean JSON. Only parse JSON and validate required fields exist',
-        taskExpectedOutput: 'Provide  Flat list of validated records'
-    },
-    {
-        agentName: 'DataNormalizingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-4-2',
-        backstory: 'Provide the search query for a structured query search.',
-        taskDescription: 'Convert datetime to date strings',
-        taskExpectedOutput: 'Provide same records with added "date" field (YYYY-MM-DD)'
-    },
-    {
-        agentName: 'DataGroupingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-4-3',
-        backstory: 'Provide the search query for a structured query search.',
-        taskDescription: 'Group by the parameters you are provided in <context>. Only focus on the grouped logic using the input parameters',
-        taskExpectedOutput: 'Provide grouped structure grouped by the input parameters'
-    },
-    {
-        agentName: 'DataAggregatingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-4-4',
-        backstory: 'Provide the search query for a structured query search.',
-        taskDescription: 'Extract values array for each group. Focus only on array extraction. The parameters for the extraction are in <context>',
-        taskExpectedOutput: 'Provide Final structure using the input parameters'
-    },
-    {
-        agentName: 'DataSavingAgent',
-        agentType: 'tool',
-        transactionId: 'tx-5',
-        backstory: 'Provide the search query for a structured query search.',
-        taskDescription: 'Iteratively call a tool to process chunks of data. Be sure to use the tool name you are given to call the correct tool ',
-        taskExpectedOutput: 'You should expect feedback from the tool call operation'
-    },
-    {
-        agentName: 'ValidatingAgent',
-        agentType: 'processing',
-        transactionId: 'tx-3',
-        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs
-        to be amended in the JSON object that does not follow the rules.`,
-        taskDescription: `Your role is part of a validation process`,
-        taskExpectedOutput: 'Return expected output as instructed '
     }
 ];
 

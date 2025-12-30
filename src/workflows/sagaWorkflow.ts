@@ -3,7 +3,7 @@ import { createMCPServerConfig, connectToMCPServer} from '../index.js';
 import { SagaState, HumanInLoopConfig,
 
   groupingAgentPrompt, codingAgentErrorPrompt,  dataValidatingAgentPrompt, csvAnalysisRefectingAgentPrompt, 
- SVGInterpreterPrompt, toolValidationPrompt } from '../types/visualizationSaga.js';
+ SVGInterpreterPrompt, toolValidationPrompt, dagStart } from '../types/visualizationSaga.js';
 import { SAGAEventBusClient } from '../eventBus/sagaEventBusClient.js';
 import { BrowserGraphRequest } from '../eventBus/types.js';
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall, MCPServerConfig, WorkingMemory} from '../types/index.js';
@@ -19,6 +19,10 @@ import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE } from '../types/pip
 import { claudeMDResuilt } from '../test/histogramData.js'
 
 import { runAllDAGExamples } from '../examples/dagDesignerExample.js'
+import { extractAvailableAgents } from '../utils/agentRegistry.js';
+import { DAGDesigner } from '../agents/dagDesigner.js';
+import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
+import { DAGExecutor } from './dagExecutor.js';
 import * as fs from 'fs'
 
 
@@ -80,35 +84,39 @@ export class SagaWorkflow {
     // Check if MCP server URLs are configured (Railway deployment or remote access)
     const useRemoteMCP = process.env.CODEGEN_MCP_URL || process.env.PLAYWRIGHT_MCP_URL;
 
+    // Detect if running on Linux (droplet) vs Windows (local)
+    const isLinux = process.platform === 'linux';
+    const mcpBasePath = isLinux ? '/opt' : 'C:/repos';
+
     // Create multiple MCP server configurations
     const mcpServers = useRemoteMCP ? {
       // Remote MCP servers (Railway) - use HTTP/SSE transport
       execution: createMCPServerConfig({
         name: "execution-server",
         transport: "sse",
-        url: process.env.CODEGEN_MCP_URL || 'https://codegen-mcp-server-production-043c.up.railway.app',
+        url: process.env.CODEGEN_MCP_URL,
         timeout: 300000
       }),
       playwright: createMCPServerConfig({
         name: "playwright-server",
         transport: "sse",
-        url: process.env.PLAYWRIGHT_MCP_URL || 'https://langgraph-mcp-server-production.up.railway.app',
+        url: process.env.PLAYWRIGHT_MCP_URL,
         timeout: 300000
       })
     } : {
-      // Local development - use stdio transport with local paths
+      // Local stdio transport - auto-detect paths based on OS
       execution: createMCPServerConfig({
         name: "execution-server",
         transport: "stdio",
         command: "node",
-        args: ["C:/repos/codeGen-mcp-server/dist/server.js", "--stdio"],
+        args: [`${mcpBasePath}/codeGen-mcp-server/dist/server.js`, "--stdio"],
         timeout: 300000
       }),
       playwright: createMCPServerConfig({
         name: "playwright-server",
         transport: "stdio",
         command: "node",
-        args: ["C:/repos/playwright-mcp-server/dist/server.js"],
+        args: [`${mcpBasePath}/playwright-mcp-server/dist/server.js`],
         timeout: 300000
       })
     };
@@ -245,51 +253,10 @@ export class SagaWorkflow {
         agentType: 'processing',
         transactionId: 'tx-1',
         backstory: 'Receives workflow requirements from frontend and passes them to DAG Designer for autonomous workflow creation.',
-        taskDescription: `Your role is to receive workflow requirements from the frontend and ensure they are in the correct format for the DAG Designer.
-
-The frontend may send detailed agent specifications in an "agents" array. These are CRITICAL - they specify Python agents that will be executed via ExecuteAgentsStrategy.
-
-IMPORTANT: If frontend includes an "agents" array, PRESERVE IT - this tells DAG Designer which Python agents to create.
-
-Required fields:
-- objective: What the user wants to accomplish
-- inputData: {type, source, schema (optional)}
-- outputExpectation: {type, format (optional), quality (optional)}
-
-Optional but important fields:
-- agents: Array of agent specifications with {name, description, task, inputFrom, outputSchema}
-- constraints: {maxExecutionTime, parallelismAllowed, executionOrder}
-
-Output a clean JSON object with WorkflowRequirements format:
-{
-  "objective": "...",
-  "inputData": {
-    "type": "...",
-    "source": "...",
-    "schema": {...}
-  },
-  "outputExpectation": {
-    "type": "...",
-    "format": "...",
-    "quality": [...]
-  },
-  "agents": [
-    {
-      "name": "...",
-      "description": "...",
-      "task": "...",
-      "inputFrom": null or "PreviousAgentName",
-      "outputSchema": {...}
-    }
-  ],
-  "constraints": {
-    "parallelismAllowed": false,
-    "executionOrder": "sequential"
-  }
-}
-
-Preserve all values provided by the user, especially the agents array if present.`,
-        taskExpectedOutput: 'Complete WorkflowRequirements JSON including agents array if provided by frontend'
+        taskDescription: `Your role is to receive workflow requirements as formatted JSON and provide a natural language summary of the requirements
+        focusing closely on data analysis and the data to be provided to other agents. Only concentrate on providing information about the first agent. 
+        You must provide the specifics. Do NOT truncate or summarize details. Provide details verbtim especially file details. Be concise`,
+        taskExpectedOutput: 'Provide a concise natural language report.'
       },
        {
         agentName: 'TransactionGroupingAgent',
@@ -305,8 +272,9 @@ Preserve all values provided by the user, especially the agents array if present
         agentType: 'processing',
         transactionId: 'tx-2-2',
         backstory: 'You analyze data files and generate technical specifications.',
-        taskDescription: 'Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate comprehensive technical specifications for agent generation. You process user requirements in the context of the actual data.',
-        taskExpectedOutput: 'Detailed technical specification including file structure, data types, transformation requirements, and agent generation guidelines.'
+        taskDescription: `Your role is to analyze CSV data files, understand their structure, identify data patterns, and generate agents provided with Python code for specific data analytical tasks. 
+        You will use a tool to generate these agents.`,
+        taskExpectedOutput: 'Generated agents with specific Python code in their taskDescription field'
       },
       {
          agentName: 'AgentStructureGenerator',
@@ -602,7 +570,7 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider:  'gemini' , //'anthropic' 'openai' 'gemini'
+        provider:'gemini', //'anthropic' 'openai' 'gemini'
         model:'gemini-3-pro-preview',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  4096,
@@ -738,9 +706,118 @@ Focus: Only array extraction
       this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
 
-      await runAllDAGExamples(this.coordinator);
+      const requirements: WorkflowRequirements = {
+        objective: "Develop a complete D3.js histogram visualization with dynamic subagent analysis of price distribution data",
+        inputData: {
+          type: "csv_file",
+          source: "C:/repos/SAGAMiddleware/data/prices.csv",
+          schema: {
+            columns: ["price"],
+            rowCount: 1000,
+            characteristics: "Single-column price data, range $23-$9,502 with outliers, majority $30-$500, Excel export with UTF-8 BOM, 2 header rows, 5-min intervals"
+          }
+        },
+        agents: [
+          {
+            name: "WorkflowInterpreter",
+            agentType: "python_coding",
+            task: "Read and analyze price data from CSV file. Create dynamic agent definitions with Python code contexts for optimal histogram analysis including bin count calculation, range determination, and outlier handling strategies",
+            inputFrom: null,
+            outputSchema: {
+              agent_definitions: "dict",
+              analysis_context: "dict",
+              data_summary: "dict"
+            }
+          },
+          {
+            name: "HistogramAnalyzer",
+            agentType: "python_coding",
+            task: "Execute histogram data analysis using the agent definitions from WorkflowInterpreter. Calculate optimal bin count, data distribution parameters, outlier thresholds, and complete histogram configuration",
+            inputFrom: "WorkflowInterpreter",
+            outputSchema: {
+              optimal_bins: "int",
+              data_range: "dict",
+              distribution_stats: "dict",
+              histogram_config: "dict"
+            }
+          },
+          {
+            name: "ResultsValidator",
+            agentType: "functional",
+            task: "Validate the histogram analysis results for statistical accuracy, completeness, and optimal parameter selection",
+            inputFrom: "HistogramAnalyzer",
+            outputSchema: {
+              validation_status: "string",
+              validated_results: "dict",
+              validation_notes: "string"
+            }
+          },
+          {
+            name: "D3HistogramCoder",
+            agentType: "functional",
+            task: "Generate complete D3.js histogram visualization HTML code using the validated optimal parameters and histogram configuration",
+            inputFrom: "ResultsValidator",
+            outputSchema: {
+              html_code: "string",
+              js_code: "string",
+              output_path: "string"
+            }
+          },
+          {
+            name: "HTMLValidator",
+            agentType: "functional",
+            task: "Use Playwright to analyze the generated HTML file, validate SVG histogram elements against requirements, check for proper D3.js rendering. On validation failure, coordinate with D3HistogramCoder for one retry attempt with corrections",
+            inputFrom: "D3HistogramCoder",
+            outputSchema: {
+              svg_validation: "dict",
+              requirements_check: "dict",
+              playwright_results: "dict",
+              retry_coordination: "dict"
+            }
+          },
+          {
+            name: "FinalValidator",
+            agentType: "functional",
+            task: "Handle final validation results and conversation termination. Process HTMLValidator output, manage single retry attempt if needed, and provide final pass/fail determination for the complete histogram workflow",
+            inputFrom: "HTMLValidator",
+            outputSchema: {
+              final_result: "string",
+              conversation_status: "string",
+              output_files: "list",
+              workflow_completion: "dict"
+            }
+          }
+        ],
+        outputExpectation: {
+          type: "html_visualization",
+          format: "d3_histogram",
+          quality: ["validated", "production_ready", "responsive", "accessible"]
+        },
+        constraints: {
+          parallelismAllowed: false,
+          executionOrder: "sequential",
+          maxExecutionTime: 300
+        }
+      };
+       const availableAgents = extractAvailableAgents(this.coordinator);
+      
+   //   await runAllDAGExamples(this.coordinator);
 
-      const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
+      const dagDesigner = new DAGDesigner(this.coordinator.contextManager);
+      const result = await dagDesigner.execute({
+        workflowRequirements: requirements,
+        availableAgents: availableAgents
+    });
+    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements)});
+    const dagExecutor = new DAGExecutor(this.coordinator);
+    const startDag = JSON.parse(dagStart) as DAGDefinition
+    await dagExecutor.executeDAG(startDag, 'userQuery');
+    const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
+    const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, 'userQuery');
+
+    console.log('\n✅ DAG Execution Complete!');
+    console.log('Result:', dag);
+   //   const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
 
       // PHASE 1: Execute DATA_PROFILING_PIPELINE
       console.log('\n🔄 PHASE 1: Data Profiling Pipeline');

@@ -62,19 +62,18 @@ export abstract class BaseSDKAgent {
 
             if (message.type === 'result' && message.subtype === 'success') {
                 result = message.result;
-                console.log(`[RESULT] ${this.agentName} complete (${result.length} chars)\n`);
+                console.log('MESSAGE IN BASE ', result)
+               // console.log(`[RESULT] ${this.agentName} complete (${result.length} chars)\n`);
             } else if (message.type === 'assistant') {
                 console.log(`[TURN ${turnCount}] Processing...`);
             }
         }
 
-        if (!result) {
-            throw new Error(`${this.agentName} failed to generate result`);
+        if (result) {
+              //  console.log('═'.repeat(67));
+                console.log(`✅ ${this.agentName} complete\n`);
+                console.log('UPDATER RESULT ', result)
         }
-
-        console.log('═'.repeat(67));
-        console.log(`✅ ${this.agentName} complete\n`);
-        console.log('UPDATER RESULT ', result)
 
         return result;
     }

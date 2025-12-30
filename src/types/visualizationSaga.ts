@@ -101,6 +101,50 @@ export interface HumanInLoopConfig {
   };
 }
 
+export const dagStart = `{
+  "id": "d3-histogram-workflow",
+  "name": "D3.js Histogram Visualization Workflow",
+  "description": "Complete workflow for D3.js histogram visualization with dynamic analysis",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "entry",
+      "type": "entry",
+      "agentName": "conversation-agent",
+      "metadata": {}
+    },
+    {
+      "id": "conversation-agent",
+      "type": "agent",
+      "agentName": "ConversationAgent",
+      "metadata": {}
+    },
+    {
+      "id": "exit",
+      "type": "exit",
+      "agentName": "ExitNode",
+      "metadata": {}
+    }
+],
+ "edges": [
+  {
+      "id": "edge-1",
+      "from": "entry",
+      "to": "conversation-agent",
+      "flowType": "llm_call"
+    },
+    {
+      "id": "exit",
+     "from": "conversation-agent",
+     "to": "exit",
+      "flowType": "llm_call"
+    }],
+  "entryNode": "conversation-agent",
+  "exitNodes": [
+    "exit"
+  ]
+}`
+
 export const userRequestPrompt = `Your task is examine the user's request and out put it as two clearly defined JSON objects:
 1. {CSV_FILE_PATH: [the file path provided in the user's request], {REQUIREMENTS: [user's requirements]}}. Just provide the required information as it is`
 
