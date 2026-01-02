@@ -61,7 +61,6 @@ export class DAGExecutor {
         console.log(`🔀 Executing DAG: ${dag.name}`);
         console.log(`🔀 Description: ${dag.description}`);
         console.log(`🔀 Nodes: ${dag.nodes.length}, Edges: ${dag.edges.length}`);
-        console.log(`🔀 ============================================\n`);
 
         // Initialize execution metadata
         this.currentDagId = dag.id;
@@ -159,7 +158,7 @@ export class DAGExecutor {
                 return;
             } else {
                 // Execute node using strategy - strategy updates ContextManager
-                await this.executeNodeWithStrategy(dag, node, incomingEdges);
+                await this.executeNodeWithStrategy(dag, node, incomingEdges, input);
             }
 
             console.log(`✅ Node ${nodeId} completed`);
@@ -176,11 +175,11 @@ export class DAGExecutor {
             if (outgoingEdges.length > 1) {
                 console.log(`🔀 Node ${nodeId} has ${outgoingEdges.length} outgoing edges - executing in parallel`);
                 await Promise.all(
-                    outgoingEdges.map(edge => this.executeEdge(dag, edge))
+                    outgoingEdges.map(edge => this.executeEdge(dag, edge, input))
                 );
             } else if (outgoingEdges.length === 1) {
                 // Single outgoing edge
-                await this.executeEdge(dag, outgoingEdges[0]);
+                await this.executeEdge(dag, outgoingEdges[0], input);
             }
 
         } catch (error) {
@@ -215,7 +214,8 @@ export class DAGExecutor {
     private async executeNodeWithStrategy(
         dag: DAGDefinition,
         node: DAGNode,
-        incomingEdges: DAGEdge[]
+        incomingEdges: DAGEdge[],
+        input: any
     ): Promise<void> {
         // Determine strategy from incoming edge
         const primaryEdge = incomingEdges[0]; // Use first edge to determine strategy
@@ -269,14 +269,17 @@ export class DAGExecutor {
             throw new Error(`Unsupported flowType: ${primaryEdge.flowType}`);
         }
 
+        console.log('NODE AGENT NAME', node.agentName)
+
         // Execute using strategy - strategy updates ContextManager
         await strategy.execute(
             agentOrName,
             node.agentName,
             this.coordinator.contextManager,
-            undefined, // userQuery - can be passed if needed
+            sourceAgentName, // Source agent name for context tracking
+            input, // userQuery - can be passed if needed
             this.coordinator.agents, // agents registry for ExecuteAgentsStrategy
-            targetNodeMetadata // NEW: Pass target node metadata for prompt injection
+            targetNodeMetadata // Pass target node metadata for prompt injection
         );
     }
 
@@ -285,7 +288,8 @@ export class DAGExecutor {
      */
     private async executeEdge(
         dag: DAGDefinition,
-        edge: DAGEdge
+        edge: DAGEdge,
+        input: any
     ): Promise<void> {
         // Check edge condition if present
         if (edge.condition) {
@@ -301,7 +305,7 @@ export class DAGExecutor {
         }
 
         // Execute target node
-        await this.executeNode(dag, edge.to, null);
+        await this.executeNode(dag, edge.to, input);
     }
 
     /**

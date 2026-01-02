@@ -145,6 +145,40 @@ export const dagStart = `{
   ]
 }`
 
+export const geminiConversationAnalysis = `The first agent, WorkflowInterpreter, is a Python coding agent tasked with reading and analyzing price data from a CSV file. The specific file to be processed 
+is located at C:/repos/SAGAMiddleware/data/prices.csv. This input file contains 1000 rows of single-column price data. The data characteristics are: a price range of $23 to $9,502 with outliers, a majority of values between $30 and $500, and its format is an Excel export with a UTF-8 BOM, 2 header rows, and data recorded in 5-minute intervals. 
+The agent will use this data to create dynamic agent definitions and Python code contexts for subsequent agents, which will define the strategies for optimal histogram bin count calculation, range determination, and outlier handling.`
+
+export const createPrompt = `You will generate a task prompt for an agent in a workflow.
+
+I will provide:
+1. REQUIREMENTS - a workflow JSON with an agents array
+2. AGENT NAME - the specific agent to create a prompt for
+
+Rules:
+- Start your response IMMEDIATELY with the prompt (no meta-commentary)
+- Do NOT begin with phrases like "Based on the context..." or "Selected agent:"
+- Follow this structure:
+
+You are [agent name/role]. [What the agent does from its task].
+
+[If workflow has objective: Mention it briefly]
+[If agent receives input from another agent: State what input]
+
+Your tasks:
+- [Break the agent's task into 2-4 clear action items]
+
+Output format:
+[Describe expected output based on agent.outputSchema]
+
+[ONLY if agent generates code/files:]
+IMPORTANT: Output must be [specify exact format]. Do NOT wrap in markdown code fences or JSON.
+If the agent generates HTML/JS/CSS code that references data files, convert any absolute file paths to relative paths (e.g., "C:/repos/SAGAMiddleware/data/file.csv" becomes "./data/file.csv" or "../data/file.csv" as appropriate).
+
+Match the formality and technical level to the agent's task. Keep it natural and actionable.
+
+Now generate the prompt based on the requirements and agent name I provide.`
+
 export const userRequestPrompt = `Your task is examine the user's request and out put it as two clearly defined JSON objects:
 1. {CSV_FILE_PATH: [the file path provided in the user's request], {REQUIREMENTS: [user's requirements]}}. Just provide the required information as it is`
 
@@ -345,24 +379,104 @@ Return ONLY valid JSON with this structure:
 - IDENTIFY where CODE auto-generates what ANALYSIS explicitly provides
 </critical_rules>`
 
-export const MCPPythonCoderResultPrompt = `You are a data analysis summarizer. Extract key information from processed data results.
+export const MCPPythonCoderResultPrompt = `You are formatting analysis results for a visualization coding agent.
 
-INPUT: Large JSON object containing analysis results
+INPUT: JSON object with data analysis results
 
-OUTPUT: Concise JSON summary containing:
-- Dataset information (source, record counts)
-- Key statistics and metrics
-- Processing steps applied
-- Configuration details
-- Status/readiness indicators
+OUTPUT: Well-structured JSON containing ALL key information:
+- Data source details (path, record count, data type)
+- Complete statistical summaries (means, medians, ranges, quartiles, percentiles)
+- Distribution characteristics (skewness, kurtosis, normality)
+- All strategy recommendations with specific values (bin counts, ranges, methods)
+- Sample data values (first 10-20 values for reference)
+- Any special parameters or configuration settings
+- Rationale for recommendations where provided
 
 RULES:
-- Extract actual values, not placeholders
-- Omit large arrays and raw data
-- Focus on high-level insights only
-- Keep output under 2KB
+- INCLUDE all numeric recommendations and their values
+- PRESERVE statistical precision - do not round
+- INCLUDE sample data values for context
+- EXTRACT all strategy options and recommendations
+- Keep complete - the coding agent needs all details to generate accurate visualizations
 - Return valid JSON only
-- Adapt structure to match the input data type;`
+- Adapt structure to match the analysis type (histogram, scatter, line, etc.)`
+
+export const D3ReadyAnalysisPrompt = `You are transforming raw data analysis results into a clean, D3.js-ready JSON structure for a visualization coding agent.
+
+INPUT: Raw analysis results containing:
+- Source data (arrays, statistics, metadata)
+- Analysis strategies and recommendations
+- Visualization parameters and configuration
+- Statistical measures and distributions
+
+OUTPUT: Well-structured JSON with this format:
+{
+  "graphDescription": {
+    "type": "[graph type - histogram, scatter, line, bar, etc.]",
+    "title": "[descriptive title including data size and key characteristics]",
+    "summary": "[1-2 sentence description of the data distribution and visualization approach]"
+  },
+  "d3Data": {
+    "source": {
+      "path": "[data file path]",
+      "column": "[column name if applicable]",
+      "rowCount": [number of records]
+    },
+    "stats": {
+      [ALL statistical measures: count, min, max, mean, median, std, quartiles, percentiles, etc.]
+    },
+    "preprocessing": {
+      [IF APPLICABLE: any data transformations, capping, filtering, outlier handling]
+      "steps": [
+        { "step": "[name]", "description": "[what was done]", "affectedCount": [number] }
+      ]
+    },
+    [GRAPH-SPECIFIC SECTION]:
+    For histograms: "histogram": {
+      "binsPrecomputed": true/false,
+      "binCount": [number],
+      "xDomain": [min, max],
+      "yDomain": [min, max],
+      "binEdges": [array of bin boundaries],
+      "bins": [
+        { "x0": [start], "x1": [end], "count": [number], "percentage": [value] }
+      ]
+    }
+    For other graph types: include appropriate data structure
+
+    "annotations": {
+      [Key reference lines, markers, or highlights with values and labels]
+    },
+    "config": {
+      "width": [number],
+      "height": [number],
+      "margin": { "top": [n], "right": [n], "bottom": [n], "left": [n] },
+      "xLabel": "[axis label]",
+      "yLabel": "[axis label]",
+      [Additional D3 configuration: scales, tooltips, accessors, legends, interactions]
+    },
+    "readyForD3": true
+  }
+}
+
+RULES:
+1. EXTRACT all available statistics - don't summarize or omit precision
+2. IDENTIFY the graph type from the analysis context
+3. TRANSFORM strategy recommendations into concrete visualization parameters
+4. PRESERVE all numeric precision (don't round unless specified)
+5. STRUCTURE bin/point/line data in format ready for D3 rendering
+6. INCLUDE complete scale domains, tick values, and axis configuration
+7. ADD annotations for important reference values (mean, median, outliers, thresholds)
+8. PROVIDE tooltip configuration showing which fields to display
+9. Output ONLY valid JSON, no explanatory text
+10. Adapt the structure to the specific graph type while maintaining this general format
+
+GRAPH TYPE GUIDANCE:
+- Histogram: Include bins array with edges, counts, and percentages
+- Scatter: Include points array with x, y coordinates and optional grouping
+- Line: Include series array with x, y points for each line
+- Bar: Include categories array with labels and values
+- Always include appropriate scales, domains, and accessor functions for the graph type`
 
 export const analysisFixPrompt =`You are receiving output from another agent in a non-standard format.
 

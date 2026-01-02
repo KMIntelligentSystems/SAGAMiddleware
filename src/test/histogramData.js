@@ -1767,6 +1767,457 @@ export const openaiPythonAnalysisResult = `   {
   }
 }`
 
+export const openaiPythonAnalysisResult_Jan_02 = ` {
+  "graphDescription": {
+    "type": "histogram",
+    "title": "Price Distribution Histogram (n=9994, min=11, max=17242, median=103, mean=179.396, heavy right tail)",
+    "summary": "A heavily right-skewed price distribution with the majority between $30–$500 and extreme high-value outliers. Visualization uses log-scaled custom bins to preserve detail in the main mass while accommodating the long tail."
+  },
+  "d3Data": {
+    "source": {
+      "path": "C:/repos/SAGAMiddleware/data/prices.csv",
+      "column": "price",
+      "rowCount": 9994
+    },
+    "stats": {
+      "count": 9994,
+      "min": 11.0,
+      "max": 17242.0,
+      "mean": 179.39603762257354,
+      "median": 103.0,
+      "std": 420.98611730790503,
+      "q1": 69.0,
+      "q3": 172.0,
+      "iqr": 103.0,
+      "data_interval": "5-minute"
+    },
+    "preprocessing": {
+      "steps": [
+        {
+          "step": "remove_bom_and_headers",
+          "description": "Removed UTF-8 BOM and skipped 2 header rows from Excel export",
+          "affectedCount": 2
+        }
+      ]
+    },
+    "histogram": {
+      "binsPrecomputed": false,
+      "binCount": 10,
+      "xDomain": [11.0, 20000.0],
+      "yDomain": [0, null],
+      "binEdges": [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000],
+      "bins": []
+    },
+    "annotations": {
+      "referenceLines": [
+        { "type": "median", "value": 103.0, "label": "Median = 103" },
+        { "type": "mean", "value": 179.39603762257354, "label": "Mean = 179.396" },
+        { "type": "quartile", "value": 69.0, "label": "Q1 = 69" },
+        { "type": "quartile", "value": 172.0, "label": "Q3 = 172" },
+        { "type": "threshold", "value": 326.5, "label": "Upper non-outlier threshold (Q3 + 1.5·IQR) = 326.5" }
+      ],
+      "notes": [
+        "Log-scaled x-axis with custom thresholds to emphasize the bulk distribution while retaining the long tail.",
+        "Consider an overflow annotation for observations > $10k."
+      ]
+    },
+    "config": {
+      "width": 960,
+      "height": 540,
+      "margin": { "top": 24, "right": 24, "bottom": 64, "left": 64 },
+      "xLabel": "Price (USD, log scale)",
+      "yLabel": "Count",
+      "scales": {
+        "x": { "type": "log", "base": 10, "domain": [11.0, 20000.0], "nice": false, "clamp": true },
+        "y": { "type": "linear", "domain": [0, null], "nice": true }
+      },
+      "axes": {
+        "x": {
+          "tickValues": [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000],
+          "tickFormat": "$~s",
+          "grid": false
+        },
+        "y": {
+          "tickCount": 8,
+          "tickFormat": "~s",
+          "grid": true
+        }
+      },
+      "binning": {
+        "strategy": "custom-edges-log10",
+        "thresholds": [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000],
+        "includeOverflowBin": true,
+        "overflowBinLabel": "≥ $20k"
+      },
+      "accessors": {
+        "x": "d.price",
+        "binX0": "d.x0",
+        "binX1": "d.x1",
+        "binCount": "d.length",
+        "binPercentage": "d.percentage"
+      },
+      "tooltip": {
+        "fields": [
+          { "key": "range", "label": "Range", "format": "[$,.0f, $,.0f]" },
+          { "key": "count", "label": "Count", "format": ",.0f" },
+          { "key": "percentage", "label": "% of total", "format": ".2%" }
+        ],
+        "accessorMap": {
+          "range": ["d.x0", "d.x1"],
+          "count": "d.length",
+          "percentage": "d.percentage"
+        }
+      },
+      "interactions": {
+        "hover": true,
+        "focus": true,
+        "brushX": false,
+        "markAnnotations": true
+      },
+      "a11y": {
+        "title": "Histogram of price distribution with log-scaled bins",
+        "desc": "Shows the frequency of prices using logarithmic bins to handle a heavy right tail and outliers. Reference lines mark mean, median, and quartiles."
+      }
+    },
+    "readyForD3": true
+  }
+}`
+
+export const openaiDataProfilerPrompt_Jan_02  = ` You are DataProfiler. Profile and sanitize the input CSV price data to produce a trustworthy dataset and profiling report for downstream histogram analysis.
+
+Objective: Deliver reliable inputs for a complete D3.js histogram visualization of price distribution with validated parameters.
+Input: Raw CSV at C:/repos/SAGAMiddleware/data/prices.csv (single column “price”, Excel export with UTF-8 BOM, two header rows, 5-minute intervals, range ~$23–$9,502 with outliers, majority $30–$500).
+
+Your tasks:
+- Ingest and normalize data: detect and strip BOM, skip 2 header rows, infer delimiter, coerce “price” to numeric (handle currency symbols and thousand separators), remove non-numeric/negative values, and deduplicate; log before/after counts.
+- Profile distribution: compute descriptive stats (min, max, mean, median, std, MAD, IQR, percentiles), shape metrics (skewness, kurtosis), and data quality metrics (nulls, invalids, duplicates).
+- Detect outliers and bounds: derive thresholds using IQR and z-score methods; propose recommended lower/upper clipping bounds suitable for histogram domain.
+- Recommend binning: compare Sturges, Scott, and Freedman–Diaconis; select optimal bin count with bin width and domain; provide rationale and sensitivity to outliers.
+
+Output format:
+- JSON object with:
+  - profile_summary (dict):
+    - row_count_raw (int)
+    - row_count_clean (int)
+    - nulls (int)
+    - invalid (int)
+    - duplicates (int)
+    - min (float)
+    - max (float)
+    - mean (float)
+    - median (float)
+    - std (float)
+    - mad (float)
+    - iqr (float)
+    - p01 (float), p05 (float), p10 (float), p25 (float), p75 (float), p90 (float), p95 (float), p99 (float)
+    - skew (float)
+    - kurtosis (float)
+  - parsing_info (dict):
+    - encoding (string)
+    - delimiter (string)
+    - decimal (string)
+    - thousands (string)
+    - header_rows (int)
+    - bom_present (bool)
+    - coercion_rules (string)
+  - outlier_analysis (dict):
+    - method_primary (string)
+    - iqr_lower (float)
+    - iqr_upper (float)
+    - zscore_threshold (float)
+    - z_lower (float)
+    - z_upper (float)
+    - recommended_clip (dict: {lower: float, upper: float})
+  - binning_recommendation (dict):
+    - method (string: one of ["sturges","scott","freedman_diaconis"])
+    - optimal_bins (int)
+    - bin_width (float)
+    - domain (dict: {min: float, max: float})
+    - rationale (string)
+  - cleaned_data_path (string): absolute path to a cleaned CSV containing a single header row “price” with numeric values only
+  - quality_flags (dict):
+    - is_monotonic (bool)
+    - has_gaps (bool)
+    - heavy_tails (bool)
+    - multimodal (bool)
+    - notes (string)
+`
+
+export const openaiD3JSCodingAgentPrompt_Jan_02 = ` You are D3JSCodingAgent. Generate complete D3.js histogram visualization HTML code using the validated optimal parameters and histogram configuration.
+
+Objective: Develop a complete D3.js histogram visualization of price distribution data.
+
+Input: You receive from ResultsValidator the validated optimal_bins, data_range, distribution_stats, histogram_config, and any validation_notes.
+
+Your tasks:
+- Build a production-ready, responsive, and accessible D3.js histogram that uses the validated histogram_config (bin thresholds, outlier handling, axes, scales) directly for rendering; include semantic title/desc, ARIA labels, keyboard focus, and color-contrast-safe styles.
+- Implement robust data handling: render from provided histogram_config without requiring external I/O; include a non-blocking fallback that loads C:/repos/SAGAMiddleware/data/prices.csv (UTF-8 with BOM, skip first 2 header rows, parse price column), respecting optimal_bins and outlier thresholds from the validated inputs.
+- Add interactivity and UX: tooltips showing bin range, count, and share; a slider to adjust bin count within validated bounds with debounced updates; a toggle to include/exclude outliers; responsive resizing; and optional export buttons for SVG/PNG.
+- Produce clean, dependency-light code using D3 (v6+), separating concerns (HTML structure/CSS, JS logic), with IDs/classes that facilitate Playwright validation of the SVG (e.g., #histogram svg, .bar rect, .x-axis, .y-axis, .tooltip).
+
+Output format:
+- html_code: A complete, standalone HTML document string containing the container markup, styles, semantic metadata (title/desc), and script tags that reference the separated JS by ID hook (do not include external network dependencies beyond D3 if inlined).
+- js_code: A single JavaScript string (ES6) that selects the container, initializes scales/axes, draws bars from histogram_config, wires interactivity (tooltips, slider, toggles), handles responsive resizing, and includes the CSV fallback loader (skip 2 header rows, handle BOM).
+- output_path: A filesystem path string indicating where the HTML file should be saved (e.g., ./output/d3_histogram.html).
+
+IMPORTANT: Output must be plain UTF-8 strings:
+- html_code: full HTML document as one string
+- js_code: standalone JavaScript as one string
+- output_path: path string
+Do NOT wrap outputs in markdown code fences or JSON.`
+
+export const opusPythonAnalysisResult_Jan_02 = `{
+  "graphDescription": {
+    "type": "histogram",
+    "title": "Price Distribution (n=9,994) - Range $11-$17,242 with Right Skew",
+    "summary": "Highly right-skewed price distribution with majority of values concentrated between $30-$500. Median ($103) significantly lower than mean ($179.40) indicates positive skew with extreme outliers requiring capped visualization."
+  },
+  "d3Data": {
+    "source": {
+      "path": "C:/repos/SAGAMiddleware/data/prices.csv",
+      "column": "price",
+      "rowCount": 9994,
+      "dataInterval": "5-minute"
+    },
+    "stats": {
+      "count": 9994,
+      "min": 11.0,
+      "max": 17242.0,
+      "mean": 179.39603762257354,
+      "median": 103.0,
+      "std": 420.98611730790503,
+      "q1": 69.0,
+      "q3": 172.0,
+      "iqr": 103.0,
+      "lowerFence": -85.5,
+      "upperFence": 326.5,
+      "skewness": "positive",
+      "p5": 40.0,
+      "p10": 52.0,
+      "p90": 345.0,
+      "p95": 575.0,
+      "p99": 1149.0
+    },
+    "preprocessing": {
+      "steps": [
+        {
+          "step": "outlierCapping",
+          "description": "Cap visualization at 99th percentile (1149) to preserve distribution shape while handling extreme outliers",
+          "affectedCount": 100,
+          "cappedValue": 1149
+        }
+      ],
+      "visualizationRange": {
+        "min": 0,
+        "max": 1200
+      }
+    },
+    "histogram": {
+      "binsPrecomputed": false,
+      "binCount": 30,
+      "binWidth": 40,
+      "xDomain": [0, 1200],
+      "yDomain": [0, 2500],
+      "binEdges": [0, 40, 80, 120, 160, 200, 240, 280, 320, 360, 400, 440, 480, 520, 560, 600, 640, 680, 720, 760, 800, 840, 880, 920, 960, 1000, 1040, 1080, 1120, 1160, 1200],
+      "binningStrategy": {
+        "method": "fixedWidth",
+        "rationale": "Fixed 40-unit bins provide readable intervals for price data with right skew"
+      }
+    },
+    "annotations": {
+      "mean": {
+        "value": 179.40,
+        "label": "Mean: $179.40",
+        "color": "#e74c3c",
+        "lineStyle": "dashed"
+      },
+      "median": {
+        "value": 103.0,
+        "label": "Median: $103.00",
+        "color": "#2ecc71",
+        "lineStyle": "solid"
+      },
+      "q1": {
+        "value": 69.0,
+        "label": "Q1: $69.00",
+        "color": "#3498db",
+        "lineStyle": "dotted"
+      },
+      "q3": {
+        "value": 172.0,
+        "label": "Q3: $172.00",
+        "color": "#3498db",
+        "lineStyle": "dotted"
+      },
+      "outlierThreshold": {
+        "value": 326.5,
+        "label": "Outlier threshold (Q3+1.5×IQR)",
+        "color": "#f39c12",
+        "lineStyle": "dashed"
+      }
+    },
+    "config": {
+      "width": 900,
+      "height": 500,
+      "margin": {
+        "top": 40,
+        "right": 40,
+        "bottom": 60,
+        "left": 70
+      },
+      "xLabel": "Price ($)",
+      "yLabel": "Frequency",
+      "xScale": {
+        "type": "linear",
+        "domain": [0, 1200],
+        "nice": true
+      },
+      "yScale": {
+        "type": "linear",
+        "domain": [0, null],
+        "nice": true
+      },
+      "xAxis": {
+        "tickFormat": "$.0f",
+        "tickCount": 12,
+        "tickValues": [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200]
+      },
+      "yAxis": {
+        "tickFormat": ",d",
+        "tickCount": 10
+      },
+      "bars": {
+        "fill": "#4a90d9",
+        "stroke": "#2c5aa0",
+        "strokeWidth": 1,
+        "opacity": 0.85,
+        "hoverFill": "#6ba3e0"
+      },
+      "tooltip": {
+        "enabled": true,
+        "fields": ["binRange", "count", "percentage"],
+        "format": {
+          "binRange": "Range: $/{x0} - $/{x1}",
+          "count": "Count: {count}",
+          "percentage": "Percentage: {percentage}%"
+        }
+      },
+      "legend": {
+        "show": true,
+        "items": [
+          {"label": "Mean", "color": "#e74c3c", "type": "line"},
+          {"label": "Median", "color": "#2ecc71", "type": "line"},
+          {"label": "Quartiles", "color": "#3498db", "type": "line"}
+        ]
+      },
+      "title": {
+        "text": "Price Distribution Analysis",
+        "fontSize": 18,
+        "fontWeight": "bold"
+      },
+      "subtitle": {
+        "text": "n=9,994 prices | 5-minute intervals | Capped at 99th percentile",
+        "fontSize": 12,
+        "color": "#666"
+      },
+      "responsive": true,
+      "transitions": {
+        "duration": 300,
+        "easing": "easeQuadOut"
+      }
+    },
+    "accessors": {
+      "x": "d => d.x0",
+      "width": "d => xScale(d.x1) - xScale(d.x0) - 1",
+      "y": "d => yScale(d.length)",
+      "height": "d => height - margin.bottom - yScale(d.length)"
+    },
+    "dataTransform": {
+      "histogramGenerator": "d3.histogram().domain(xScale.domain()).thresholds(binEdges)",
+      "valueAccessor": "d => d"
+    },
+    "readyForD3": true
+  }
+}`
+
+export const opusDataProfilerPrompt_Jan_02  = ` You are a Data Profiler agent. Your role is to analyze and profile datasets to understand their structure, quality, and statistical characteristics.
+
+The workflow objective is to develop a complete D3.js histogram visualization with dynamic subagent analysis of price distribution data.
+
+Note: The agent "DataProfiler" was not found in the provided workflow. Based on the workflow context involving price data analysis for histogram visualization, I'll create an appropriate prompt for a DataProfiler that would fit this workflow.
+
+You will receive price data from a CSV file (C:/repos/SAGAMiddleware/data/prices.csv) containing single-column price data with 1000 rows, ranging from $23-$9,502 with outliers, majority in $30-$500 range.
+
+Your tasks:
+- Load and parse the CSV file, handling UTF-8 BOM encoding and 2 header rows
+- Calculate comprehensive descriptive statistics (mean, median, mode, std dev, quartiles, IQR)
+- Identify data quality issues including missing values, duplicates, and anomalies
+- Detect outliers using statistical methods (IQR, z-score) and characterize the distribution shape
+- Provide recommendations for histogram binning based on data characteristics
+
+Output format:
+Provide a structured analysis containing:
+- data_profile: dict with row count, column info, data types, and completeness metrics
+- statistics: dict with all descriptive statistics and percentiles
+- outlier_analysis: dict with outlier counts, thresholds, and flagged values
+- distribution_characteristics: dict describing skewness, kurtosis, and distribution type
+- profiling_recommendations: dict with suggested bin strategies and data transformations
+`
+
+export const opusD3JSCodingAgentPrompt_Jan_02 = `You are a D3.js Coding Agent. Your task is to generate complete D3.js histogram visualization HTML code using validated optimal parameters and histogram configuration data.
+
+The workflow objective is to develop a complete D3.js histogram visualization with dynamic subagent analysis of price distribution data.
+
+You receive input from ResultsValidator containing validated histogram analysis results including optimal bin count, data range, distribution statistics, and histogram configuration.
+
+Your tasks:
+- Generate a complete, self-contained HTML file with embedded D3.js code for the histogram visualization
+- Implement the histogram using the validated optimal_bins, data_range, and histogram_config parameters
+- Ensure the visualization is responsive, accessible, and production-ready
+- Include proper axis labels, title, and styling appropriate for price distribution data
+- Save the output HTML file to a specified path
+
+Output format:
+Provide your output as a structured response containing:
+- html_code: The complete HTML document as a string
+- js_code: The D3.js visualization code (also embedded in html_code)
+- output_path: The file path where the HTML file should be saved
+
+IMPORTANT: Output the HTML code as a raw string value, NOT wrapped in markdown code fences or JSON code blocks. The html_code field should contain the actual HTML content ready for file writing.
+`
+
+export const geminiD3JSCodingAgentPrompt_jan_02 = ` You are D3HistogramCoder. Your task is to generate complete D3.js histogram visualization HTML code using the validated optimal parameters and histogram configuration.
+
+The overall goal is to develop a complete D3.js histogram visualization of price distribution data. You will receive validated results from the ResultsValidator, which includes the optimal parameters and configuration needed to build the chart.
+
+Your tasks:
+- Use the validated parameters (optimal bin count, data range, etc.) to configure the D3.js histogram layout, scales, and axes.
+- Write the HTML structure necessary to host the D3 visualization, including the SVG container.
+- Generate the D3.js JavaScript code to create the histogram, including bars, axes, and labels, based on the provided configuration.
+- Package the complete HTML and JavaScript into a single, self-contained HTML file string.
+
+Output format:
+Your output must be a JSON object with the following keys:
+- html_code: A string containing the full, self-contained HTML code for the visualization.
+- js_code: A string containing only the JavaScript logic used for the visualization.
+- output_path: A string with a suggested relative file path for saving the HTML, like "./histogram.html".`
+
+export const geminiDataProfilerPrompt_jan_02 = ` You are the WorkflowInterpreter. Your role is to read and analyze the provided price data from a CSV file to prepare for an optimal histogram analysis.
+
+The overall goal is to develop a complete D3.js histogram visualization. You will be working with the initial input data from C:/repos/SAGAMiddleware/data/prices.csv. Note its characteristics: a single 'price' column, 1000 rows, a range of $23-$9,502 with outliers, a UTF-8 BOM, and 2 header rows.
+
+Your tasks:
+- Read the price data from the specified CSV file, ensuring you correctly handle the two header rows and the UTF-8 BOM encoding.
+- Perform a thorough analysis of the price data to understand its distribution, identify potential outliers, and determine key statistical properties.
+- Based on your analysis, create dynamic agent definitions and a Python code context that defines clear strategies for the next agent (HistogramAnalyzer) to calculate the optimal bin count, determine the data range, and handle outliers effectively.
+- Generate a concise summary of your findings about the data.
+
+Output format:
+Your output must be a single JSON object with three keys:
+- agent_definitions: A dictionary containing the definitions and Python code contexts for subsequent analysis.
+- analysis_context: A dictionary detailing the strategies you've developed for binning, range determination, and outlier handling.
+- data_summary: A dictionary summarizing the key statistics of the price data (e.g., mean, median, min, max, std dev).`
+
 export const sonnetJSONRenderedPythonAnalysis = `{
   "graph_type": "histogram",
   "data_source": {

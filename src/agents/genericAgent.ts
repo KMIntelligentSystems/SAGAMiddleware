@@ -47,9 +47,11 @@ export class GenericAgent {
   private mcpToolCallContext?: ToolCallContext;
   private agentDefn: AgentDefinition;
   private counter = 0;
+  private mcpInitialized = false;
   constructor(private definition: AgentDefinition) {
     this.agentDefn = definition;
-    this.initializeMCPConnections();
+    // Don't call initializeMCPConnections here - it's async and can't be awaited in constructor
+    // It will be called when needed (before execute)
   }
 
  getAgentDefinition(): AgentDefinition{
@@ -84,6 +86,12 @@ export class GenericAgent {
           };
 
     try {
+      // Initialize MCP connections if not already done
+      if (!this.mcpInitialized) {
+        await this.initializeMCPConnections();
+        this.mcpInitialized = true;
+      }
+
       // Refresh MCP capabilities if needed
       await this.refreshMCPCapabilities();
       if(contextData){
@@ -92,6 +100,10 @@ export class GenericAgent {
 
       const prompt = this.createPrompt();//buildPrompt(contextData);
        console.log("PROMPT ",prompt)
+
+      if(this.definition.name === 'ToolCallingAgent'){
+            // result = await this.invokeLLM(prompt);
+      }
 
       if(this,this.definition.name === 'ConversationAgent'){
          result.result  = geminiConversationAnalysis//await this.invokeLLM(prompt);
@@ -111,7 +123,8 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for ValidatingAgent
       if(this.definition.name === 'ValidatingAgent'){
         console.log('🔧 ValidatingAgent: Returning test data (sonnetJSONRenderedPythonAnalysis)');
-        result.result = sonnetJSONRenderedPythonAnalysis;
+        result = await this.invokeLLM(prompt);
+      // result.result = sonnetJSONRenderedPythonAnalysis;
       }
 
       // TEMPORARY: For testing, return hardcoded data for D3JSCoordinatingAgent
@@ -123,6 +136,7 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for D3JSCodingAgent
       if(this.definition.name === 'D3JSCodingAgent'){
         console.log('🔧 D3JSCodingAgent: Reading test data from opus.html');
+       //  result = await this.invokeLLM(prompt);
        result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
       }
 

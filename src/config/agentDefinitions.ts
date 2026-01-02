@@ -44,11 +44,11 @@ export const AGENT_DEFINITIONS: LLMPromptConfig[] = [
         agentType: 'processing',
         transactionId: 'tx-7',
         backstory: 'Provide files for indexing using tool calls.',
-        taskDescription: `You are a d3 js coding expert especially in graphical representation of data using csv file format. You will receive a set of user requirements and
-         d3 js code implementing the d3 js code as per the requirements. Your tasks are:
-         1. Check the code for errors. Your priority is to fix the errors
-         2. Ensure the code aligns with the requirements. Where possible implement the desideratum
-         If there are no errors and the requirments are implemented then output the code as is.
+        taskDescription: `You are a d3 js coding expert especially in graphical representation of data. You will receive a set of user requirements and
+        a detailed analysis of the of data you must understand in order to create the d3 js code. Th analysis will also provide the data you need. Your tasks are:
+         1. Ensure the code aligns with the requirements.
+         2. Ensure that the data provided by the analysis is used
+         3. Ensure that just the html is provided. No explanations are required. 
        `,
         taskExpectedOutput: `Javascript d3 js`
     },

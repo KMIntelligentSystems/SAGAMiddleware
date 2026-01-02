@@ -570,10 +570,10 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider:'gemini', //'anthropic' 'openai' 'gemini'
+        provider: 'gemini', //'anthropic' 'openai' 'gemini'
         model:'gemini-3-pro-preview',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
-        maxTokens:  4096,
+        maxTokens:  8192,
        // apiKey: process.env.ANTHROPIC_API_KEY
       };
 
@@ -811,9 +811,9 @@ Focus: Only array extraction
     this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements)});
     const dagExecutor = new DAGExecutor(this.coordinator);
     const startDag = JSON.parse(dagStart) as DAGDefinition
-    await dagExecutor.executeDAG(startDag, 'userQuery');
+   // await dagExecutor.executeDAG(startDag, requirements);
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
-    const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, 'userQuery');
+    const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements);
 
     console.log('\n✅ DAG Execution Complete!');
     console.log('Result:', dag);

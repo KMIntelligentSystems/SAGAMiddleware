@@ -7,14 +7,19 @@
 
 import {
     MCPPythonCoderResultPrompt,
+    D3ReadyAnalysisPrompt,
     histogramInterpretationPrompt,
-    histogramValidationPrompt
+    histogramValidationPrompt,
+    geminiConversationAnalysis,
+    createPrompt
 } from '../types/visualizationSaga.js';
 
 export const PROMPT_REGISTRY: Record<string, string> = {
     // Validation prompts
+    'DataProfilerPrompt': geminiConversationAnalysis,
     'MCPPythonCoderResult': MCPPythonCoderResultPrompt,
-
+    'D3ReadyAnalysis': D3ReadyAnalysisPrompt,
+    'CreatePrompt': createPrompt,
     // D3.js coding prompts
     'histogramInterpretation': histogramInterpretationPrompt,
     'histogramValidation': histogramValidationPrompt

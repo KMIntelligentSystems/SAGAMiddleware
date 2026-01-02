@@ -26,6 +26,7 @@ import { agentConstructorPythonExecutionError } from '../test/testData.js';
 
 export interface DataProfileInput {
     workflowDescription: string;  // Complete workflow plan including filepath and requirements
+    dataProfilerPrompt: string;
 }
 
 export interface SubAgentSpec {
@@ -844,22 +845,11 @@ print(json.dumps(result))`,
      */
     async execute(input: DataProfileInput): Promise<AgentResult> {
         // Get input from context manager
-     //   input = this.getInput();
-
-      /*  if (!this.validateInput(input)) {
-            return {
-                agentName: 'DataProfiler',
-                result: '',
-                success: false,
-                timestamp: new Date(),
-                error: 'Invalid input: workflowDescription is required'
-            };
-        }*/
 
         try {
             const ctx = this.contextManager.getContext('DataProfiler') as WorkingMemory;
    
-            const prompt = this.buildPrompt({workflowDescription: ctx.lastTransactionResult});
+            const prompt = this.buildPrompt({workflowDescription: ctx.lastTransactionResult, dataProfilerPrompt: ctx.prompt});
 
            const output = ''//await this.executeQuery(prompt); //dataProfileHistogramResponse  fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfileHistogramResponse.txt', 'utf-8'); //fs.readFileSync('C:/repos/SAGAMiddleware/data/dataProfiler_PythonEnvResponse.txt', 'utf-8');//
 
@@ -923,13 +913,13 @@ console.log('INPUT DATAPROFILER ', actualResult)
      * Legacy method for backward compatibility
      * @deprecated Use execute() instead
      */
-    async analyzeAndGeneratePrompt(workflowDescription: string): Promise<string> {
+  /*  async analyzeAndGeneratePrompt(workflowDescription: string): Promise<string> {
         const result = await this.execute({ workflowDescription });
         if (!result.success) {
             throw new Error(result.error || 'Failed to generate prompt from file analysis');
         }
         return result.result;
-    }
+    }*/
 
     /**
      * Legacy file analysis prompt (deprecated)

@@ -11,6 +11,8 @@ import { ContextManager } from '../sublayers/contextManager.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import * as fs from 'fs';
 import { getPrompt, hasPrompt } from '../config/promptRegistry.js';
+import { validateWorkflowRequirements } from '../tools/workflowRequirementsBuilder.js';
+import { opusPythonAnalysisResult_Jan_02,  openaiPythonAnalysisResult_Jan_02, openaiD3JSCodingAgentPrompt_Jan_02 , openaiDataProfilerPrompt_Jan_02, opusD3JSCodingAgentPrompt_Jan_02  } from '../test/histogramData.js'
 
 /**
  * Flow Strategy Interface
@@ -21,9 +23,10 @@ export interface FlowStrategy {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
-        userQuery?: string,
+        source: string,  // Source agent name for context tracking
+        userQuery?: any,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any  // NEW: Target node metadata for prompt injection
+        nodeMetadata?: any  // Target node metadata for prompt injection
     ): Promise<AgentResult>;
 }
 
@@ -37,7 +40,10 @@ export const LLMCallStrategy: FlowStrategy = {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
-        userQuery?: string
+        source: string,
+        userQuery?: any,
+        agentsRegistry?: Map<string, GenericAgent>,
+        nodeMetadata?: any
     ): Promise<AgentResult> {
         // Only GenericAgent can make LLM calls in this strategy
         if (!(agent instanceof GenericAgent)) {
@@ -47,35 +53,32 @@ export const LLMCallStrategy: FlowStrategy = {
         console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} with LLM call`);
 
         // Get the agent's context from ContextManager BEFORE clearing
-        const agentCtx = contextManager.getContext(agent.getName()) as WorkingMemory;
+        const agentCtx = contextManager.getContext(source) as WorkingMemory;
+         
+      //  if(source !== targetAgent && targetAgent !== 'ConversationAgent'){
+               const validatingAgent = agentsRegistry?.get(source);
+               validatingAgent.deleteContext();
+               const prompt = getPrompt('CreatePrompt');
+               validatingAgent.setTaskDescription(prompt);
+               //openaiD3JSCodingAgentPrompt_Jan_02 
+              const taskForAgent = await validatingAgent.execute({'REQUIREMENTS':  JSON.stringify(userQuery), 'AGENT NAME: ': targetAgent});
+              const d3jsPrompt = taskForAgent.result;// opusD3JSCodingAgentPrompt_Jan_02//openaiD3JSCodingAgentPrompt_Jan_02 ;
+               //Set the task of this LLM 
+               agent.deleteContext();
 
-        // NEW: Check if there's a dynamic prompt in the agent's context and apply it
-        if (agentCtx?.prompt) {
-            console.log(`📝 LLMCallStrategy: Setting dynamic prompt for ${agent.getName()} from context`);
-            agent.setTaskDescription(agentCtx.prompt);
-        }
+             //   agent.setContext(taskForAgent.result)
+     //   }
 
         // Clear agent's internal context to avoid contamination from previous executions
-     //   agent.deleteContext();
-
-        // Build context data from ContextManager (includes pythonAnalysis, userQuery, etc.)
-        const contextData: Record<string, any> = {};
-        if (agentCtx) {
-            // Include all relevant context data
-            if (agentCtx.lastTransactionResult) contextData.lastTransactionResult = agentCtx.lastTransactionResult;
-            if (agentCtx.pythonAnalysis) contextData.pythonAnalysis = agentCtx.pythonAnalysis;
-            if (agentCtx.userQuery) contextData.userQuery = agentCtx.userQuery;
-        }
-
-        // Add current userQuery if provided
-        if (userQuery) {
-            contextData.userQuery = userQuery;
-        }
-
-        console.log(`📦 Context data keys: ${Object.keys(contextData).join(', ')}`);
-
-        // Execute GenericAgent with context from ContextManager
-        const result = await agent.execute(contextData);
+        let result: AgentResult = {
+            agentName: 'cycle_start',
+            result: '',
+            success: true,
+            timestamp: new Date()
+          };
+       agent.setTaskDescription(d3jsPrompt)
+       result = await agent.execute(agentCtx.lastTransactionResult);
+     
 
         // Store result in target agent's context
         contextManager.updateContext(targetAgent, {
@@ -84,7 +87,7 @@ export const LLMCallStrategy: FlowStrategy = {
             timestamp: new Date()
         });
 
-        console.log(`✅ LLMCallStrategy: Stored result in ${targetAgent} context`);
+        console.log(`✅ LMCaLllStrategy: Stored result in ${targetAgent} context`);
         return result;
     }
 };
@@ -99,6 +102,7 @@ export const ContextPassStrategy: FlowStrategy = {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
+        source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any
@@ -120,9 +124,25 @@ export const ContextPassStrategy: FlowStrategy = {
             console.warn(`⚠️ No context found for ${agentName}, passing empty context`);
         }
 
+         const validatingAgent = agentsRegistry?.get(source);validateWorkflowRequirements
+         let dataProfilerPrompt = ''
+         if(!validatingAgent){
+             const validatingAgent = agentsRegistry?.get('ValidatingAgent');
+                validatingAgent.deleteContext();
+               const prompt = getPrompt('CreatePrompt');
+               validatingAgent.setTaskDescription(prompt);
+               //DYNAMIC PROMT FOR DATAPROFILER
+               const taskForAgent = await validatingAgent.execute({'REQUIREMENTS':  JSON.stringify(userQuery), 'AGENT NAME: ': targetAgent});
+              // dataProfilerPrompt = openaiDataProfilerPrompt_Jan_02;
+             // console.log('TASK FOR AGENT   DATAPROFILER',taskForAgent.result)
+         }
+
+    
+
         // Pass context to target agent
         contextManager.updateContext(targetAgent, {
             lastTransactionResult: sourceContext?.lastTransactionResult || {},
+            prompt: dataProfilerPrompt,
             transactionId: sourceContext?.transactionId || agentName,
             timestamp: new Date()
         });
@@ -152,9 +172,10 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
+        source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any  // NEW: For passing target node metadata with prompt
+        nodeMetadata?: any
     ): Promise<AgentResult> {
         console.log(`🔄 ExecuteAgentsStrategy: Executing agents created by ${agent.getName()}`);
 
@@ -178,9 +199,7 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         if (!Array.isArray(agentDefinitions)) {
             throw new Error(`Expected agent definitions to be an array, got: ${typeof agentDefinitions}`);
         }
-// Validate that Python code correct
-// const validatingAgent = agentsRegistry?.get('ValidatingAgent');
-       
+     
         const genericAgents = createGenericAgentsFromDefinitions(agentDefinitions);
 
         console.log(`✅ Created ${genericAgents.length} GenericAgent(s) with taskDescription in context`);
@@ -204,115 +223,23 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
             agentName
         );
 
-        contextManager.updateContext(targetAgent, {lastTransactionResult: executionResult.result});
-        console.log(`🔄 ExecuteAgentsStrategy: Passing context from running agents to ${targetAgent}`);
-        // Return the execution result
-   //     return executionResult;
-     /*   if (!ctx || !ctx.lastTransactionResult) {
-            throw new Error(`No agent definitions found in ${agentName} context`);
-        }
-
-        // Parse agent definitions (CreatedAgentInfo[] from DataProfiler)
-        let agentDefinitions: any[];
-        try {
-            agentDefinitions = JSON.parse(ctx.lastTransactionResult);
-            console.log(`📋 Found ${agentDefinitions.length} agent definitions to execute`);
-        } catch (error) {
-            throw new Error(`Failed to parse agent definitions from ${agentName}: ${error}`);
-        }*/
-
-        // Execute each GenericAgent sequentially
-        let finalResult: AgentResult = {
-            agentName: 'ExecuteAgentsStrategy',
-            result: {},
+           // Validate that Python code output
+           let result: AgentResult = {
+            agentName: 'cycle_start',
+            result: '',
             success: true,
             timestamp: new Date()
-        };
-
-    /*    for (const agentInfo of agentDefinitions) {
-            const definition = agentInfo.definition || agentInfo;
-            console.log(`🔧 Executing GenericAgent: ${definition.name} (type: ${definition.agentType})`);
-
-            // Handle tool agents (Python execution via MCP)
-            if (definition.agentType === 'tool') {
-                // Use the existing ToolCallingAgent from registry (already configured with MCP)
-                console.log(`🔧 Using ToolCallingAgent from registry for ${definition.name}`);
-
-                // Extract and clean Python code from taskDescription
-                const pythonCode = cleanPythonCode(definition.taskDescription);
-                console.log(`📝 Python code extracted (${pythonCode.length} chars)`);
-
-                // Clear any previous context from ToolCallingAgent
-                toolCallingAgent.deleteContext();
-
-                // Execute with Python code in context
-                const result = await toolCallingAgent.execute({ 'CODE:': pythonCode });
-
-                if (!result.success) {
-                    console.error(`❌ Tool agent ${definition.name} failed:`, result.error);
-
-                    // Store error in target context
-                    contextManager.updateContext(targetAgent, {
-                        lastTransactionResult: result.result,
-                        codeInErrorResult: definition.taskDescription,
-                        agentInError: definition.name,
-                        hasError: true,
-                        success: false,
-                        transactionId: agentName,
-                        timestamp: new Date()
-                    });
-
-                    finalResult = result;
-                    break;
-                }
-
-                finalResult = result;
-                console.log(`✅ Tool agent ${definition.name} completed successfully`);
-            } else {
-                // Handle regular GenericAgents (non-tool agents)
-                const genericAgent = new GenericAgent(definition);
-                const result = await genericAgent.execute({});
-
-                if (!result.success) {
-                    console.error(`❌ Agent ${definition.name} failed:`, result.error);
-                    finalResult = result;
-                    break;
-                }
-
-                finalResult = result;
-                console.log(`✅ Agent ${definition.name} completed successfully`);
-            }
-        }*/
-finalResult.result = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_2.txt', 'utf-8');
-        // Store final result in target agent's context
-        console.log('EXECUTIONSTRATEGY', targetAgent)
-
-        // Build context update with result and optional prompt
-        const contextUpdate: any = {
-            lastTransactionResult: finalResult.result,
-            hasError: !finalResult.success,
-            success: finalResult.success,
-            transactionId: agentName,
-            timestamp: new Date()
-        };
-
-        // NEW: Inject prompt if provided in node metadata
-        if (nodeMetadata?.prompt) {
-            // Check if it's a prompt key (from registry) or direct prompt text
-            if (hasPrompt(nodeMetadata.prompt)) {
-                contextUpdate.prompt = getPrompt(nodeMetadata.prompt);
-                console.log(`📝 ExecuteAgentsStrategy: Injecting prompt '${nodeMetadata.prompt}' for ${targetAgent}`);
-            } else {
-                // Direct prompt text
-                contextUpdate.prompt = nodeMetadata.prompt;
-                console.log(`📝 ExecuteAgentsStrategy: Injecting direct prompt for ${targetAgent}`);
-            }
-        }
-
-        contextManager.updateContext(targetAgent, contextUpdate);
+          };
+//  
+        const validatingCtx = contextManager.getContext(targetAgent);
+        const prompt = getPrompt('D3ReadyAnalysis');
+        const validatingAgent = agentsRegistry?.get(targetAgent);
+        validatingAgent.setTaskDescription(prompt);
+        result.result = openaiPythonAnalysisResult_Jan_02//opusPythonAnalysisResult_Jan_02//await validatingAgent.execute({'ANALYZE THE PROVIDED INFORMATION': validatingCtx.lastTransactionResult})
+        contextManager.updateContext(targetAgent, {lastTransactionResult: result.result})
 
         console.log(`✅ ExecuteAgentsStrategy: Results stored in ${targetAgent} context`);
-        return finalResult;
+        return executionResult;
     }
 };
 
@@ -512,8 +439,8 @@ async function executeGenericAgentsWithLinearContext(
 
         // Read the final result from the persisted file
         try {
-            const persistedData = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse.txt', 'utf-8');
-            console.log('📊 Persisted dictionary retrieved successfully');
+            const persistedData = fs.readFileSync('C:/repos/SAGAMiddleware/data/histogramMCPResponse_3.txt', 'utf-8');
+            console.log('📊 Persisted dictionary retrieved successfully', targetAgent);
 
             finalResult.result = persistedData;
 
@@ -629,6 +556,7 @@ export const SDKAgentStrategy: FlowStrategy = {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
+        source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any
@@ -671,6 +599,7 @@ export const ValidationStrategy: FlowStrategy = {
         agent: GenericAgent | BaseSDKAgent,
         targetAgent: string,
         contextManager: ContextManager,
+        source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any

@@ -288,8 +288,10 @@ sleep(ms: number) {
           agentOrName,
           step.targetAgent || step.agent,
           this.contextManager,
+          step.agent,  // Source agent name for context tracking
           input.userQuery,
-          this.agents  // Pass agents registry for ExecuteAgentsStrategy
+          this.agents,  // Pass agents registry for ExecuteAgentsStrategy
+          undefined  // nodeMetadata - not used in sagaCoordinator
         );
 
         if (!result.success) {
