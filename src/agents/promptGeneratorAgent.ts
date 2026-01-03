@@ -120,13 +120,22 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             this.promptMapping = {};
 
             // Build prompt with embedded requirements and DAG
-            const prompt = this.buildPrompt(null);
+            //const prompt = this.buildPrompt(null);
 
             // Execute - the SDK agent will call the tool for each agent
-            console.log(`\n   📝 Executing prompt generation...`);
-            await this.executeQuery(prompt);
+            console.log(`\n   📝 Using hardcoded prompts (TESTING MODE)...`);
+            //await this.executeQuery(prompt);
 
-            console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts`);
+            // TESTING: Use hardcoded prompts from histogramData.js
+            this.promptMapping = {
+                'DataProfiler': prompGeneratorAgent_DataProfiler,
+                'ValidatingAgent': 'You are ValidatingAgent. Validate the histogram analysis results for statistical accuracy, completeness, and optimal parameter selection.',
+                'D3JSCodingAgent': prompGeneratorAgent_D3JSCodingAgent,
+                'D3JSCodeValidator': prompGeneratorAgent_D3JSCodeValidator,
+                'ConversationAgent': 'You are ConversationAgent. Handle final validation results and conversation termination for the workflow.'
+            };
+
+            console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts (TESTING MODE)`);
 
             // Convert mapping to array format: [agentName, prompt]
             const promptArray: AgentPromptArray = Object.entries(this.promptMapping);
