@@ -23,6 +23,7 @@ import { extractAvailableAgents } from '../utils/agentRegistry.js';
 import { DAGDesigner } from '../agents/dagDesigner.js';
 import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
 import { DAGExecutor } from './dagExecutor.js';
+import { PromptGeneratorAgent } from '../agents/promptGeneratorAgent.js'
 import * as fs from 'fs'
 
 
@@ -812,11 +813,20 @@ Focus: Only array extraction
     const dagExecutor = new DAGExecutor(this.coordinator);
     const startDag = JSON.parse(dagStart) as DAGDefinition
    // await dagExecutor.executeDAG(startDag, requirements);
+  
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
-    const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements);
+    const promptGeneratorAgent = new PromptGeneratorAgent(dagDesignerCtx.lastTransactionResult, requirements, this.coordinator.contextManager)
+    const promptGenResult = await promptGeneratorAgent.execute();
+    const promptArray = promptGenResult.result as Array<[string, string]>;
+    console.log('✅ Generated prompts array:');
+    promptArray.forEach(([agentName, prompt]) => {
+        console.log(`   ${agentName}: ${prompt}`);
+    });
+
+  //  const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements);
 
     console.log('\n✅ DAG Execution Complete!');
-    console.log('Result:', dag);
+//    console.log('Result:', dag);
    //   const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
 
       // PHASE 1: Execute DATA_PROFILING_PIPELINE

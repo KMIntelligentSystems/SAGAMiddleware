@@ -100,6 +100,10 @@ export class GenericAgent {
 
       const prompt = this.createPrompt();//buildPrompt(contextData);
        console.log("PROMPT ",prompt)
+       
+      if(this.definition.name === 'PromptCreatorAgent'){
+             result = await this.invokeLLM(prompt);
+      }
 
       if(this.definition.name === 'ToolCallingAgent'){
             // result = await this.invokeLLM(prompt);
