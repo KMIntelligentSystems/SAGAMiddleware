@@ -136,7 +136,7 @@ export class DAGDesigner extends BaseSDKAgent {
 
             // Save DAG to file for testing purposes
             fs.writeFileSync(
-                'C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json',
+                'C:/repos/SAGAMiddleware/data/DagDesignerOut_tool_global.json',
                 JSON.stringify(dag, null, 2),
                 'utf-8'
             );
@@ -202,9 +202,9 @@ this.setContext(dag);
             // Execute design query - agent will call output_dag_definition tool
             console.log('🤔 Analyzing requirements and formulating DAG plan...');
             
-             const output = JSON.parse(fs.readFileSync('C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json', 'utf-8')) as DAGDefinition;//await this.executeQuery(prompt);     // 
-             //For testing set 54sult here, in run set in tool call
-            this.setContext(output);
+             const output = await this.executeQuery(prompt);     // JSON.parse(fs.readFileSync('C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json', 'utf-8')) as DAGDefinition;//
+             //For testing set result here, in run set in tool call
+          //  this.setContext(output);
 
             const result: AgentResult = {
                 agentName: 'DAGDesigner',
@@ -286,21 +286,67 @@ Use your file reading tools to examine these files in order:
 
 ${JSON.stringify(requirements, null, 2)}
 
-**Agent Type Mapping:**
-- \`agentType: "python_coding"\` → These agents must be created by DataProfiler SDK agent. Create ONE DataProfiler node. DataProfiler output uses \`execute_agents\` flowType (ExecuteAgentsStrategy).
-- \`agentType: "functional"\` → Use existing Generic agents from agentDefinitions.ts with \`llm_call\` flowType (LLMCallStrategy)
+**Agent Type Mapping (CRITICAL - READ CAREFULLY):**
+
+The WorkflowRequirements uses LOGICAL agent names. You must map them to REAL agents from availableAgents by matching task descriptions.
+
+For each agent in requirements.agents array, check its \`agentType\`:
+
+1. **\`agentType: "sdk_agent"\`** (Simple Path - Direct File Reading)
+   - For data analysis: Use SimpleDataAnalyzer (reads files, basic analysis, no Python)
+   - For validation: Use D3JSCodeValidator
+   - Create ONE node with type: 'sdk_agent', agentName: 'SimpleDataAnalyzer' or 'D3JSCodeValidator'
+   - Outgoing edge uses \`sdk_agent\` flowType (goes directly to next agent)
+   - **NO ToolCallingAgent node needed**
+
+2. **\`agentType: "python_coding"\`** (Complex Path - Python Statistical Analysis)
+   - Use DataProfiler (creates Python agents for deep statistical analysis)
+   - Create ONE DataProfiler node (type: 'sdk_agent', agentName: 'DataProfiler')
+   - DataProfiler creates Python tool agents via create_generic_agent tool
+   - Outgoing edge uses \`execute_agents\` flowType (ExecuteAgentsStrategy)
+   - **MUST create ToolCallingAgent node** (type: 'agent', agentName: 'ToolCallingAgent')
+   - ToolCallingAgent executes the Python agents, then uses \`llm_call\` to next agent
+
+3. **\`agentType: "functional"\`** (Standard Generic Agent)
+   - Map the logical name to a real Generic agent from availableAgents (D3JSCodingAgent, etc.)
+   - Create ONE node with type: 'agent', agentName: [real agent name]
+   - Outgoing edge uses \`llm_call\` flowType (LLMCallStrategy)
 
 **CRITICAL Flow Type Rules:**
 - Entry → first agent: \`context_pass\`
-- **MANDATORY: ALL SDK Agents (DataProfiler, D3JSCodeValidator) → next node MUST use \`sdk_agent\` flowType**
-- Generic agent → next: \`llm_call\`
-- Python execution: \`execute_agents\`
+- SDK Agent (simple path, agentType: "sdk_agent" in requirements) → next: \`sdk_agent\` flowType
+- SDK Agent (complex path, agentType: "python_coding" in requirements) → ToolCallingAgent: \`execute_agents\` flowType
+- ToolCallingAgent → next: \`llm_call\` flowType
+- Generic agent → next: \`llm_call\` flowType
 - Branching (no cycles): \`autonomous_decision\`
 
-**Agent Types:**
-- **SDK Agents**: DataProfiler, D3JSCodeValidator (in dagExecutor.ts instantiateSDKAgent)
-  - **THESE MUST ALWAYS USE \`sdk_agent\` FLOW TYPE FOR OUTGOING EDGES**
-- **Generic Agents**: From agentDefinitions.ts AGENT_DEFINITIONS array
+**EXIT NODE DESIGN (CRITICAL):**
+- Create only ONE exit node with id 'exit'
+- All terminal paths (success, retry, failure) should converge to this single exit
+- The final ConversationAgent node should have ONE edge to the exit node
+- Do NOT create multiple exit nodes (exit-success, exit-retry, etc.)
+- The workflow status is tracked in context, not by having multiple exits
+
+**Available Agent Types:**
+- **SDK Agents**: SimpleDataAnalyzer (simple file reading), DataProfiler (Python agent creation), D3JSCodeValidator (validation)
+- **Generic Agents**: D3JSCodingAgent, ToolCallingAgent, ConversationAgent (from agentDefinitions.ts AGENT_DEFINITIONS array)
+
+**PARALLEL EXECUTION (CRITICAL):**
+When multiple agents can run independently with the SAME input, create multiple edges from ONE source:
+
+Example - 3 visualizations from same data (PARALLEL):
+\`\`\`
+{ from: 'execute-python', to: 'line-chart', flowType: 'context_pass' }
+{ from: 'execute-python', to: 'heatmap', flowType: 'context_pass' }
+{ from: 'execute-python', to: 'area-chart', flowType: 'context_pass' }
+\`\`\`
+DAGExecutor will execute these in parallel (Promise.all) - 3x faster.
+
+✅ Use parallel when: Tasks are independent, use same input, order doesn't matter
+❌ Don't use when: Task B needs Task A's output
+
+Each parallel branch should have its own exit node:
+\`exitNodes: ['exit-branch-1', 'exit-branch-2', 'exit-branch-3']\`
 
 ---
 

@@ -706,7 +706,7 @@ Focus: Only array extraction
       this.currentThreadId = threadId;
       this.currentUserMessage = data.message;
       this.lastThreadMessage = data.message;
-
+//histogram
       const requirements: WorkflowRequirements = {
         objective: "Develop a complete D3.js histogram visualization with dynamic subagent analysis of price distribution data",
         inputData: {
@@ -800,22 +800,105 @@ Focus: Only array extraction
           maxExecutionTime: 300
         }
       };
+//Global temps
+ const requirements_global: WorkflowRequirements ={
+  "objective": "Generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic",
+  "inputData": {
+    "type": "csv_file",
+    "source": "c:/repos/sagaMiddleware/data/global_temperatures.csv",
+    "schema": {
+      "columns": [
+        "Year",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+      ],
+      "rowCount": 140,
+      "characteristics": "NASA global temperature anomaly data from 1880-2019, monthly temperature deviations"
+    }
+  },
+  "agents": [
+    {
+      "name": "DataAnalyzer",
+      "agentType": "sdk_agent",
+      "task": "Read and analyze the temperature CSV file, extract monthly temperature anomalies for each year, determine data ranges and structure requirements for bubble chart visualization",
+      "inputFrom": null,
+      "outputSchema": {
+        "analysis_report": "string",
+        "chart_requirements": "string"
+      }
+    },
+    {
+      "name": "D3JSChartGenerator",
+      "agentType": "functional",
+      "task": "Generate D3.js bubble chart code with tiny bubbles for monthly temperatures, color gradient from blue (cold) to orange/yellow (warm), reads data from ./data/global_temperatures.csv",
+      "inputFrom": "DataAnalyzer",
+      "outputSchema": {
+        "html_code": "string"
+      }
+    },
+    {
+      "name": "D3JSValidator",
+      "agentType": "sdk_agent",
+      "task": "Validate D3.js code using Playwright tool to generate SVG elements file, read and analyze the SVG file, provide SUCCESS/FAIL report with detailed feedback",
+      "inputFrom": "D3JSChartGenerator",
+      "outputSchema": {
+        "validation_status": "string",
+        "svg_analysis": "string",
+        "retry_needed": "string"
+      }
+    },
+    {
+      "name": "D3JSRetryGenerator",
+      "agentType": "functional",
+      "task": "On validation failure, generate corrected D3.js bubble chart code based on validator feedback. Process terminates after success or one retry attempt.",
+      "inputFrom": "D3JSValidator",
+      "outputSchema": {
+        "html_code": "string",
+        "final_status": "string"
+      }
+    }
+  ],
+  "outputExpectation": {
+    "type": "html_visualization",
+    "format": "d3_bubble_chart",
+    "quality": [
+      "validated",
+      "production_ready"
+    ]
+  },
+  "constraints": {
+    "parallelismAllowed": false,
+    "executionOrder": "sequential"
+  }
+}
+
        const availableAgents = extractAvailableAgents(this.coordinator);
       
    //   await runAllDAGExamples(this.coordinator);
 
       const dagDesigner = new DAGDesigner(this.coordinator.contextManager);
       const result = await dagDesigner.execute({
-        workflowRequirements: requirements,
+        workflowRequirements: requirements_global,
         availableAgents: availableAgents
     });
-    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements)});
+    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements_global)});
     const dagExecutor = new DAGExecutor(this.coordinator);
     const startDag = JSON.parse(dagStart) as DAGDefinition
+    //When using conversationAgent as entry. Now just entry
    // await dagExecutor.executeDAG(startDag, requirements);
   
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
-    const promptGeneratorAgent = new PromptGeneratorAgent(dagDesignerCtx.lastTransactionResult, requirements, this.coordinator.contextManager)
+    const promptGeneratorAgent = new PromptGeneratorAgent(dagDesignerCtx.lastTransactionResult, requirements_global, this.coordinator.contextManager)
     const promptGenResult = await promptGeneratorAgent.execute();
     const promptArray = promptGenResult.result as Array<[string, string]>;
     console.log('✅ Generated prompts array:');

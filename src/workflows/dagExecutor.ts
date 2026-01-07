@@ -17,6 +17,7 @@ import { AgentResult } from '../types/index.js';
 import { GenericAgent } from '../agents/genericAgent.js';
 import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
 import { DataProfiler } from '../agents/dataProfiler.js';
+import { SimpleDataAnalyzer } from '../agents/simpleDataAnalyzer.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
 
 import {
@@ -200,6 +201,8 @@ export class DAGExecutor {
         switch (transactionType) {
             case 'DataProfiler':
                 return new DataProfiler(contextManager);
+            case 'SimpleDataAnalyzer':
+                return new SimpleDataAnalyzer(contextManager);
             case 'D3JSCodeValidator':
                 return new D3JSCodeValidator(contextManager, this.coordinator);
             default:

@@ -120,20 +120,20 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             this.promptMapping = {};
 
             // Build prompt with embedded requirements and DAG
-            //const prompt = this.buildPrompt(null);
+            const prompt = this.buildPrompt(null);
 
             // Execute - the SDK agent will call the tool for each agent
             console.log(`\n   📝 Using hardcoded prompts (TESTING MODE)...`);
-            //await this.executeQuery(prompt);
+            await this.executeQuery(prompt);
 
             // TESTING: Use hardcoded prompts from histogramData.js
-            this.promptMapping = {
+           /* this.promptMapping = {
                 'DataProfiler': prompGeneratorAgent_DataProfiler,
                 'ValidatingAgent': 'You are ValidatingAgent. Validate the histogram analysis results for statistical accuracy, completeness, and optimal parameter selection.',
                 'D3JSCodingAgent': prompGeneratorAgent_D3JSCodingAgent,
                 'D3JSCodeValidator': prompGeneratorAgent_D3JSCodeValidator,
                 'ConversationAgent': 'You are ConversationAgent. Handle final validation results and conversation termination for the workflow.'
-            };
+            };*/
 
             console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts (TESTING MODE)`);
 
@@ -167,107 +167,95 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
      * Embeds workflow requirements and DAG directly in the prompt
      */
     protected buildPrompt(_input: any): string {
-        return `You are a prompt generator for LLM and SDK agents in a workflow.
+        return `You are a prompt generator that maps DAG nodes to workflow tasks.
 
-# WORKFLOW REQUIREMENTS:
-${JSON.stringify(this.workflowRequirements, null, 2)}
-
-# DAG DEFINITION:
+# DAG DEFINITION (READ THIS FIRST - SOURCE OF TRUTH FOR AGENT NAMES):
 ${JSON.stringify(this.dag, null, 2)}
 
-# YOUR TASK:
+# WORKFLOW REQUIREMENTS (USE FOR PROMPT CONTENT ONLY):
+${JSON.stringify(this.workflowRequirements, null, 2)}
 
-You must generate prompts for EVERY "agent" and "sdk_agent" node in the DAG. Here's how:
+# CRITICAL RULE - READ CAREFULLY:
 
-1. IDENTIFY ALL NODES: List every node in DAG DEFINITION where type is "agent" or "sdk_agent" (skip entry and exit)
+**The tool call agent_name parameter MUST be the DAG node's \`agentName\` field.**
 
-2. UNDERSTAND TEMPORAL CONTEXT: For each node, examine the DAG edges to understand its position:
-   - What node provides input? (look at incoming edges)
-   - What happens after? (look at outgoing edges)
-   - Is this a retry/correction path? (check if it follows a validation failure condition)
-   - Is this the initial attempt or a subsequent retry?
+DO NOT use the workflow requirements agent name. The DAG node agentName is what the system will look up.
 
-3. MATCH TO WORKFLOW REQUIREMENTS:
-   - Each DAG node has an agentName field - this is what you'll use as the KEY
-   - Find the WORKFLOW REQUIREMENTS agent whose task matches what this DAG node does at this point in the flow
-   - Example pattern: If two DAG nodes share the same agentName but one follows a validation success path and another follows a validation failure path, they're doing different tasks (e.g., initial code generation vs. code correction)
-   - Match by understanding the workflow purpose, not by name matching
+Examples:
+- DAG node with agentName: "DataProfiler" → call store_agent_prompt(agent_name="DataProfiler", ...)
+- DAG node with agentName: "D3JSCodingAgent" → call store_agent_prompt(agent_name="D3JSCodingAgent", ...)
+- DAG node with agentName: "D3JSCodeValidator" → call store_agent_prompt(agent_name="D3JSCodeValidator", ...)
 
-4. GENERATE DISTINCT PROMPTS:
-   - If an agentName appears MULTIPLE times, it's serving DIFFERENT purposes - generate appropriate prompts
-   - Use the DAG node's agentName as the KEY for store_agent_prompt tool
-   - Use the matched WORKFLOW agent's task, inputFrom, outputSchema for prompt CONTENT
-   - Adjust the prompt based on whether it's initial generation or retry/correction
-   - Use this template:
+## STEP-BY-STEP PROCESS:
+
+**STEP 1: LIST DAG NODES**
+Go through the DAG nodes array. For each node where type is "agent" or "sdk_agent", extract:
+- node.agentName ← THIS IS THE KEY
+- outgoing edge flowType (for DataProfiler path detection)
+
+**STEP 2: MATCH TO WORKFLOW TASK**
+For each DAG node agentName, find the workflow agent whose task description matches.
+
+**STEP 3: DETECT DATA ANALYSIS PATH** (for DataProfiler only):
+   - Check the outgoing edge flowType from this node:
+     - If flowType is \`"execute_agents"\` → Complex path (Python analysis needed)
+     - If flowType is \`"sdk_agent"\` → Simple path (just read file, no Python)
+
+4. **GENERATE THE PROMPT**:
+   - **KEY** (agent_name parameter): Use the DAG node's \`agentName\` exactly as written
+   - **CONTENT** (prompt parameter): Use this template:
 
 ${createPrompt}
 
-   - **FOR GENERIC AGENTS (node type is "agent"):**
-     - Keep the prompt simple and focused on the task
-     - Use ONLY the information from WORKFLOW REQUIREMENTS (task, inputFrom, outputSchema)
-     - DO NOT add technical implementation details or tool usage instructions
-     - The agent should receive clear input→output expectations with minimal complexity
-     - Examples: D3JSCodingAgent (generate code), ValidatingAgent (validate results), ConversationAgent (format output)
+   Replace placeholders with values from the matched WORKFLOW agent:
+   - [AgentRole] = agentName
+   - [TaskDescription] = task
+   - [WorkflowObjective] = workflowRequirements.objective
+   - [InputSource] = inputFrom (or "None" if null)
+   - [OutputSchema] = outputSchema fields
 
-   - **SPECIAL ENHANCEMENTS FOR SDK AGENTS (node type is "sdk_agent"):**
+   **SPECIAL CASES:**
 
-     When the DAG node type is "sdk_agent", examine the agent's agentType and task in WORKFLOW REQUIREMENTS to add technical details:
+   **A) SimpleDataAnalyzer (agentName = "SimpleDataAnalyzer"):**
+   - Task: "Read the CSV file and provide basic structure information: column names, row count, min/max value ranges. Do NOT perform statistical analysis or create Python agents."
+   - Remove any mentions of: mean, median, std deviation, quartiles, IQR, outlier detection, binning algorithms
+   - Add: "You can directly read the file using your file access capabilities. Provide a simple data summary for the visualization agent."
+   - This agent has NO create_generic_agent tool
 
-     **If agentType is "python_coding" OR task mentions "Python" or "data analysis":**
-     - Specify Python libraries to use: pandas for data manipulation, numpy for numerical operations, scipy for statistics
-     - Detail statistical methods: mean, median, std deviation, quartiles, IQR for outlier detection
-     - For histogram/binning tasks: mention Sturges, Scott, and Freedman-Diaconis binning rules
-     - Clarify that "dynamic agent definitions" or "code generation" means calling the create_generic_agent tool to create sub-agents with executable Python code
-     - **CRITICAL:** Explain the agent design decision pattern:
-       * Use ONE agent when task is straightforward and sequential
-       * Use MULTIPLE agents when task is complex with distinct logical phases
-       * Assess complexity and identify natural breakpoints
-     - **Data flow pattern:** First agent loads CSV with pd.read_csv(), subsequent agents use _prev_result dictionary from previous agent
-     - **Python code requirements for taskDescription field:**
-       * Must be EXECUTABLE PYTHON CODE, not instructions
-       * Import json at top: import json
-       * Never simulate data (no np.random, no fake data)
-       * Never reload CSV in dependent agents (use _prev_result)
-       * Use safe variable names (count_val, mean_val, not reserved words)
-       * Convert numpy/pandas types to native Python: float(), int(), .tolist()
-       * Must end with: print(json.dumps(result))
-     - All created agents must use agentType: 'tool' (NEVER 'processing')
-     - Ignore any visualization agents in workflow - ONLY create data processing/analysis agents
+   **B) DataProfiler (agentName = "DataProfiler"):**
+   - Keep the full task description from workflow requirements
+   - CRITICAL: Add detailed Python agent creation instructions:
+       * "You must call the create_generic_agent tool to create Python tool agents with executable code"
+       * "These agents will be executed by ToolCallingAgent via the execute_python MCP tool"
+       * "Design decision: Use ONE agent for straightforward sequential tasks, MULTIPLE agents for complex multi-phase analysis"
+       * "Agent taskDescription field must contain EXECUTABLE PYTHON CODE (not instructions)"
+       * "Python code requirements:"
+         - Import json at the top: import json
+         - Use pandas for data manipulation: pd.read_csv() for loading
+         - Calculate statistics: mean, median, std deviation, quartiles as needed
+         - Convert numpy/pandas types to native Python: float(), int(), .tolist()
+         - Must end with: print(json.dumps(result))
+       * "All created agents must use agentType: 'tool' (NEVER 'processing')"
+       * "Never simulate data - work with actual CSV data only"
 
-     **If task mentions "validate", "test", "Playwright", or "browser":**
-     - **CRITICAL:** Explain this is an autonomous validation agent that must TAKE ACTION, not just report
-     - **Validation workflow:**
-       1. Call analyze_d3_output tool ONCE with the complete D3.js code to render visualization
-       2. Tool returns file paths to rendered SVG and PNG files
-       3. Analyze the SVG output to validate accuracy against data analysis requirements
-     - **AUTONOMOUS DECISION FRAMEWORK - Must choose ONE:**
-       * **IF VALIDATION PASSES:**
-         - Call trigger_conversation tool with validated code and success message
-         - This sends code directly to user via ConversationAgent
-       * **IF VALIDATION FAILS:**
-         - Call trigger_code_correction tool with originalCode, validationErrors array, validationReport
-         - This triggers coding agent to generate corrected code with specific errors
-     - **Validation specifics:**
-       * Playwright commands: page.goto() for loading, page.waitForSelector() for elements, page.evaluate() for DOM inspection
-       * SVG elements to check: <svg>, <g>, <rect> for bars, <path> for axes, <text> for labels
-       * Validate element counts match expected values (e.g., histogram bar count matches bin count)
-       * Accessibility checks: ARIA labels, roles, keyboard navigation, color contrast
-       * For failures: provide specific element selectors or line numbers for targeted fixes
-       * Capture screenshots on failure for debugging
-     - **CRITICAL:** Must call ONE decision tool - do not just report results, TAKE ACTION
+   **C) D3JSCodeValidator:**
+   - Add autonomous decision framework:
+       * Call analyze_d3_output tool ONCE to render and validate visualization
+       * IF VALIDATION PASSES: Call trigger_conversation tool with code and success message
+       * IF VALIDATION FAILS: Call trigger_code_correction tool with originalCode, validationErrors, validationReport
+       * CRITICAL: Must call ONE decision tool - do not just report results, TAKE ACTION
 
-     **If task mentions "coding" or "generate code":**
-     - Add instruction to avoid wrapping output in markdown code fences or JSON
-     - Include path normalization: convert absolute paths to relative paths (e.g., C:/repos/... → ./...)
-     - Specify output must be raw, executable code
+   **D) D3JSCodingAgent or any coding agent:**
+   - Add: "Output must be raw, executable code. Do NOT wrap in markdown code fences or JSON."
+   - Add: "Convert absolute paths to relative paths (e.g., C:/repos/data/file.csv → ./data/file.csv)"
 
-   - Call the store_agent_prompt tool with the agent_name and the generated prompt
+5. **CALL THE TOOL**: \`store_agent_prompt(agent_name='[DAG agentName]', prompt='[generated prompt]')\`
 
-5. IMPORTANT - PROCESS ALL NODES:
-   - Go through the complete list from step 1
-   - Generate a prompt for EACH node in the DAG (even if the agentName repeats)
-   - Call store_agent_prompt tool for each unique agentName you encounter
-   - If the same agentName serves different purposes (e.g., initial vs retry), generate a comprehensive prompt that covers all use cases`;
+6. **HANDLE DUPLICATES**: If the same agentName appears multiple times (e.g., D3JSCodingAgent for initial + retry), generate ONE comprehensive prompt covering all use cases.
+
+## PROCESS EVERY NODE:
+
+Go through ALL nodes where type is "agent" or "sdk_agent" and call store_agent_prompt for each unique agentName.`;
     }
 
     /**
