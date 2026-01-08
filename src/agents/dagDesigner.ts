@@ -202,9 +202,9 @@ this.setContext(dag);
             // Execute design query - agent will call output_dag_definition tool
             console.log('🤔 Analyzing requirements and formulating DAG plan...');
             
-             const output = await this.executeQuery(prompt);     // JSON.parse(fs.readFileSync('C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json', 'utf-8')) as DAGDefinition;//
+             const output =  JSON.parse(fs.readFileSync('C:/repos/SAGAMiddleware/data/DagDesignerOut_tool_global.json', 'utf-8')) as DAGDefinition;//await this.executeQuery(prompt);     // JSON.parse(fs.readFileSync('C:/repos/SAGAMiddleware/data/DagDesignerOut_tool.json', 'utf-8')) as DAGDefinition;//
              //For testing set result here, in run set in tool call
-          //  this.setContext(output);
+            this.setContext(output);
 
             const result: AgentResult = {
                 agentName: 'DAGDesigner',

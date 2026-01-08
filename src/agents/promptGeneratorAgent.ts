@@ -30,12 +30,17 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
     private promptMapping: AgentPromptMapping = {};
     private dag: DAGDefinition;
     private workflowRequirements: any;
+    private workflowPlan: string | null = null;
 
-    constructor(dag: DAGDefinition, workflowRequirements: any, contextManager?: any) {
+    constructor(dag: DAGDefinition, workflowRequirements: any, contextManager?: any, csvAnalysis?: string) {
         super('PromptGeneratorAgent', 25, contextManager);
 
         this.dag = dag;
         this.workflowRequirements = workflowRequirements;
+        this.workflowPlan = csvAnalysis || null;
+
+        // No tools needed - CSV analysis provided by separate agent
+        this.setupTools();
 
         // Setup the local tool for storing agent-prompt mappings
         try {
@@ -44,6 +49,14 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             console.error('⚠️  Warning: Failed to setup Prompt Generator tools:', error);
             console.log('   Prompt Generator will run without custom tools');
         }
+    }
+
+    /**
+     * Setup tools - no tools needed (CSV analysis provided by separate CSVAnalyzerAgent)
+     */
+    private setupTools(): void {
+        // No tools needed - CSV analysis is pre-computed and passed in constructor
+        console.log('✅ PromptGeneratorAgent configured (CSV analysis mode)');
     }
 
     /**
@@ -108,6 +121,7 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
         }
     }
 
+
     /**
      * Execute prompt generation
      */
@@ -120,10 +134,11 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             this.promptMapping = {};
 
             // Build prompt with embedded requirements and DAG
+            // The LLM will autonomously decide whether to invoke the data-analysis-advisor subagent
             const prompt = this.buildPrompt(null);
 
-            // Execute - the SDK agent will call the tool for each agent
-            console.log(`\n   📝 Using hardcoded prompts (TESTING MODE)...`);
+            // Execute - the SDK agent will call tools (including Task tool for subagent invocation)
+            console.log(`\n   📝 Generating prompts with LLM...`);
             await this.executeQuery(prompt);
 
             // TESTING: Use hardcoded prompts from histogramData.js
@@ -167,13 +182,34 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
      * Embeds workflow requirements and DAG directly in the prompt
      */
     protected buildPrompt(_input: any): string {
+        // Check if we have CSV data that needs analysis
+        const hasCSVData = this.workflowRequirements.inputData?.source;
+        const needsDataContext = this.workflowRequirements.agents?.some((agent: any) =>
+            agent.name === 'DataProfiler' ||
+            agent.name === 'WorkflowInterpreter' ||
+            agent.agentType === 'python_coding'
+        );
+
+        // Include CSV analysis if provided
+        let dataAnalysisSection = '';
+        if (this.workflowPlan && hasCSVData && needsDataContext) {
+            dataAnalysisSection = `
+
+# CSV DATA ANALYSIS:
+${this.workflowPlan}
+
+Use this analysis when generating prompts for data-related agents (DataProfiler, WorkflowInterpreter, etc.).
+Include specific statistics (row counts, ranges, distribution characteristics) in their prompts.
+`;
+        }
+
         return `You are a prompt generator that maps DAG nodes to workflow tasks.
 
 # DAG DEFINITION (READ THIS FIRST - SOURCE OF TRUTH FOR AGENT NAMES):
 ${JSON.stringify(this.dag, null, 2)}
 
 # WORKFLOW REQUIREMENTS (USE FOR PROMPT CONTENT ONLY):
-${JSON.stringify(this.workflowRequirements, null, 2)}
+${JSON.stringify(this.workflowRequirements, null, 2)}${dataAnalysisSection}
 
 # CRITICAL RULE - READ CAREFULLY:
 
@@ -227,12 +263,19 @@ ${createPrompt}
    - CRITICAL: Add detailed Python agent creation instructions:
        * "You must call the create_generic_agent tool to create Python tool agents with executable code"
        * "These agents will be executed by ToolCallingAgent via the execute_python MCP tool"
-       * "Design decision: Use ONE agent for straightforward sequential tasks, MULTIPLE agents for complex multi-phase analysis"
+       * IF WORKFLOW PLAN IS PROVIDED (check for # WORKFLOW PLAN section above):
+         - Follow the recommended workflow from the plan
+         - Create the number of agents suggested in the plan (e.g., if plan recommends 3 agents, create 3)
+         - Use the specific agent names and tasks from the plan
+         - Include the exact statistical operations mentioned (copy the specific methods like "np.percentile(data, [25, 75])")
+         - Reference the actual data characteristics from the Dataset Analysis
+       * OTHERWISE (no workflow plan):
+         - "Design decision: Use ONE agent for straightforward sequential tasks, MULTIPLE agents for complex multi-phase analysis"
        * "Agent taskDescription field must contain EXECUTABLE PYTHON CODE (not instructions)"
        * "Python code requirements:"
          - Import json at the top: import json
          - Use pandas for data manipulation: pd.read_csv() for loading
-         - Calculate statistics: mean, median, std deviation, quartiles as needed
+         - Calculate statistics as specified in workflow plan
          - Convert numpy/pandas types to native Python: float(), int(), .tolist()
          - Must end with: print(json.dumps(result))
        * "All created agents must use agentType: 'tool' (NEVER 'processing')"

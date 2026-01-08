@@ -24,6 +24,7 @@ import { DAGDesigner } from '../agents/dagDesigner.js';
 import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
 import { DAGExecutor } from './dagExecutor.js';
 import { PromptGeneratorAgent } from '../agents/promptGeneratorAgent.js'
+import { CSVAnalyzerAgent } from '../agents/csvAnalyzerAgent.js'
 import * as fs from 'fs'
 
 
@@ -800,6 +801,83 @@ Focus: Only array extraction
           maxExecutionTime: 300
         }
       };
+//histo test
+const requirements_histo: WorkflowRequirements = {
+  "objective": "Develop a JavaScript histogram visualization based on CSV price distribution with dynamic Python analysis and validation",
+  "inputData": {
+    "type": "csv_file",
+    "source": "C:/repos/SAGAMiddleware/data/prices.csv",
+    "schema": {
+      "columns": [
+        "price"
+      ],
+      "rowCount": 1000,
+      "characteristics": "Excel export, UTF-8 BOM, 2 header rows, 5-min intervals, price range $23-$460"
+    }
+  },
+  "agents": [
+    {
+      "name": "WorkflowInterpreter",
+      "agentType": "python_coding",
+      "task": "Read CSV file, analyze price distribution for histogram requirements, and output optimal binning parameters and statistical analysis",
+      "inputFrom": null,
+      "outputSchema": {
+        "price_data": "list",
+        "bin_count": "int",
+        "bin_edges": "list",
+        "statistics": "dict",
+        "histogram_params": "dict"
+      }
+    },
+    {
+      "name": "HistogramProcessor",
+      "agentType": "python_coding",
+      "task": "Execute histogram data analysis using the price data and parameters from Node 1, calculate optimal bin distributions and final histogram values",
+      "inputFrom": "WorkflowInterpreter",
+      "outputSchema": {
+        "histogram_data": "dict",
+        "optimal_bins": "int",
+        "frequency_data": "list",
+        "visualization_params": "dict"
+      }
+    },
+    {
+      "name": "D3JSGenerator",
+      "agentType": "functional",
+      "task": "Generate D3.js HTML histogram visualization code using the processed histogram data and parameters",
+      "inputFrom": "HistogramProcessor",
+      "outputSchema": {
+        "html_code": "string"
+      }
+    },
+    {
+      "name": "PlaywrightValidator",
+      "agentType": "sdk_agent",
+      "task": "Validate the generated HTML code by reading files and analyzing SVG elements using Playwright. Check against histogram requirements. On failure, request D3JSGenerator retry once with corrections. On success or after retry, terminate conversation with pass/fail status.",
+      "inputFrom": "D3JSGenerator",
+      "outputSchema": {
+        "validation_result": "string",
+        "svg_analysis": "dict",
+        "requirements_met": "boolean",
+        "final_status": "string",
+        "retry_attempted": "boolean"
+      }
+    }
+  ],
+  "outputExpectation": {
+    "type": "html_visualization",
+    "format": "d3_histogram",
+    "quality": [
+      "validated",
+      "data_accurate",
+      "production_ready"
+    ]
+  },
+  "constraints": {
+    "parallelismAllowed": false,
+    "executionOrder": "sequential" as const
+  }
+}
 //Global temps
  const requirements_global: WorkflowRequirements ={
   "objective": "Generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic",
@@ -878,7 +956,7 @@ Focus: Only array extraction
   },
   "constraints": {
     "parallelismAllowed": false,
-    "executionOrder": "sequential"
+    "executionOrder": "sequential" as const
   }
 }
 
@@ -888,23 +966,35 @@ Focus: Only array extraction
 
       const dagDesigner = new DAGDesigner(this.coordinator.contextManager);
       const result = await dagDesigner.execute({
-        workflowRequirements: requirements_global,
+        workflowRequirements: requirements_histo,
         availableAgents: availableAgents
     });
-    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements_global)});
+    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements_histo)});
     const dagExecutor = new DAGExecutor(this.coordinator);
     const startDag = JSON.parse(dagStart) as DAGDefinition
     //When using conversationAgent as entry. Now just entry
    // await dagExecutor.executeDAG(startDag, requirements);
   
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
-    const promptGeneratorAgent = new PromptGeneratorAgent(dagDesignerCtx.lastTransactionResult, requirements_global, this.coordinator.contextManager)
-    const promptGenResult = await promptGeneratorAgent.execute();
+
+    // STEP 1: Analyze CSV file to get statistics (efficient, ~5 turns)
+    const csvAnalyzer = new CSVAnalyzerAgent(requirements_histo, this.coordinator.contextManager);
+    const csvAnalysisResult = await csvAnalyzer.execute();
+    const csvAnalysis = csvAnalysisResult.result as string;
+
+    // STEP 2: Generate prompts using CSV analysis
+    const promptGeneratorAgent = new PromptGeneratorAgent(
+        dagDesignerCtx.lastTransactionResult,
+        requirements_histo,
+        this.coordinator.contextManager,
+        csvAnalysis  // Pass CSV analysis to avoid subagent (was 40 turns)
+    );
+  /*  const promptGenResult = await promptGeneratorAgent.execute();
     const promptArray = promptGenResult.result as Array<[string, string]>;
     console.log('✅ Generated prompts array:');
     promptArray.forEach(([agentName, prompt]) => {
         console.log(`   ${agentName}: ${prompt}`);
-    });
+    });*/
 
   //  const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements);
 

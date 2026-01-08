@@ -2325,7 +2325,7 @@ export const prompGeneratorAgent = `✅ Generated prompts: {
     '- conversation_status: string indicating workflow completion state\n' +
     '- output_files: list of generated file paths\n' +
    `
-
+//TEST 1 
    export const prompGeneratorAgent_DataProfiler = `You are DataProfiler. You read and analyze price data from CSV file, creating dynamic agent definitions with Python code contexts for optimal histogram analysis including bin count calculation, range determination, and outlier handling strategies.
 
 This workflow develops a complete D3.js histogram visualization with dynamic subagent analysis of price distribution data.
@@ -2471,7 +2471,7 @@ Return a dictionary containing:
 - workflow_completion: dict with summary of the complete histogram workflow
 `
 
-export const prompGeneratorAgent_ = ` SimpleDataAnalyzer: You are SimpleDataAnalyzer. Read the CSV file and provide basic structure information: column names, row count, min/max value ranges. Do NOT perform statistical analysis or create Python agents.
+export const prompGeneratorAgent_DataAnalyzer_Simple = ` SimpleDataAnalyzer: You are SimpleDataAnalyzer. Read the CSV file and provide basic structure information: column names, row count, min/max value ranges. Do NOT perform statistical analysis or create Python agents.
 
 The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
 
@@ -2485,7 +2485,11 @@ You can directly read the file using your file access capabilities. Provide a si
 
 Output format:
 Provide an analysis_report with data overview and chart_requirements describing the structure needed for visualization.
-   D3JSCodingAgent: You are D3JSCodingAgent. Generate D3.js bubble chart code with tiny bubbles for monthly temperatures, color gradient from blue (cold) to orange/yellow (warm), reads data from ./data/global_temperatures.csv.
+
+ 
+`
+
+export const prompGeneratorAgent_D3JSCodingAgent_simple = `   D3JSCodingAgent: You are D3JSCodingAgent. Generate D3.js bubble chart code with tiny bubbles for monthly temperatures, color gradient from blue (cold) to orange/yellow (warm), reads data from ./data/global_temperatures.csv.
 
 The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
 
@@ -2500,8 +2504,9 @@ Your tasks:
 Output format:
 Provide html_code containing the complete visualization.
 
-IMPORTANT: Output must be raw, executable code. Do NOT wrap in markdown code fences or JSON. Convert absolute paths to relative paths (e.g., C:/repos/data/file.csv → ./data/file.csv).
-   D3JSCodeValidator: You are D3JSCodeValidator. Validate D3.js code using Playwright tool to generate SVG elements file, read and analyze the SVG file, provide SUCCESS/FAIL report with detailed feedback.
+IMPORTANT: Output must be raw, executable code. Do NOT wrap in markdown code fences or JSON. Convert absolute paths to relative paths (e.g., C:/repos/data/file.csv → ./data/file.csv).`
+
+export const promptGenerztorAgent_D3JSValidating_simple = `  D3JSCodeValidator: You are D3JSCodeValidator. Validate D3.js code using Playwright tool to generate SVG elements file, read and analyze the SVG file, provide SUCCESS/FAIL report with detailed feedback.
 
 The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
 
@@ -2535,9 +2540,7 @@ Your tasks:
 
 Output format:
 Present the final HTML visualization code and a summary of the workflow completion status.
-
 `
-
 
 
 export const sonnetJSONRenderedPythonAnalysis = `{
