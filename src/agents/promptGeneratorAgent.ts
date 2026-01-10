@@ -18,7 +18,7 @@ import { AgentResult } from '../types/index.js';
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { createPrompt } from '../types/visualizationSaga.js';
-import {  prompGeneratorAgent_DataProfiler, prompGeneratorAgent_D3JSCodingAgent, prompGeneratorAgent_D3JSCodeValidator } from '../test/histogramData.js'
+import {  prompGeneratorAgent_DataProfiler, prompGeneratorAgent_D3JSCodingAgent, prompGeneratorAgent_D3JSCodeValidator, prompGeneratorAgent_DataAnalyzer_Simple, prompGeneratorAgent_D3JSCodingAgent_simple, promptGenerztorAgent_D3JSValidating_simple  } from '../test/histogramData.js'
 
 export interface AgentPromptMapping {
     [agentName: string]: string;
@@ -133,21 +133,21 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             // Clear previous mapping
             this.promptMapping = {};
 
+            const dataProfilerPrompt = this.contextManager.getContext('CSVAnalyzerAgent')
+
             // Build prompt with embedded requirements and DAG
             // The LLM will autonomously decide whether to invoke the data-analysis-advisor subagent
-            const prompt = this.buildPrompt(null);
+            const prompt = this.buildPrompt(dataProfilerPrompt);
 
             // Execute - the SDK agent will call tools (including Task tool for subagent invocation)
             console.log(`\n   📝 Generating prompts with LLM...`);
-            await this.executeQuery(prompt);
+           await this.executeQuery(prompt);
 
             // TESTING: Use hardcoded prompts from histogramData.js
-           /* this.promptMapping = {
-                'DataProfiler': prompGeneratorAgent_DataProfiler,
-                'ValidatingAgent': 'You are ValidatingAgent. Validate the histogram analysis results for statistical accuracy, completeness, and optimal parameter selection.',
-                'D3JSCodingAgent': prompGeneratorAgent_D3JSCodingAgent,
-                'D3JSCodeValidator': prompGeneratorAgent_D3JSCodeValidator,
-                'ConversationAgent': 'You are ConversationAgent. Handle final validation results and conversation termination for the workflow.'
+          /*  this.promptMapping = {
+                'SimpleDataAnalyzer':prompGeneratorAgent_DataAnalyzer_Simple,
+                'D3JSCodingAgent': prompGeneratorAgent_D3JSCodingAgent_simple ,
+                'D3JSCodeValidator': promptGenerztorAgent_D3JSValidating_simple
             };*/
 
             console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts (TESTING MODE)`);
@@ -211,6 +211,7 @@ ${JSON.stringify(this.dag, null, 2)}
 # WORKFLOW REQUIREMENTS (USE FOR PROMPT CONTENT ONLY):
 ${JSON.stringify(this.workflowRequirements, null, 2)}${dataAnalysisSection}
 
+
 # CRITICAL RULE - READ CAREFULLY:
 
 **The tool call agent_name parameter MUST be the DAG node's \`agentName\` field.**
@@ -259,18 +260,11 @@ ${createPrompt}
    - This agent has NO create_generic_agent tool
 
    **B) DataProfiler (agentName = "DataProfiler"):**
+   - In ${_input} is a complete analysis of the the Python coding agents and their tasks. Use this to develop the prompt for this agent
    - Keep the full task description from workflow requirements
    - CRITICAL: Add detailed Python agent creation instructions:
        * "You must call the create_generic_agent tool to create Python tool agents with executable code"
        * "These agents will be executed by ToolCallingAgent via the execute_python MCP tool"
-       * IF WORKFLOW PLAN IS PROVIDED (check for # WORKFLOW PLAN section above):
-         - Follow the recommended workflow from the plan
-         - Create the number of agents suggested in the plan (e.g., if plan recommends 3 agents, create 3)
-         - Use the specific agent names and tasks from the plan
-         - Include the exact statistical operations mentioned (copy the specific methods like "np.percentile(data, [25, 75])")
-         - Reference the actual data characteristics from the Dataset Analysis
-       * OTHERWISE (no workflow plan):
-         - "Design decision: Use ONE agent for straightforward sequential tasks, MULTIPLE agents for complex multi-phase analysis"
        * "Agent taskDescription field must contain EXECUTABLE PYTHON CODE (not instructions)"
        * "Python code requirements:"
          - Import json at the top: import json

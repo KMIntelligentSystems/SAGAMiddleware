@@ -101,6 +101,48 @@ export interface HumanInLoopConfig {
   };
 }
 
+export const csvAnalyzerAgentResult = `Based on my analysis of the CSV file, here's my recommendation for the Python agent workflow:
+
+## File Analysis Summary
+
+File has **9,999 rows** (including 1 header row), single **'price'** column. Price range appears to be approximately **$23 to $9,502**, but the data is **heavily right-skewed with extreme outliers**. I observed:
+- Most values cluster between $30-$300
+- Frequent outliers in the $400-$800 range
+- Extreme outliers reaching $9,502 (row 56), $2,303 (row 956), $2,056 (row 922), $1,261 (row 984)
+- The distribution appears highly irregular with price spikes
+
+## Recommended 3-Agent Workflow for Histogram Visualization:
+
+### Agent 1: Data Profiler & Outlier Analyzer
+Load the 9,998 price data points and perform comprehensive statistical profiling including percentiles (5th, 25th, 50th, 75th, 95th, 99th), mean, median, mode, standard deviation, skewness, and kurtosis. Identify and classify outliers using multiple methods (IQR, z-score, isolation forest) to understand the data's extreme right tail.
+→ **Outputs:** Statistical summary with outlier analysis, distribution characteristics, and data quality metrics
+
+### Agent 2: Adaptive Binning Calculator
+Based on the heavily skewed distribution with extreme outliers, determine optimal histogram parameters. Calculate dynamic bin strategies (equal-width vs quantile-based vs log-scale) to handle the wide range ($23-$9,502). Recommend bin count between 20-50 bins with special handling for the long tail to avoid histogram distortion.
+→ **Outputs:** Optimal bin edges array, bin count, binning strategy justification, and visualization scale recommendations
+
+### Agent 3: Histogram Data Processor
+Process the raw price data using the calculated bin parameters, generate frequency counts per bin, and prepare the final histogram data structure. Apply any necessary transformations (e.g., log scale for better visibility of the main distribution) while preserving outlier information. Format output for D3.js consumption.
+→ **Outputs:** Processed histogram data with frequencies, bin labels, axis scales, and D3.js-ready data structure
+
+The extreme outliers and heavy right skew make this a complex histogram challenge requiring adaptive binning strategies to visualize both the main distribution and outliers effectively.`
+
+export const csvDataAnalyzerAgentSimpleResult = ` Based on my analysis of the CSV file:
+
+**RECOMMENDATION: SDK Agent**
+
+File has 142 rows (140 data rows + 2 header rows), 19 columns. Data characteristics: Monthly temperature anomalies from 1880-2019, values range from -0.73 to +1.35°C. 
+Contains Year column and 12 monthly columns (Jan-Dec) plus additional aggregate columns (J-D, D-N, DJF, MAM, JJA, SON).
+
+Task: Extract Year and monthly columns (Jan-Dec), reshape from wide format (140 rows × 13 cols) to long format (1680 rows: 140 years × 12 months),
+ creating structure with Year, Month, Temperature fields. Calculate min/max temperature ranges for color scale mapping (blue for negative/cold anomalies to orange/yellow for positive/warm anomalies). 
+ Generate position mappings where x-axis = Year (1880-2019), y-axis = Month (1-12), bubble size/color = temperature anomaly value. Provide data transformation specifications and chart parameters 
+ for D3.js bubble chart implementation.
+
+Rationale: Small dataset (140 rows, 12KB file), simple reshaping from wide to long format, basic min/max calculations for scale ranges. 
+The bubble chart only requires straightforward data transformation (pivot/melt operation) and mapping of values to visual properties (position, size, color).
+ No complex algorithms, statistical computations, or specialized numerical processing needed - well within SDK agent capabilities.`
+
 export const dagStart = `{
   "id": "d3-histogram-workflow",
   "name": "D3.js Histogram Visualization Workflow",

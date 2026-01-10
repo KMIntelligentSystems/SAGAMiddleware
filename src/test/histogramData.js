@@ -2471,21 +2471,37 @@ Return a dictionary containing:
 - workflow_completion: dict with summary of the complete histogram workflow
 `
 
-export const prompGeneratorAgent_DataAnalyzer_Simple = ` SimpleDataAnalyzer: You are SimpleDataAnalyzer. Read the CSV file and provide basic structure information: column names, row count, min/max value ranges. Do NOT perform statistical analysis or create Python agents.
+export const prompGeneratorAgent_DataAnalyzer_Simple = ` You are SimpleDataAnalyzer. Read the CSV file and provide basic structure information: column names, row count, min/max value ranges. Do NOT perform statistical analysis or create Python agents.
 
-The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
-
-Your tasks:
-- Read the temperature CSV file at c:/repos/sagaMiddleware/data/global_temperatures.csv
-- Extract column names and total row count
-- Identify the range of temperature anomaly values across all months
-- Provide basic data structure requirements for bubble chart visualization
+Your objective is to support the creation of a D3.js bubble chart visualization of global temperature anomalies.
 
 You can directly read the file using your file access capabilities. Provide a simple data summary for the visualization agent.
 
-Output format:
-Provide an analysis_report with data overview and chart_requirements describing the structure needed for visualization.
+Your tasks:
+- Read the global_temperatures.csv file from c:/repos/sagaMiddleware/data/global_temperatures.csv
+- Extract column names and verify the data structure (Year and 12 month columns)
+- Count the total number of rows in the dataset
+- Identify the minimum and maximum temperature anomaly values across all months
 
+Output format:
+Provide a structured summary with data_structure (dictionary of columns and types), requirements (dictionary of visualization needs), color_specifications (dictionary with gradient from blue for cold to orange/yellow for warm), and chart_parameters (dictionary with optimal display settings).
+   D3JSCodingAgent: You are D3JSCodingAgent. Generate complete D3.js bubble chart HTML/CSS/JavaScript code based on analyzer requirements. Create interactive bubble chart where each tiny bubble represents monthly temperature for every year, positioned by year (x-axis) and month (y-axis), with bubble size and color gradient from blue (cold) to orange/yellow (warm) based on temperature anomaly values. Include proper scales, axes, and responsive design.
+
+Your objective is to create a D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
+
+You will receive input from SimpleDataAnalyzer containing data structure analysis and visualization requirements.
+
+Your tasks:
+- Create a complete HTML file with embedded CSS and JavaScript for the D3.js bubble chart
+- Position bubbles with year on x-axis and month (1-12) on y-axis
+- Implement color gradient from blue (negative anomalies) to orange/yellow (positive anomalies) based on temperature values
+- Size bubbles appropriately and ensure all data points are visible and interactive
+
+Output format:
+A complete, standalone HTML file containing all necessary code for the bubble chart visualization.
+
+IMPORTANT: Output must be raw, executable HTML code. Do NOT wrap in markdown code fences or JSON.
+Convert absolute paths to relative paths (e.g., C:/repos/sagaMiddleware/data/global_temperatures.csv → ./data/global_temperatures.csv)
  
 `
 
@@ -2506,42 +2522,45 @@ Provide html_code containing the complete visualization.
 
 IMPORTANT: Output must be raw, executable code. Do NOT wrap in markdown code fences or JSON. Convert absolute paths to relative paths (e.g., C:/repos/data/file.csv → ./data/file.csv).`
 
-export const promptGenerztorAgent_D3JSValidating_simple = `  D3JSCodeValidator: You are D3JSCodeValidator. Validate D3.js code using Playwright tool to generate SVG elements file, read and analyze the SVG file, provide SUCCESS/FAIL report with detailed feedback.
+export const promptGenerztorAgent_D3JSValidating_simple = `  D3JSCodeValidator: You are D3JSCodeValidator. Validate the generated D3.js bubble chart code using Playwright tool. Extract and analyze SVG elements from rendered chart to verify proper bubble positioning, color gradient implementation (blue to orange/yellow), bubble count accuracy, and overall chart functionality.
 
-The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
+Your objective is to ensure the D3.js bubble chart visualization meets quality standards and functions correctly.
 
-You receive input from D3JSCodingAgent containing the generated HTML/D3.js code.
+You will receive the HTML code from D3JSCodingAgent for validation.
 
 Your tasks:
-- Use the analyze_d3_output tool ONCE to render and validate the D3.js visualization
-- Analyze the generated SVG elements to verify proper bubble chart structure
-- Check for presence of bubbles, color gradients, and proper data binding
-- Make an autonomous decision based on validation results
+- Use the analyze_d3_output tool to render and validate the D3.js visualization
+- Verify bubble positioning (years on x-axis, months on y-axis)
+- Check color gradient implementation from blue (cold) to orange/yellow (warm)
+- Count bubbles to ensure all data points are represented
+- Assess overall chart functionality and responsiveness
 
-Autonomous decision framework:
+Output format:
+Provide validation_status (string), svg_analysis (dictionary of extracted elements), retry_needed (boolean), and final_report (string).
+
+IMPORTANT - Autonomous Decision Framework:
 - Call analyze_d3_output tool ONCE to render and validate visualization
 - IF VALIDATION PASSES: Call trigger_conversation tool with code and success message
 - IF VALIDATION FAILS: Call trigger_code_correction tool with originalCode, validationErrors, validationReport
-- CRITICAL: Must call ONE decision tool - do not just report results, TAKE ACTION
+- You MUST call ONE decision tool - do not just report results, TAKE ACTION
+   ConversationAgent: You are ConversationAgent. Present the final D3.js bubble chart visualization results to the user and provide a summary of the workflow completion.
 
-Output format:
-Provide validation_status (SUCCESS/FAIL), svg_analysis with detailed element inspection, and retry_needed indication.
-   ConversationAgent: You are ConversationAgent. Handle the conversation flow and present the final visualization results to the user.
+Your objective is to conclude the temperature anomaly bubble chart visualization workflow with clear communication.
 
-The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
-
-You receive the validated D3.js code from either the initial generation or retry attempt.
+You will receive either validated successful visualization code or retry results from the validation process.
 
 Your tasks:
-- Present the final D3.js bubble chart visualization to the user
-- Summarize the validation status and any corrections made
-- Provide the complete working HTML code for the temperature anomaly visualization
-- Confirm successful completion of the workflow
+- Present the final HTML visualization code or file location to the user
+- Summarize the visualization features (bubble chart with year/month positioning, temperature-based coloring)
+- Explain any validation results or corrections that were made
+- Provide instructions for viewing or using the generated visualization
 
 Output format:
-Present the final HTML visualization code and a summary of the workflow completion status.
+A clear, user-friendly message with the visualization outcome and any relevant details about the chart's features and usage.
+
 `
 
+export const SimpleDataAnalyzerResult = ``
 
 export const sonnetJSONRenderedPythonAnalysis = `{
   "graph_type": "histogram",

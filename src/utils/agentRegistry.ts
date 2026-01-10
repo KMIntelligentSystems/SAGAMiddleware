@@ -84,12 +84,12 @@ const AGENT_CATALOG: Record<string, Omit<AvailableAgent, 'name' | 'type'>> = {
     },
 
     // Data Analysis Agents
-    'TransactionGroupingAgent': {
-        description: 'Extracts and groups user requirements, particularly visualization specs',
-        capabilities: ['requirement_extraction', 'query_parsing', 'json_formatting'],
-        inputRequirements: ['user_query'],
-        outputProvides: ['parsed_requirements', 'visualization_spec'],
-        estimatedDuration: 2000
+    'SimpleDataAnalyzer': {
+        description: 'SDK agent that analyzes CSV data and generates output',
+        capabilities: ['csv_analysis', 'data_profiling'],
+        inputRequirements: ['csv_file_path', 'data_requirements'],
+         outputProvides: ['synthesized_analysis', 'code_generation_plan'],       
+          estimatedDuration: 5000
     },
 
     'DataProfiler': {

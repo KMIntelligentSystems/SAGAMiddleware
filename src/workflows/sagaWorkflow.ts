@@ -18,7 +18,6 @@ import { PipelineExecutor } from '../workflows/pipelineExecutor.js';
 import { DATA_PROFILING_PIPELINE, D3_VISUALIZATION_PIPELINE } from '../types/pipelineConfig.js'
 import { claudeMDResuilt } from '../test/histogramData.js'
 
-import { runAllDAGExamples } from '../examples/dagDesignerExample.js'
 import { extractAvailableAgents } from '../utils/agentRegistry.js';
 import { DAGDesigner } from '../agents/dagDesigner.js';
 import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
@@ -572,8 +571,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'gemini', //'anthropic' 'openai' 'gemini'
-        model:'gemini-3-pro-preview',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        provider: 'anthropic', //'anthropic' 'openai' 'gemini'
+        model:'claude-opus-4-5',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  8192,
        // apiKey: process.env.ANTHROPIC_API_KEY
@@ -879,8 +878,8 @@ const requirements_histo: WorkflowRequirements = {
   }
 }
 //Global temps
- const requirements_global: WorkflowRequirements ={
-  "objective": "Generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic",
+ const requirements_global: WorkflowRequirements = {
+  "objective": "Generate D3.js bubble chart for global temperature anomalies with monthly bubbles, zero baseline on y-axis, temperature anomalies positioned above/below zero baseline, color gradient from blue (cold) to orange/yellow (warm), and validation with retry capability",
   "inputData": {
     "type": "csv_file",
     "source": "c:/repos/sagaMiddleware/data/global_temperatures.csv",
@@ -901,45 +900,46 @@ const requirements_histo: WorkflowRequirements = {
         "Dec"
       ],
       "rowCount": 140,
-      "characteristics": "NASA global temperature anomaly data from 1880-2019, monthly temperature deviations"
+      "characteristics": "Temperature anomaly data from 1880-2019, monthly readings range from -0.80°C to +1.35°C, some missing values marked as ***"
     }
   },
   "agents": [
     {
       "name": "DataAnalyzer",
       "agentType": "sdk_agent",
-      "task": "Read and analyze the temperature CSV file, extract monthly temperature anomalies for each year, determine data ranges and structure requirements for bubble chart visualization",
+      "task": "Read global temperature CSV file and generate detailed requirements for D3.js bubble chart creation including data structure analysis, temperature anomaly ranges, zero baseline specifications, color mapping specifications, and chart layout requirements",
       "inputFrom": null,
       "outputSchema": {
-        "analysis_report": "string",
-        "chart_requirements": "string"
+        "data_structure": "dict",
+        "requirements": "dict",
+        "chart_specs": "dict"
       }
     },
     {
-      "name": "D3JSChartGenerator",
+      "name": "D3JSBubbleChartGenerator",
       "agentType": "functional",
-      "task": "Generate D3.js bubble chart code with tiny bubbles for monthly temperatures, color gradient from blue (cold) to orange/yellow (warm), reads data from ./data/global_temperatures.csv",
+      "task": "Generate D3.js bubble chart code with zero baseline on y-axis, temperature anomalies positioned above zero (warmer) and below zero (colder), blue-to-orange-yellow color gradient, x-axis representing years (1880-2019), tiny bubbles for each monthly temperature anomaly reading",
       "inputFrom": "DataAnalyzer",
       "outputSchema": {
         "html_code": "string"
       }
     },
     {
-      "name": "D3JSValidator",
-      "agentType": "sdk_agent",
-      "task": "Validate D3.js code using Playwright tool to generate SVG elements file, read and analyze the SVG file, provide SUCCESS/FAIL report with detailed feedback",
-      "inputFrom": "D3JSChartGenerator",
+      "name": "D3JSCodeValidator",
+      "agentType": "functional",
+      "task": "Validate D3.js bubble chart code using Playwright tool to capture and analyze SVG elements, verify zero baseline positioning and anomaly placement above/below baseline, provide SUCCESS/FAIL report with detailed validation results",
+      "inputFrom": "D3JSBubbleChartGenerator",
       "outputSchema": {
         "validation_status": "string",
-        "svg_analysis": "string",
-        "retry_needed": "string"
+        "svg_analysis": "dict",
+        "retry_needed": "bool"
       }
     },
     {
-      "name": "D3JSRetryGenerator",
+      "name": "D3JSBubbleChartRetryGenerator",
       "agentType": "functional",
-      "task": "On validation failure, generate corrected D3.js bubble chart code based on validator feedback. Process terminates after success or one retry attempt.",
-      "inputFrom": "D3JSValidator",
+      "task": "Generate corrected D3.js bubble chart code if validation failed (one retry allowed), ensuring zero baseline on y-axis with anomalies correctly positioned above/below baseline, incorporating validation feedback, otherwise pass through successful code. Terminate process after success or failed retry attempt.",
+      "inputFrom": "D3JSCodeValidator",
       "outputSchema": {
         "html_code": "string",
         "final_status": "string"
@@ -951,12 +951,13 @@ const requirements_histo: WorkflowRequirements = {
     "format": "d3_bubble_chart",
     "quality": [
       "validated",
-      "production_ready"
+      "production_ready",
+      "responsive"
     ]
   },
   "constraints": {
     "parallelismAllowed": false,
-    "executionOrder": "sequential" as const
+    "executionOrder": "sequential"
   }
 }
 
@@ -966,37 +967,39 @@ const requirements_histo: WorkflowRequirements = {
 
       const dagDesigner = new DAGDesigner(this.coordinator.contextManager);
       const result = await dagDesigner.execute({
-        workflowRequirements: requirements_histo,
+        workflowRequirements: requirements_global,
         availableAgents: availableAgents
     });
-    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements_histo)});
+    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements_global)});
     const dagExecutor = new DAGExecutor(this.coordinator);
-    const startDag = JSON.parse(dagStart) as DAGDefinition
+//const startDag = JSON.parse(dagStart) as DAGDefinition //dagStart
     //When using conversationAgent as entry. Now just entry
    // await dagExecutor.executeDAG(startDag, requirements);
   
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
 
     // STEP 1: Analyze CSV file to get statistics (efficient, ~5 turns)
-    const csvAnalyzer = new CSVAnalyzerAgent(requirements_histo, this.coordinator.contextManager);
+    const csvAnalyzer = new CSVAnalyzerAgent(requirements_global, this.coordinator.contextManager);
     const csvAnalysisResult = await csvAnalyzer.execute();
     const csvAnalysis = csvAnalysisResult.result as string;
 
     // STEP 2: Generate prompts using CSV analysis
     const promptGeneratorAgent = new PromptGeneratorAgent(
         dagDesignerCtx.lastTransactionResult,
-        requirements_histo,
+        requirements_global,
         this.coordinator.contextManager,
         csvAnalysis  // Pass CSV analysis to avoid subagent (was 40 turns)
     );
-  /*  const promptGenResult = await promptGeneratorAgent.execute();
+    const promptGenResult = await promptGeneratorAgent.execute();
     const promptArray = promptGenResult.result as Array<[string, string]>;
     console.log('✅ Generated prompts array:');
     promptArray.forEach(([agentName, prompt]) => {
         console.log(`   ${agentName}: ${prompt}`);
-    });*/
+    });
 
-  //  const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements);
+    console.log('DAG ', dagDesignerCtx.lastTransactionResult)
+
+   const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements, promptArray);
 
     console.log('\n✅ DAG Execution Complete!');
 //    console.log('Result:', dag);

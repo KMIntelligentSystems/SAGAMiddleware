@@ -26,7 +26,8 @@ export interface FlowStrategy {
         source: string,  // Source agent name for context tracking
         userQuery?: any,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any  // Target node metadata for prompt injection
+        nodeMetadata?: any,  // Target node metadata for prompt injection
+        prompts?:  Array<[string, string]>
     ): Promise<AgentResult>;
 }
 
@@ -43,11 +44,19 @@ export const LLMCallStrategy: FlowStrategy = {
         source: string,
         userQuery?: any,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any
+        nodeMetadata?:any,
+        prompts?:  Array<[string, string]>
     ): Promise<AgentResult> {
         // Only GenericAgent can make LLM calls in this strategy
+        console.log(`🔍 LLMCallStrategy received agent:`, {
+            name: agent.getName ? agent.getName() : 'NO getName',
+            constructor: agent.constructor.name,
+            isGenericAgent: agent instanceof GenericAgent,
+            targetAgent: targetAgent
+        });
+
         if (!(agent instanceof GenericAgent)) {
-            throw new Error(`LLMCallStrategy requires GenericAgent, got: ${agent.constructor.name}`);
+            throw new Error(`LLMCallStrategy requires GenericAgent, got: ${agent.constructor.name} (name: ${agent.getName ? agent.getName() : 'unknown'})`);
         }
 
         console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} with LLM call`);
@@ -55,19 +64,17 @@ export const LLMCallStrategy: FlowStrategy = {
         // Get the agent's context from ContextManager BEFORE clearing
         const agentCtx = contextManager.getContext(source) as WorkingMemory;
          
-      //  if(source !== targetAgent && targetAgent !== 'ConversationAgent'){
-               const validatingAgent = agentsRegistry?.get(source);
-               validatingAgent.deleteContext();
-               const prompt = getPrompt('CreatePrompt');
-               validatingAgent.setTaskDescription(prompt);
-               //openaiD3JSCodingAgentPrompt_Jan_02 
-              const taskForAgent = await validatingAgent.execute({'REQUIREMENTS':  JSON.stringify(userQuery), 'AGENT NAME: ': targetAgent});
-              const d3jsPrompt = taskForAgent.result;// opusD3JSCodingAgentPrompt_Jan_02//openaiD3JSCodingAgentPrompt_Jan_02 ;
-               //Set the task of this LLM 
-               agent.deleteContext();
-
-             //   agent.setContext(taskForAgent.result)
-     //   }
+        // Extract prompt for targetAgent from prompts array
+        let targetPrompt = '';
+        if (prompts && Array.isArray(prompts)) {
+            const promptEntry = prompts.find(([name, _]) => name === agent.getName());
+            if (promptEntry) {
+                targetPrompt = promptEntry[1];
+                console.log(`📝 ContextPassStrategy: Found prompt for ${agent.getName()} (${targetPrompt.length} chars)`);
+            } else {
+                console.warn(`⚠️ No prompt found for ${agent.getName()} in prompts array`);
+            }
+        }
 
         // Clear agent's internal context to avoid contamination from previous executions
         let result: AgentResult = {
@@ -76,9 +83,10 @@ export const LLMCallStrategy: FlowStrategy = {
             success: true,
             timestamp: new Date()
           };
-       agent.setTaskDescription(d3jsPrompt)
+          
+       agent.setTaskDescription(targetPrompt)
        result = await agent.execute(agentCtx.lastTransactionResult);
-     
+     console.log('RESULT ', result.result)
 
         // Store result in target agent's context
         contextManager.updateContext(targetAgent, {
@@ -105,7 +113,8 @@ export const ContextPassStrategy: FlowStrategy = {
         source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any
+        nodeMetadata?: any,
+        prompts?:  Array<[string, string]>
     ): Promise<AgentResult> {
         if(agent.getName() === 'UserInput'){
            await agent.execute({});
@@ -118,31 +127,29 @@ export const ContextPassStrategy: FlowStrategy = {
 
         // Retrieve source context
         const sourceContext = contextManager.getContext(agentName) as WorkingMemory;
-        console.log('SOURCE ', sourceContext?.lastTransactionResult)
+        //This is the user workflow requirements
+       /* console.log('SOURCE ', sourceContext?.lastTransactionResult)
 
         if (!sourceContext || !sourceContext.lastTransactionResult) {
             console.warn(`⚠️ No context found for ${agentName}, passing empty context`);
         }
+*/
+        // Extract prompt for targetAgent from prompts array
+        let targetPrompt = '';
+        if (prompts && Array.isArray(prompts)) {
+            const promptEntry = prompts.find(([name, _]) => name === targetAgent);
+            if (promptEntry) {
+                targetPrompt = promptEntry[1];
+                console.log(`📝 ContextPassStrategy: Found prompt for ${targetAgent} (${targetPrompt.length} chars)`);
+            } else {
+                console.warn(`⚠️ No prompt found for ${targetAgent} in prompts array`);
+            }
+        }
 
-         const validatingAgent = agentsRegistry?.get(source);validateWorkflowRequirements
-         let dataProfilerPrompt = ''
-         if(!validatingAgent){
-             const validatingAgent = agentsRegistry?.get('ValidatingAgent');
-                validatingAgent.deleteContext();
-               const prompt = getPrompt('CreatePrompt');
-               validatingAgent.setTaskDescription(prompt);
-               //DYNAMIC PROMT FOR DATAPROFILER
-               const taskForAgent = await validatingAgent.execute({'REQUIREMENTS':  JSON.stringify(userQuery), 'AGENT NAME: ': targetAgent});
-              // dataProfilerPrompt = openaiDataProfilerPrompt_Jan_02;
-             // console.log('TASK FOR AGENT   DATAPROFILER',taskForAgent.result)
-         }
-
-    
-
-        // Pass context to target agent
+        // Pass context to target agent with extracted prompt
         contextManager.updateContext(targetAgent, {
-            lastTransactionResult: sourceContext?.lastTransactionResult || {},
-            prompt: dataProfilerPrompt,
+            lastTransactionResult: sourceContext?.lastTransactionResult || {},      //This is the user workflow requirements
+            prompt: targetPrompt,
             transactionId: sourceContext?.transactionId || agentName,
             timestamp: new Date()
         });
@@ -175,7 +182,8 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any
+        nodeMetadata?: any,
+        prompts?:  Array<[string, string]>
     ): Promise<AgentResult> {
         console.log(`🔄 ExecuteAgentsStrategy: Executing agents created by ${agent.getName()}`);
 
@@ -559,7 +567,8 @@ export const SDKAgentStrategy: FlowStrategy = {
         source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any
+        nodeMetadata?: any,
+        prompts?:  Array<[string, string]>
     ): Promise<AgentResult> {
         // Only SDK agents allowed in this strategy
         if (!(agent instanceof BaseSDKAgent)) {
@@ -568,6 +577,18 @@ export const SDKAgentStrategy: FlowStrategy = {
 
         console.log(`🔄 SDKAgentStrategy: Executing SDK agent ${agent.getName()}`);
 
+          let targetPrompt = '';
+        if (prompts && Array.isArray(prompts)) {
+            const promptEntry = prompts.find(([name, _]) => name === agent.getName());
+            if (promptEntry) {
+                targetPrompt = promptEntry[1];
+                console.log(`📝 ContextPassStrategy: Found prompt for ${agent.getName()} (${targetPrompt.length} chars)`);
+            } else {
+                console.warn(`⚠️ No prompt found for ${agent.getName()} in prompts array`);
+            }
+        }
+        
+        contextManager.updateContext(agent.getName(),{prompt: targetPrompt})
         // Execute SDK agent (it will read its input from contextManager)
         const result = await agent.execute({});
 

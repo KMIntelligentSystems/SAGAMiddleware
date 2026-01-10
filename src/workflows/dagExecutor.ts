@@ -57,7 +57,7 @@ export class DAGExecutor {
      * Execute a DAG
      * Results stored in ContextManager by FlowStrategies
      */
-    async executeDAG(dag: DAGDefinition, input: any): Promise<void> {
+    async executeDAG(dag: DAGDefinition, input: any, prompts:  Array<[string, string]>): Promise<void> {
         console.log(`\n🔀 ============================================`);
         console.log(`🔀 Executing DAG: ${dag.name}`);
         console.log(`🔀 Description: ${dag.description}`);
@@ -86,7 +86,7 @@ export class DAGExecutor {
 
             // Phase 3: Execute from entry node - results stored in ContextManager
             console.log('\n🚀 Phase 2: Executing DAG...\n');
-            await this.executeNode(dag, dag.entryNode, input);
+            await this.executeNode(dag, dag.entryNode, input, prompts);
 
             // Phase 4: Summary
             const duration = Date.now() - this.executionStartTime.getTime();
@@ -108,7 +108,8 @@ export class DAGExecutor {
     private async executeNode(
         dag: DAGDefinition,
         nodeId: string,
-        input: any
+        input: any,
+        prompts:  Array<[string, string]>
     ): Promise<void> {
         // Check if already executed (cycle detection)
         if (this.executionPath.has(nodeId)) {
@@ -132,7 +133,7 @@ export class DAGExecutor {
             // Execute dependencies first
             console.log(`⏸️  Node ${nodeId} waiting for dependencies: ${unsatisfiedDeps.map(e => e.from).join(', ')}`);
             for (const edge of unsatisfiedDeps) {
-                await this.executeNode(dag, edge.from, input);
+                await this.executeNode(dag, edge.from, input, prompts);
             }
         }
 
@@ -159,7 +160,8 @@ export class DAGExecutor {
                 return;
             } else {
                 // Execute node using strategy - strategy updates ContextManager
-                await this.executeNodeWithStrategy(dag, node, incomingEdges, input);
+                console.log('INCOMING EDGES', incomingEdges)
+                await this.executeNodeWithStrategy(dag, node, incomingEdges, input, prompts);
             }
 
             console.log(`✅ Node ${nodeId} completed`);
@@ -176,11 +178,12 @@ export class DAGExecutor {
             if (outgoingEdges.length > 1) {
                 console.log(`🔀 Node ${nodeId} has ${outgoingEdges.length} outgoing edges - executing in parallel`);
                 await Promise.all(
-                    outgoingEdges.map(edge => this.executeEdge(dag, edge, input))
+                    outgoingEdges.map(edge => this.executeEdge(dag, edge, input, prompts))
                 );
             } else if (outgoingEdges.length === 1) {
                 // Single outgoing edge
-                await this.executeEdge(dag, outgoingEdges[0], input);
+                console.log('OUTGOIN EDGES ', outgoingEdges[0])
+                await this.executeEdge(dag, outgoingEdges[0], input, prompts);
             }
 
         } catch (error) {
@@ -218,7 +221,8 @@ export class DAGExecutor {
         dag: DAGDefinition,
         node: DAGNode,
         incomingEdges: DAGEdge[],
-        input: any
+        input: any,
+        prompts:  Array<[string, string]>
     ): Promise<void> {
         // Determine strategy from incoming edge
         const primaryEdge = incomingEdges[0]; // Use first edge to determine strategy
@@ -226,50 +230,58 @@ export class DAGExecutor {
             throw new Error(`Node ${node.id} has no incoming edges`);
         }
 
-        const strategy = this.strategyMap.get(primaryEdge.flowType);
-        if (!strategy) {
-            throw new Error(`Unknown flow type: ${primaryEdge.flowType}`);
-        }
-
         // Get source agent/node name for context lookups
         const sourceNode = dag.nodes.find(n => n.id === primaryEdge.from);
         const sourceAgentName = sourceNode?.agentName || primaryEdge.from;
 
-        console.log(`   Strategy: ${primaryEdge.flowType}`);
-        console.log(`   Source: ${sourceAgentName} → ${node.agentName}`);
+        // Determine strategy based on flowType
+        // flowType describes HOW to handle the transition/data flow between nodes
+        // Each strategy is responsible for executing the target agent if needed
+        const strategyType = primaryEdge.flowType;
+
+        const strategy = this.strategyMap.get(strategyType);
+        if (!strategy) {
+            throw new Error(`No strategy found for: ${strategyType}`);
+        }
+
+        console.log(`   FlowType: ${primaryEdge.flowType} → Strategy: ${strategyType}`);
+        console.log(`   Source: ${sourceAgentName} (${sourceNode?.type}) → Target: ${node.agentName} (${node.type})`);
+        // FlowType: sdk_agent → Strategy: sdk_agent
+        // Source: SimpleDataAnalyzer (sdk_agent) → Target: D3JSCodingAgent (agent)
+        // FlowType: llm_call → Strategy: llm_call
+        // Source: D3JSCodingAgent (agent) → Target: D3JSCodeValidator (sdk_agent)
 
         // NEW: Get target node metadata for prompt injection
         // This allows strategies to inject prompts into the target agent's context
         const targetNodeMetadata = node.metadata;
 
-        // Determine what to pass to strategy based on flowType (like SagaCoordinator does)
+        // Determine what to pass to strategy based on flowType
         let agentOrName: any;
 
-        if (primaryEdge.flowType === 'context_pass' || primaryEdge.flowType === 'autonomous_decision') {
+        if (strategyType === 'context_pass' || strategyType === 'autonomous_decision') {
             // For context-based strategies, pass a name object to look up context in ContextManager
-            // autonomous_decision uses ContextPassStrategy - routing determined by edge conditions
             agentOrName = {
                 getName: () => sourceAgentName
             };
             console.log(`📝 Using context key: ${sourceAgentName}`);
-        } else if (primaryEdge.flowType === 'execute_agents' && sourceNode.type === 'sdk_agent'){// && node.type === 'sdk_agent'
+        } else if (strategyType === 'execute_agents' /*&& sourceNode.type === 'sdk_agent'*/) {
             agentOrName = this.instantiateSDKAgent(sourceNode);
-        }
-         else if (primaryEdge.flowType === 'llm_call' || primaryEdge.flowType === 'validation') {
+        } else if (strategyType === 'llm_call' || strategyType === 'validation') {
             // For LLM calls and validation, get the actual GenericAgent instance
-            const genericAgent = this.coordinator.agents.get(node.agentName);
+            const genericAgent = this.coordinator.agents.get(sourceAgentName);
             if (!genericAgent) {
-                throw new Error(`GenericAgent not found in registry: ${node.agentName}`);
+                throw new Error(`GenericAgent not found in registry: ${sourceAgentName}}`);
             }
+            console.log('LLM ', genericAgent)
             agentOrName = genericAgent;
-        } else if (primaryEdge.flowType === 'sdk_agent' ) {
-            // For SDK agents, instantiate the BaseSDKAgent
-            if (node.type !== 'sdk_agent') {
-                throw new Error(`Node ${node.id} has sdk_agent flowType but is not an sdk_agent node type`);
+        } else if (strategyType === 'sdk_agent') {
+            // For SDK agents, execute the SOURCE SDK agent and pass results to target
+            if (sourceNode.type !== 'sdk_agent') {
+                throw new Error(`Edge has sdk_agent flowType but source ${sourceNode.id} is not an sdk_agent node type`);
             }
-            agentOrName = this.instantiateSDKAgent(node);
+            agentOrName = this.instantiateSDKAgent(sourceNode);
         } else {
-            throw new Error(`Unsupported flowType: ${primaryEdge.flowType}`);
+            throw new Error(`Unsupported flowType: ${strategyType}`);
         }
 
         console.log('NODE AGENT NAME', node.agentName)
@@ -282,7 +294,8 @@ export class DAGExecutor {
             sourceAgentName, // Source agent name for context tracking
             input, // userQuery - can be passed if needed
             this.coordinator.agents, // agents registry for ExecuteAgentsStrategy
-            targetNodeMetadata // Pass target node metadata for prompt injection
+            targetNodeMetadata, // Pass target node metadata for prompt injection
+            prompts
         );
     }
 
@@ -292,7 +305,8 @@ export class DAGExecutor {
     private async executeEdge(
         dag: DAGDefinition,
         edge: DAGEdge,
-        input: any
+        input: any,
+        prompts:  Array<[string, string]>
     ): Promise<void> {
         // Check edge condition if present
         if (edge.condition) {
@@ -308,7 +322,7 @@ export class DAGExecutor {
         }
 
         // Execute target node
-        await this.executeNode(dag, edge.to, input);
+        await this.executeNode(dag, edge.to, input,prompts);
     }
 
     /**

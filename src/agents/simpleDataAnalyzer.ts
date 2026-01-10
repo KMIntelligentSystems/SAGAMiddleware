@@ -17,9 +17,11 @@
  * - Outputs ready-to-use analysis data for next agent
  */
 
+
+
 import { BaseSDKAgent } from './baseSDKAgent.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
-
+import * as fs from 'fs'
 export class SimpleDataAnalyzer extends BaseSDKAgent {
     constructor(contextManager?: any) {
         super('SimpleDataAnalyzer', 15, contextManager);
@@ -44,10 +46,10 @@ export class SimpleDataAnalyzer extends BaseSDKAgent {
 
             const prompt = ctx.prompt;
 
-            console.log('🔍 Reading and analyzing file...');
+            console.log('🔍 Reading and analyzing file...', prompt);
 
             // Execute analysis query - agent will read file and provide analysis
-            const output = await this.executeQuery(prompt);
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResult.txt', 'utf-8');//await this.retrievePersistedDictionary();await this.executeQuery(prompt);
 
             // Store analysis results in context
             this.setContext({
