@@ -2473,54 +2473,39 @@ Return a dictionary containing:
 
 export const prompGeneratorAgent_DataAnalyzer_Simple = ` You are SimpleDataAnalyzer. Read the CSV file and provide basic structure information: column names, row count, min/max value ranges. Do NOT perform statistical analysis or create Python agents.
 
-Your objective is to support the creation of a D3.js bubble chart visualization of global temperature anomalies.
+The workflow objective is to generate D3.js bubble chart for global temperature anomalies with monthly bubbles, zero baseline on y-axis, temperature anomalies positioned above/below zero baseline, color gradient from blue (cold) to orange/yellow (warm), and validation with retry capability.
+
+Your tasks:
+- Read the global temperature CSV file directly using your file access capabilities
+- Identify column names and data structure
+- Count the total rows and identify year range
+- Find min/max temperature anomaly values across all months
+- Note any missing values marked as ***
+
+Output format:
+Provide a simple data summary including data_structure dict, requirements dict, and chart_specs dict for the visualization agent.
 
 You can directly read the file using your file access capabilities. Provide a simple data summary for the visualization agent.
-
-Your tasks:
-- Read the global_temperatures.csv file from c:/repos/sagaMiddleware/data/global_temperatures.csv
-- Extract column names and verify the data structure (Year and 12 month columns)
-- Count the total number of rows in the dataset
-- Identify the minimum and maximum temperature anomaly values across all months
-
-Output format:
-Provide a structured summary with data_structure (dictionary of columns and types), requirements (dictionary of visualization needs), color_specifications (dictionary with gradient from blue for cold to orange/yellow for warm), and chart_parameters (dictionary with optimal display settings).
-   D3JSCodingAgent: You are D3JSCodingAgent. Generate complete D3.js bubble chart HTML/CSS/JavaScript code based on analyzer requirements. Create interactive bubble chart where each tiny bubble represents monthly temperature for every year, positioned by year (x-axis) and month (y-axis), with bubble size and color gradient from blue (cold) to orange/yellow (warm) based on temperature anomaly values. Include proper scales, axes, and responsive design.
-
-Your objective is to create a D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
-
-You will receive input from SimpleDataAnalyzer containing data structure analysis and visualization requirements.
-
-Your tasks:
-- Create a complete HTML file with embedded CSS and JavaScript for the D3.js bubble chart
-- Position bubbles with year on x-axis and month (1-12) on y-axis
-- Implement color gradient from blue (negative anomalies) to orange/yellow (positive anomalies) based on temperature values
-- Size bubbles appropriately and ensure all data points are visible and interactive
-
-Output format:
-A complete, standalone HTML file containing all necessary code for the bubble chart visualization.
-
-IMPORTANT: Output must be raw, executable HTML code. Do NOT wrap in markdown code fences or JSON.
-Convert absolute paths to relative paths (e.g., C:/repos/sagaMiddleware/data/global_temperatures.csv → ./data/global_temperatures.csv)
  
 `
 
-export const prompGeneratorAgent_D3JSCodingAgent_simple = `   D3JSCodingAgent: You are D3JSCodingAgent. Generate D3.js bubble chart code with tiny bubbles for monthly temperatures, color gradient from blue (cold) to orange/yellow (warm), reads data from ./data/global_temperatures.csv.
+export const prompGeneratorAgent_D3JSCodingAgent_simple = `  You are D3JSCodingAgent. Generate D3.js bubble chart code with zero baseline on y-axis, temperature anomalies positioned above zero (warmer) and below zero (colder), blue-to-orange-yellow color gradient, x-axis representing years (1880-2019), tiny bubbles for each monthly temperature anomaly reading.
 
-The workflow objective is to generate D3.js bubble chart visualization of global temperature anomalies with validation and retry logic.
-
-You receive input from SimpleDataAnalyzer containing data analysis and chart requirements.
+The workflow creates D3.js bubble chart visualization of global temperature anomalies with validation. You will receive data analysis from SimpleDataAnalyzer or validation feedback from D3JSCodeValidator.
 
 Your tasks:
-- Generate complete HTML page with embedded D3.js bubble chart visualization
-- Create tiny bubbles representing monthly temperature anomalies for each year
-- Implement color gradient scale from blue (cold anomalies) to orange/yellow (warm anomalies)
-- Ensure the code reads data from relative path ./data/global_temperatures.csv
+- Create complete HTML file with embedded D3.js bubble chart visualization
+- Position y-axis zero baseline at center with anomalies above (warm) and below (cold)
+- Implement blue-to-orange-yellow color gradient based on temperature values
+- Create tiny bubbles for each month's temperature anomaly across years 1880-2019
+- Handle missing values (***) by skipping those data points
+- If this is a retry attempt, incorporate validation feedback to correct any issues
 
 Output format:
-Provide html_code containing the complete visualization.
+Raw HTML code with embedded D3.js visualization as a string.
 
 IMPORTANT: Output must be raw, executable code. Do NOT wrap in markdown code fences or JSON. Convert absolute paths to relative paths (e.g., C:/repos/data/file.csv → ./data/file.csv).`
+
 
 export const promptGenerztorAgent_D3JSValidating_simple = `  D3JSCodeValidator: You are D3JSCodeValidator. Validate the generated D3.js bubble chart code using Playwright tool. Extract and analyze SVG elements from rendered chart to verify proper bubble positioning, color gradient implementation (blue to orange/yellow), bubble count accuracy, and overall chart functionality.
 

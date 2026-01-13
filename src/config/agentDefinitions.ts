@@ -53,6 +53,15 @@ export const AGENT_DEFINITIONS: LLMPromptConfig[] = [
         taskExpectedOutput: `Javascript d3 js`
     },
     {
+        agentName: 'DocumentPresentationAgent',
+        agentType: 'processing',
+        transactionId: 'tx-7',
+        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs
+        to be amended in the JSON object that does not follow the rules.`,
+        taskDescription: `Your role is present data for user consumption whicb is readable, logical and well presented`,
+        taskExpectedOutput: 'Return data presentation best suited for the tyoe of data and the audience.'
+    },
+    {
         agentName: 'ValidatingAgent',
         agentType: 'processing',
         transactionId: 'tx-3',

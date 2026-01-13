@@ -12,13 +12,26 @@ import { AgentResult, WorkingMemory } from '../types/index.js';
 import { ContextManager } from '../sublayers/contextManager.js';
 import { WorkflowRequirements }  from '../types/dag.js'
 import { csvAnalyzerAgentResult, csvDataAnalyzerAgentSimpleResult} from '../types/visualizationSaga.js'
+import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class CSVAnalyzerAgent extends BaseSDKAgent {
     private requirements: WorkflowRequirements;
+    private normalizedFilePath: string | null = null;
 
     constructor( requirements: WorkflowRequirements, contextManager: ContextManager) {
         super('CSVAnalyzerAgent', 10, contextManager);
         this.requirements = requirements;
+
+        // Setup the CSV normalization tool
+        try {
+            this.setupNormalizationTool();
+        } catch (error) {
+            console.error('⚠️  Warning: Failed to setup CSV normalization tool:', error);
+            console.log('   CSV Analyzer will run without normalization tool');
+        }
     }
 
     /**
@@ -30,7 +43,7 @@ export class CSVAnalyzerAgent extends BaseSDKAgent {
 
         //    const result = this.contextManager.getContext('CSVAnalyzerAgent') as WorkingMemory
             const prompt = this.buildPrompt(null);
-            const analysis = await this.executeQuery(prompt);// csvAnalyzerAgentResult// csvDataAnalyzerAgentSimpleResult//
+            const analysis = csvDataAnalyzerAgentSimpleResult//await this.executeQuery(prompt);// csvAnalyzerAgentResult// 
 
             // Store analysis in context
             this.setContext(analysis);
@@ -55,6 +68,87 @@ export class CSVAnalyzerAgent extends BaseSDKAgent {
     }
 
     /**
+     * Setup local tool for CSV normalization
+     */
+    private setupNormalizationTool(): void {
+        // Tool: Normalize CSV file (remove extra header rows, handle missing values)
+        const normalizeCsvTool = tool(
+            'normalize_csv',
+            'Normalize a CSV file by removing extra header rows and converting it to a standard format with one header row. Use this when the CSV has metadata rows before the actual column headers.',
+            {
+                file_path: z.string().describe('The path to the CSV file to normalize'),
+                header_row_index: z.number().describe('The zero-based index of the row containing the actual column headers (e.g., 1 if headers are on the second row)')
+            },
+            async (args) => {
+                return this.handleNormalizeCSV(args);
+            }
+        );
+
+        // Create MCP server with the tool
+        const mcpServer = createSdkMcpServer({
+            name: 'csv-normalizer',
+            tools: [normalizeCsvTool]
+        });
+
+        // Add MCP server to options
+        this.options.mcpServers = {
+            ...this.options.mcpServers,
+            'csv-normalizer': mcpServer
+        } as any;
+
+        console.log('✅ CSV normalization tool setup complete');
+    }
+
+    /**
+     * Handler for normalize_csv tool
+     * Removes extra header rows and creates a normalized CSV file
+     */
+    private async handleNormalizeCSV(args: any) {
+        try {
+            const { file_path, header_row_index } = args;
+            console.log(`   🔧 Normalizing CSV: ${file_path}, header at row ${header_row_index}`);
+
+            // Read the file
+            const fileContent = fs.readFileSync(file_path, 'utf-8');
+            const lines = fileContent.split('\n');
+
+            // Skip rows before the header and take everything from header onwards
+            const normalizedLines = lines.slice(header_row_index);
+
+            // Create normalized file path (in same directory with _normalized suffix)
+            const parsedPath = path.parse(file_path);
+            const normalizedPath = path.join(
+                parsedPath.dir,
+                `${parsedPath.name}_normalized${parsedPath.ext}`
+            );
+
+            // Write normalized file
+            fs.writeFileSync(normalizedPath, normalizedLines.join('\n'), 'utf-8');
+
+            // Store the normalized file path
+            this.normalizedFilePath = normalizedPath;
+
+            console.log(`   ✅ Created normalized CSV: ${normalizedPath}`);
+
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Successfully normalized CSV file. Created: ${normalizedPath}\nRemoved ${header_row_index} row(s) before header. The normalized file has ${normalizedLines.length - 1} data rows.`
+                }]
+            };
+        } catch (error) {
+            console.error(`   ❌ Error normalizing CSV:`, error);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error normalizing CSV: ${error instanceof Error ? error.message : String(error)}`
+                }],
+                isError: true
+            };
+        }
+    }
+
+    /**
      * Build prompt for CSV analysis
      */
     protected buildPrompt(_input: any): string {
@@ -64,6 +158,23 @@ export class CSVAnalyzerAgent extends BaseSDKAgent {
 Requirements: ${JSON.stringify(this.requirements)}
 
 Examine the first agent's task description to understand the visualization requirements.
+
+**IMPORTANT: CSV NORMALIZATION CHECK**
+
+Before analyzing the CSV file, check if it has non-standard formatting:
+1. Read the first few lines of the CSV file
+2. Check if there are metadata/description rows before the actual column headers
+3. Look for patterns like:
+   - First row contains text description (e.g., "Land-Ocean: Global Means")
+   - Actual column headers appear on row 2 or later
+   - Missing values represented as "***" or similar non-numeric placeholders
+
+If the CSV has extra header rows:
+- Call the normalize_csv tool with:
+  - file_path: the CSV file path from requirements.inputData.source
+  - header_row_index: the zero-based index of the row with actual column headers (e.g., 1 for second row)
+- After normalization, use the NORMALIZED file path for all subsequent analysis
+- Mention the normalized file path in your recommendation output
 
 **DECISION CRITERIA:**
 
@@ -90,8 +201,10 @@ Use **Python agents** (complex flow) when ANY condition is met:
 
 **YOUR JOB:**
 1. Read the CSV file to assess: row count, column count, data types, value ranges, missing values
-2. Evaluate task complexity against the criteria above
-3. Make recommendation based on ACTUAL complexity, not perceived sophistication
+2. If the CSV has extra header rows, call normalize_csv tool to create a clean version
+3. Evaluate task complexity against the criteria above
+4. Make recommendation based on ACTUAL complexity, not perceived sophistication
+5. If you normalized the file, include the normalized file path in your output
 
 **OUTPUT FORMATS:**
 
@@ -161,6 +274,15 @@ Example 3 - Simple despite multi-column (SDK handles):
 File has 140 rows, 13 columns (Year + 12 monthly temperature values). Range: -0.73 to +1.35°C.
 Task: Reshape from wide to long format (Year, Month, Value), calculate per-month statistics, identify min/max ranges for color scaling for bubble chart.
 Rationale: Small dataset (140 rows), simple reshaping logic, basic calculations - well within SDK capabilities. Bubble chart only needs position/size/color mapping, no complex algorithms."
+
+Example 3b - CSV with extra header rows (requires normalization):
+"DETECTED: CSV file has metadata row before headers. Called normalize_csv tool.
+NORMALIZED FILE: ./data/global_temperatures_normalized.csv
+
+RECOMMENDATION: SDK Agent
+File has 140 rows, 13 columns (Year + 12 monthly temperature values). Range: -0.73 to +1.35°C.
+Task: Use the normalized file (./data/global_temperatures_normalized.csv) to reshape from wide to long format, calculate per-month statistics for bubble chart.
+Rationale: After normalization, the file has clean headers. Small dataset (140 rows), simple reshaping logic, basic calculations - well within SDK capabilities."
 
 Example 4 - Complex due to visualization type (requires Python):
 "RECOMMENDATION: Python Agents

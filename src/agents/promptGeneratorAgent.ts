@@ -141,14 +141,14 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
 
             // Execute - the SDK agent will call tools (including Task tool for subagent invocation)
             console.log(`\n   📝 Generating prompts with LLM...`);
-           await this.executeQuery(prompt);
+       //    await this.executeQuery(prompt);
 
             // TESTING: Use hardcoded prompts from histogramData.js
-          /*  this.promptMapping = {
+            this.promptMapping = {
                 'SimpleDataAnalyzer':prompGeneratorAgent_DataAnalyzer_Simple,
                 'D3JSCodingAgent': prompGeneratorAgent_D3JSCodingAgent_simple ,
                 'D3JSCodeValidator': promptGenerztorAgent_D3JSValidating_simple
-            };*/
+            };
 
             console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts (TESTING MODE)`);
 

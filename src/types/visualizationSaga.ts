@@ -127,21 +127,26 @@ Process the raw price data using the calculated bin parameters, generate frequen
 
 The extreme outliers and heavy right skew make this a complex histogram challenge requiring adaptive binning strategies to visualize both the main distribution and outliers effectively.`
 
-export const csvDataAnalyzerAgentSimpleResult = ` Based on my analysis of the CSV file:
+export const csvDataAnalyzerAgentSimpleResult = ` Now let me analyze the data structure in detail:
 
 **RECOMMENDATION: SDK Agent**
 
-File has 142 rows (140 data rows + 2 header rows), 19 columns. Data characteristics: Monthly temperature anomalies from 1880-2019, values range from -0.73 to +1.35°C. 
-Contains Year column and 12 monthly columns (Jan-Dec) plus additional aggregate columns (J-D, D-N, DJF, MAM, JJA, SON).
+File has 140 rows (excluding header and blank lines), 19 columns. Data characteristics: Temperature anomaly data from 1880-2019, with Year column and 12 monthly temperature columns (Jan-Dec), plus additional annual/seasonal aggregates. Values range from -0.80°C to +1.35°C, with some missing values marked as ***.
 
-Task: Extract Year and monthly columns (Jan-Dec), reshape from wide format (140 rows × 13 cols) to long format (1680 rows: 140 years × 12 months),
- creating structure with Year, Month, Temperature fields. Calculate min/max temperature ranges for color scale mapping (blue for negative/cold anomalies to orange/yellow for positive/warm anomalies). 
- Generate position mappings where x-axis = Year (1880-2019), y-axis = Month (1-12), bubble size/color = temperature anomaly value. Provide data transformation specifications and chart parameters 
- for D3.js bubble chart implementation.
+Task: Read CSV file focusing on Year and 12 monthly columns (Jan-Dec). Reshape data from wide format (140 rows × 13 columns) to long format creating structure with Year, Month, and Temperature_Anomaly fields. Filter out missing values (***). Calculate temperature ranges (-0.80 to +1.35) for y-axis scaling with zero baseline. Generate data structure for D3.js bubble chart with x-axis for years (1880-2019), y-axis for temperature anomalies positioned above/below zero, and color mapping from blue (negative/cold) to orange-yellow (positive/warm).
 
-Rationale: Small dataset (140 rows, 12KB file), simple reshaping from wide to long format, basic min/max calculations for scale ranges. 
-The bubble chart only requires straightforward data transformation (pivot/melt operation) and mapping of values to visual properties (position, size, color).
- No complex algorithms, statistical computations, or specialized numerical processing needed - well within SDK agent capabilities.`
+Rationale: File size is very small (140 rows, 12KB), transformations are straightforward (wide-to-long reshaping, filtering nulls), calculations are basic (min/max ranges, zero baseline positioning). No complex algorithms needed - bubble chart only requires position/size/color mapping based on simple data values. The task involves simple data restructuring and range calculations well within SDK agent capabilities.
+SDK NAME CSVAnalyzerAgent
+SDK VALUE Now let me analyze the data structure in detail:
+
+**RECOMMENDATION: SDK Agent**
+
+File has 140 rows (excluding header and blank lines), 19 columns. Data characteristics: Temperature anomaly data from 1880-2019, with Year column and 12 monthly temperature columns (Jan-Dec), plus additional annual/seasonal aggregates. Values range from -0.80°C to +1.35°C, with some missing values marked as ***.
+
+Task: Read CSV file focusing on Year and 12 monthly columns (Jan-Dec). Reshape data from wide format (140 rows × 13 columns) to long format creating structure with Year, Month, and Temperature_Anomaly fields. Filter out missing values (***). Calculate temperature ranges (-0.80 to +1.35) for y-axis scaling with zero baseline. Generate data structure for D3.js bubble chart with x-axis for years (1880-2019), y-axis for temperature anomalies positioned above/below zero, and color mapping from blue (negative/cold) to orange-yellow (positive/warm).
+
+Rationale: File size is very small (140 rows, 12KB), transformations are straightforward (wide-to-long reshaping, filtering nulls), calculations are basic (min/max ranges, zero baseline positioning). No complex algorithms needed - bubble chart only requires position/size/color mapping based on simple data values. The task involves simple data restructuring and range calculations well within SDK agent capabilities.
+`
 
 export const dagStart = `{
   "id": "d3-histogram-workflow",
