@@ -127,7 +127,7 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for ValidatingAgent
       if(this.definition.name === 'ValidatingAgent'){
         console.log('🔧 ValidatingAgent: Returning test data (sonnetJSONRenderedPythonAnalysis)');
-        result = await this.invokeLLM(prompt);
+      //  result = await this.invokeLLM(prompt);
       // result.result = sonnetJSONRenderedPythonAnalysis;
       }
 
@@ -140,8 +140,14 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for D3JSCodingAgent
       if(this.definition.name === 'D3JSCodingAgent'){
         console.log('🔧 D3JSCodingAgent: Reading test data from opus.html');
+     //    result = await this.invokeLLM(prompt);
+       result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
+      }
+
+      if(this.definition.name === ' DocumentBuildingAgent'){
+        console.log('🔧 Document building agent: Reading test data from opus.html');
          result = await this.invokeLLM(prompt);
-     //  result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
+       //result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
       }
 
     

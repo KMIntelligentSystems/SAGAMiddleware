@@ -53,13 +53,32 @@ export const AGENT_DEFINITIONS: LLMPromptConfig[] = [
         taskExpectedOutput: `Javascript d3 js`
     },
     {
-        agentName: 'DocumentPresentationAgent',
+        agentName: 'DocumentBuildingAgent',
         agentType: 'processing',
         transactionId: 'tx-7',
-        backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs
-        to be amended in the JSON object that does not follow the rules.`,
-        taskDescription: `Your role is present data for user consumption whicb is readable, logical and well presented`,
-        taskExpectedOutput: 'Return data presentation best suited for the tyoe of data and the audience.'
+        backstory: `Takes notes, summaries and provides sentences and paragraphs.`,
+        taskDescription: `Your role is Document Builder. There are three building blocks you can use.1.A typograhical layout using coordinates and font sizes for positioning text
+        and 2-d charts on the page. 2. The text that will appear in the layout. The text will be rendered as sentences and paragraphs. For this purpose you will provide instructions
+        to the Report Writing agent to improve the presentation of the text. 3. The visualizations will be rendered by coding agents. Your task is to provide exact details of csv data for their input.
+        You will also provide the coding agents with precise instructions. You will read all the data and comprehend it in regard to the overall task of building a document. You are the coordinator of other agents.
+        You will be supplied with the DAG of which you are a node to enable a clear understanding of the data requirements at each execution step.`,
+        taskExpectedOutput: 'Return data presentation best suited for the type of data and the audience.'
+    },
+    {
+        agentName: 'ReportWritingAgent',
+        agentType: 'processing',
+        transactionId: 'tx-7',
+        backstory: `Takes notes, summaries and provides sentences and paragraphs.`,
+        taskDescription: `Your role is present data for user consumption whicb is readable, logical and well presented, using sentences and paragrahs`,
+        taskExpectedOutput: 'Return data presentation best suited for the type of data and the audience.'
+    },
+     {
+        agentName: 'HTMLLayoutDesignAgent',
+        agentType: 'processing',
+        transactionId: 'tx-7',
+        backstory: `Provides typographical layout for pages.`,
+        taskDescription: `Your role is typographical designer and renderer of a html page `,
+        taskExpectedOutput: 'Return html page layout.'
     },
     {
         agentName: 'ValidatingAgent',

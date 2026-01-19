@@ -22,11 +22,12 @@ import { extractAvailableAgents } from '../utils/agentRegistry.js';
 import { DAGDesigner } from '../agents/dagDesigner.js';
 import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
 import { DAGExecutor } from './dagExecutor.js';
-import { PromptGeneratorAgent } from '../agents/promptGeneratorAgent.js'
+import { PromptGeneratorAgent, AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 import { CSVAnalyzerAgent } from '../agents/csvAnalyzerAgent.js'
 import * as fs from 'fs'
 
-
+import { SharedStorageParser } from '../parsers/sharedStorageParser.js';
+import { AGENT_DEFINITIONS } from '../config/agentDefinitions.js'
 
 // Default control flow list for saga coordinator
 const CONTROL_FLOW_LIST = [
@@ -491,7 +492,7 @@ Focus: Only array extraction
       transactionSetName: 'visualization', // Links to the transaction set (requirement #1)
       description: 'Default context set for visualization SAGA with CSV data sources',
       dataSources: defaultDataSources,
-      llmPrompts: defaultLLMPrompts,
+      llmPrompts: AGENT_DEFINITIONS,// defaultLLMPrompts,
       userQuery: this.currentUserMessage as string
     };
     
@@ -661,8 +662,10 @@ Focus: Only array extraction
       console.log('MESSAGE TYPE', message.type)
        console.log('MESSAGE SOURCE', message.source)
        if ((message.type === 'create_code' ||  message.type === 'update_code' || message.type === 'profile_approved' || message.type === 'profile_rejected') && message.source === 'react-app') {
-       message.data = {message: claudeMDResuilt};
-        console.log(`🧵 Received create_code from browser:` + JSON.stringify(message.data));
+    //   message.data = {message: claudeMDResuilt};
+
+
+        console.log(`\n🧵 Received create_code from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'update_code' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
@@ -691,7 +694,15 @@ Focus: Only array extraction
       console.log('🧪 Testing AgentParser with new format data...');
    
       
-     
+                 const sharedStorage = SharedStorageParser.parseMessage(message);
+    console.log('📦 Parsed SharedStorage Summary:');
+    console.log(`  - Document Analyses: ${sharedStorage.documentAnalyses.length}`);
+    console.log(`  - Document Workflows: ${sharedStorage.documentWorkflows.length}`);
+    console.log(`  - Page Designs: ${sharedStorage.pageDesigns.length}`);
+
+    // Log detailed structure with proper formatting
+    console.log('\n📋 Full SharedStorage Structure:');
+    console.log(JSON.stringify(sharedStorage, null, 2));
       // Extract threadId from message
       const { data } = message;
       const opType =  message.type;
@@ -704,7 +715,7 @@ Focus: Only array extraction
       
       // Store thread globally for retention
       this.currentThreadId = threadId;
-      this.currentUserMessage = data.message;
+      this.currentUserMessage = JSON.stringify(sharedStorage, null, 2);//data.message;
       this.lastThreadMessage = data.message;
 //histogram
       const requirements: WorkflowRequirements = {
@@ -961,16 +972,169 @@ const requirements_histo: WorkflowRequirements = {
   }
 }
 
+const requirements_endo: WorkflowRequirements = {
+  "objective": "Create comprehensive medical visualization dashboard from endoscopic trials document analysis with integrated page design layout",
+  "inputData": {
+    "type": "document_analysis",
+    "source": "test-session-1768455823870",
+    "schema": {
+      "columns": [
+        "Study",
+        "Sensitivity",
+        "Specificity",
+        "Needle_Type",
+        "Gauge",
+        "Accuracy",
+        "Adequacy"
+      ],
+      "rowCount": 200,
+      "characteristics": "Medical research data with CSV files for meta-analysis results, needle performance metrics, and clinical recommendations"
+    }
+  },
+  "agents": [
+    {
+      "name": "CSVDataReader",
+      "agentType": "sdk_agent",
+      "task": "Read and parse all CSV files from the document analysis: endoscopic_trials_meta_analysis_results.csv, endoscopic_trials_needle_performance.csv, endoscopic_trials_adverse_events.csv, endoscopic_trials_recommendations.csv, and others. Extract data structures, validate column headers, count rows, and prepare consolidated data summary for DocumentBuilder coordination.",
+      "inputFrom": null,
+      "outputSchema": {
+        "csv_data": "dict",
+        "file_metadata": "dict",
+        "data_summary": "dict",
+        "validation_results": "dict"
+      }
+    },
+    {
+      "name": "DocumentBuilder",
+      "agentType": "functional",
+      "task": "Coordinate the main workflow by providing file references, page design layout, and integration instructions to downstream agents. Use CSV data from CSVDataReader to supply Document Analyzer Workflow outputs and page design template with proper agent reference mappings.",
+      "inputFrom": "CSVDataReader",
+      "outputSchema": {
+        "file_references": "dict",
+        "page_layout": "dict",
+        "agent_mappings": "dict",
+        "coordination_data": "dict"
+      }
+    },
+    {
+      "name": "DocumentReportWriter",
+      "agentType": "functional",
+      "task": "Generate user-friendly needle preparation report AND main endoscopic summary in plain English paragraphs. Write clear, accessible summaries for general medical audience avoiding technical jargon. Focus on practical clinical insights, key findings, and recommendations in readable paragraph format suitable for HTML page display.",
+      "inputFrom": "DocumentBuilder",
+      "outputSchema": {
+        "needle_preparation_report": "string",
+        "endoscopic_summary": "string",
+        "combined_clinical_findings": "dict"
+      }
+    },
+    {
+      "name": "MetaAnalysisVisualizer",
+      "agentType": "functional",
+      "task": "Generate D3.js HTML code for meta-analysis visualizations: (1) Bar chart comparing sensitivity rates across studies, (2) Scatter plot showing patient count vs sensitivity correlation. Process CSV data, handle NR values, create interactive charts with tooltips.",
+      "inputFrom": "DocumentBuilder",
+      "outputSchema": {
+        "html_code": "string"
+      }
+    },
+    {
+      "name": "D3JSCodeValidator1",
+      "agentType": "sdk_agent",
+      "task": "Validate MetaAnalysisVisualizer D3.js code for syntax errors, accessibility compliance, responsive design, and proper data binding. Ensure code follows D3.js best practices.",
+      "inputFrom": "MetaAnalysisVisualizer",
+      "outputSchema": {
+        "validation_status": "string",
+        "code_quality_report": "dict",
+        "validated_code": "string"
+      }
+    },
+    {
+      "name": "SimpleNeedleAnalyzer",
+      "agentType": "sdk_agent",
+      "task": "Analyze needle performance CSV data, calculate statistics (mean, median, ranges) for accuracy/adequacy rates, rank needles by performance, identify patterns by gauge (22G vs 25G) and tip design.",
+      "inputFrom": "DocumentBuilder",
+      "outputSchema": {
+        "performance_summary": "dict",
+        "ranked_needles": "list",
+        "gauge_analysis": "dict",
+        "chart_preparation_data": "dict"
+      }
+    },
+    {
+      "name": "NeedlePerformanceVisualizer",
+      "agentType": "functional",
+      "task": "Generate D3.js HTML code for grouped bar chart comparing accuracy and adequacy rates across needle types. Include color coding for gauge sizes, tooltips with study details, interactive features.",
+      "inputFrom": "SimpleNeedleAnalyzer",
+      "outputSchema": {
+        "html_code": "string"
+      }
+    },
+    {
+      "name": "D3JSCodeValidator2",
+      "agentType": "sdk_agent",
+      "task": "Validate NeedlePerformanceVisualizer D3.js code for syntax, performance, accessibility, and data visualization best practices. Ensure proper responsive design.",
+      "inputFrom": "NeedlePerformanceVisualizer",
+      "outputSchema": {
+        "validation_status": "string",
+        "performance_report": "dict",
+        "validated_code": "string"
+      }
+    },
+    {
+      "name": "HTMLPageBuilder",
+      "agentType": "functional",
+      "task": "Integrate all validated D3.js visualizations, reports, and content into complete HTML page using page design layout specifications. Replace bracketed placeholders with actual content, apply proper positioning, styling, and responsive design.",
+      "inputFrom": "D3JSCodeValidator2",
+      "outputSchema": {
+        "complete_html_page": "string",
+        "page_structure": "dict",
+        "asset_references": "list"
+      }
+    },
+    {
+      "name": "HTMLValidatingAgent",
+      "agentType": "sdk_agent",
+      "task": "Use Playwright to test the complete HTML page - verify rendering, interactivity, responsive behavior, accessibility compliance, and cross-browser compatibility. Execute automated testing scenarios.",
+      "inputFrom": "HTMLPageBuilder",
+      "outputSchema": {
+        "validation_report": "dict",
+        "test_results": "dict",
+        "performance_metrics": "dict",
+        "final_status": "string"
+      }
+    }
+  ],
+  "outputExpectation": {
+    "type": "html_visualization",
+    "format": "d3_medical_dashboard",
+    "quality": [
+      "validated",
+      "data_accurate",
+      "production_ready",
+      "accessible",
+      "responsive",
+      "medical_grade"
+    ]
+  },
+  "constraints": {
+    "parallelismAllowed": true,
+    "executionOrder": "sequential",
+    "maxExecutionTime": 300
+  }
+}
        const availableAgents = extractAvailableAgents(this.coordinator);
       
    //   await runAllDAGExamples(this.coordinator);
 
       const dagDesigner = new DAGDesigner(this.coordinator.contextManager);
       const result = await dagDesigner.execute({
-        workflowRequirements: requirements_global,
+        workflowRequirements: requirements_endo,
         availableAgents: availableAgents
     });
-    this.coordinator.contextManager.updateContext('ConversationAgent', {lastTransactionResult: JSON.stringify(requirements_global)});
+    
+    this.coordinator.contextManager.updateContext('ConversationAgent', {
+      lastTransactionResult: JSON.stringify(requirements_endo),
+      userQuery: JSON.stringify(sharedStorage, null, 2)
+    });
     const dagExecutor = new DAGExecutor(this.coordinator);
 //const startDag = JSON.parse(dagStart) as DAGDefinition //dagStart
     //When using conversationAgent as entry. Now just entry
@@ -978,28 +1142,24 @@ const requirements_histo: WorkflowRequirements = {
   
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
 
-    // STEP 1: Analyze CSV file to get statistics (efficient, ~5 turns)
-    const csvAnalyzer = new CSVAnalyzerAgent(requirements_global, this.coordinator.contextManager);
+    // STEP 1: Analyze CSV file to get statistics (efficient, ~5 turns) for use by prompt generator
+ /*   const csvAnalyzer = new CSVAnalyzerAgent(requirements_global, this.coordinator.contextManager);
     const csvAnalysisResult = await csvAnalyzer.execute();
-    const csvAnalysis = csvAnalysisResult.result as string;
+    const csvAnalysis = csvAnalysisResult.result as string;*/
 
     // STEP 2: Generate prompts using CSV analysis
     const promptGeneratorAgent = new PromptGeneratorAgent(
         dagDesignerCtx.lastTransactionResult,
-        requirements_global,
+        requirements_endo,
         this.coordinator.contextManager,
-        csvAnalysis  // Pass CSV analysis to avoid subagent (was 40 turns)
+        null//csvAnalysis  // Pass CSV analysis to avoid subagent (was 40 turns)
     );
     const promptGenResult = await promptGeneratorAgent.execute();
-    const promptArray = promptGenResult.result as Array<[string, string]>;
-    console.log('✅ Generated prompts array:');
-    promptArray.forEach(([agentName, prompt]) => {
-        console.log(`   ${agentName}: ${prompt}`);
-    });
+    const promptArray = promptGenResult.result as AgentPromptArray;
 
     console.log('DAG ', dagDesignerCtx.lastTransactionResult)
 
-   const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements, promptArray);
+   const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements_endo, promptArray);
 
     console.log('\n✅ DAG Execution Complete!');
 //    console.log('Result:', dag);

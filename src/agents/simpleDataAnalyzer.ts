@@ -45,17 +45,14 @@ export class SimpleDataAnalyzer extends BaseSDKAgent {
             }
 
             const prompt = ctx.prompt;
-
-            console.log('🔍 Reading and analyzing file...', prompt);
+            const userQuery = ctx.userQuery;
+          //  console.log({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery})
 
             // Execute analysis query - agent will read file and provide analysis
-            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResult.txt', 'utf-8');//await this.retrievePersistedDictionary();await this.executeQuery(prompt);
+            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//await this.executeQuery(JSON.stringify({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery}));//fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//
 
             // Store analysis results in context
-            this.setContext({
-                analysis_report: output,
-                timestamp: new Date()
-            });
+            this.setContext(output);
 
             const result: AgentResult = {
                 agentName: 'SimpleDataAnalyzer',

@@ -18,13 +18,22 @@ import { AgentResult } from '../types/index.js';
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { createPrompt } from '../types/visualizationSaga.js';
-import {  prompGeneratorAgent_DataProfiler, prompGeneratorAgent_D3JSCodingAgent, prompGeneratorAgent_D3JSCodeValidator, prompGeneratorAgent_DataAnalyzer_Simple, prompGeneratorAgent_D3JSCodingAgent_simple, promptGenerztorAgent_D3JSValidating_simple  } from '../test/histogramData.js'
+import {  prompGeneratorAgent_DataProfiler, prompGeneratorAgent_D3JSCodingAgent, prompGeneratorAgent_D3JSCodeValidator, prompGeneratorAgent_DataAnalyzer_Simple,
+     prompGeneratorAgent_D3JSCodingAgent_simple, promptGenerztorAgent_D3JSValidating_simple,  prompGeneratorAgent_DataAnalyzer_Simple_endo,
+      promptGeneratorAgent_Report_Writer_endo } from '../test/histogramData.js'
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface AgentPromptMapping {
-    [agentName: string]: string;
+       
+          [agentId: string]: {
+        agentName: string;
+        prompt: string;
+    };
+
 }
 
-export type AgentPromptArray = Array<[string, string]>;
+export type AgentPromptArray = Array<{agentName: string, id: string, prompt: string}>; // Array of prompt objects
 
 export class PromptGeneratorAgent extends BaseSDKAgent {
     private promptMapping: AgentPromptMapping = {};
@@ -69,6 +78,7 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             'Store a mapping of agent name to its generated prompt. Call this tool for each agent that needs a prompt.',
             {
                 agent_name: z.string().describe('The name of the agent'),
+                agent_id: z.string().describe('The unique id of the agent'),
                 prompt: z.string().describe('The generated prompt for this agent')
             },
             async (args) => {
@@ -97,16 +107,20 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
      */
     private async handleStorePrompt(args: any) {
         try {
-            console.log(`   💾 Storing prompt for ${args.agent_name}`);
+            console.log(`   💾 Storing prompt for ${args.agent_name} (ID: ${args.agent_id})`);
 
-            this.promptMapping[args.agent_name] = args.prompt;
+            // Use agentId as the key to prevent overwrites
+            this.promptMapping[args.agent_id] = {
+                agentName: args.agent_name,
+                prompt: args.prompt
+            };
 
             console.log(`   ✅ Stored prompt for ${args.agent_name} (${args.prompt.length} chars)`);
 
             return {
                 content: [{
                     type: 'text' as const,
-                    text: `Successfully stored prompt for "${args.agent_name}"`
+                    text: `Successfully stored prompt for "${args.agent_name}" with ID "${args.agent_id}"`
                 }]
             };
         } catch (error) {
@@ -131,7 +145,7 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             console.log(`   DAG: ${this.dag.name}`);
 
             // Clear previous mapping
-            this.promptMapping = {};
+           // this.promptMapping = {agentId: '',agentName: '', prompt: ''};
 
             const dataProfilerPrompt = this.contextManager.getContext('CSVAnalyzerAgent')
 
@@ -140,28 +154,37 @@ export class PromptGeneratorAgent extends BaseSDKAgent {
             const prompt = this.buildPrompt(dataProfilerPrompt);
 
             // Execute - the SDK agent will call tools (including Task tool for subagent invocation)
-            console.log(`\n   📝 Generating prompts with LLM...`);
-       //    await this.executeQuery(prompt);
+            console.log(`\n   📝 Generating prompts with LLM...`, prompt);
+          /* await this.executeQuery(prompt);
+            // Convert mapping to array format: {agentName, id, prompt}
+            // Note: agentId is now the key, data contains agentName and prompt
+            // Write promptArray to file
+             console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts`);
+              const promptArray = Object.entries(this.promptMapping).map(
+                ([agentId, data]) => ({agentName: data.agentName, id: agentId, prompt:data.prompt})
+                );
 
-            // TESTING: Use hardcoded prompts from histogramData.js
-            this.promptMapping = {
-                'SimpleDataAnalyzer':prompGeneratorAgent_DataAnalyzer_Simple,
-                'D3JSCodingAgent': prompGeneratorAgent_D3JSCodingAgent_simple ,
-                'D3JSCodeValidator': promptGenerztorAgent_D3JSValidating_simple
-            };
+            try {
+               
+                const filePath = 'c:/repos/sagaMiddleware/data/promptArray.txt';
+                const fileContent = JSON.stringify(promptArray, null, 2);
+                fs.writeFileSync(filePath, fileContent, 'utf-8');
+                console.log(`📝 Prompt array written to ${filePath}`);
+            } catch (writeError) {
+                console.error('⚠️  Warning: Failed to write promptArray to file:', writeError);
+            }*/
 
-            console.log(`\n✅ PromptGeneratorAgent: Generated ${Object.keys(this.promptMapping).length} prompts (TESTING MODE)`);
-
-            // Convert mapping to array format: [agentName, prompt]
-            const promptArray: AgentPromptArray = Object.entries(this.promptMapping);
-
+           //test
+            const promptArray_ = PromptGeneratorAgent.loadPromptArrayFromFile();
+            console.log('PROMPT', promptArray_)
+          
             // Store the array in context
-            this.setContext(promptArray);
+            this.setContext(promptArray_);
 
             return {
                 agentName: 'PromptGeneratorAgent',
                 success: true,
-                result: promptArray,
+                result: promptArray_,
                 timestamp: new Date()
             };
 
@@ -209,7 +232,7 @@ Include specific statistics (row counts, ranges, distribution characteristics) i
 ${JSON.stringify(this.dag, null, 2)}
 
 # WORKFLOW REQUIREMENTS (USE FOR PROMPT CONTENT ONLY):
-${JSON.stringify(this.workflowRequirements, null, 2)}${dataAnalysisSection}
+${JSON.stringify(this.workflowRequirements, null, 2)}
 
 
 # CRITICAL RULE - READ CAREFULLY:
@@ -286,13 +309,13 @@ ${createPrompt}
    - Add: "Output must be raw, executable code. Do NOT wrap in markdown code fences or JSON."
    - Add: "Convert absolute paths to relative paths (e.g., C:/repos/data/file.csv → ./data/file.csv)"
 
-5. **CALL THE TOOL**: \`store_agent_prompt(agent_name='[DAG agentName]', prompt='[generated prompt]')\`
+5. **CALL THE TOOL**: \`store_agent_prompt(agent_name='[DAG agentName]', agent_id = '[DAG id] prompt='[generated prompt]')\`
 
-6. **HANDLE DUPLICATES**: If the same agentName appears multiple times (e.g., D3JSCodingAgent for initial + retry), generate ONE comprehensive prompt covering all use cases.
+
 
 ## PROCESS EVERY NODE:
 
-Go through ALL nodes where type is "agent" or "sdk_agent" and call store_agent_prompt for each unique agentName.`;
+Go through ALL nodes where type is "agent" or "sdk_agent" and call store_agent_prompt for each unique agentName. Every agent in the workflow MUST have a unique set of tasks`;
     }
 
     /**
@@ -300,6 +323,50 @@ Go through ALL nodes where type is "agent" or "sdk_agent" and call store_agent_p
      */
     public getPromptMapping(): AgentPromptMapping {
         return { ...this.promptMapping };
+    }
+
+    /**
+     * Load prompt array from file and convert to AgentPromptMapping
+     * @param filePath - Path to the promptArray.txt file (default: c:/repos/sagaMiddleware/data/promptArray.txt)
+     * @returns AgentPromptMapping object
+     */
+    public static loadPromptArrayFromFile(filePath: string = 'c:/repos/sagaMiddleware/data/promptArray.txt'): AgentPromptArray {
+        try {
+            console.log(`📖 Loading prompt array from ${filePath}...`);
+
+            // Read file content
+            const fileContent = fs.readFileSync(filePath, 'utf-8');
+
+            // Parse JSON array: [{agentName, id, prompt}, ...]
+            const promptArray: AgentPromptArray = JSON.parse(fileContent);
+
+            // Convert array back to mapping using id as key
+            const promptMapping: AgentPromptMapping = {};
+
+            for (const item of promptArray) {
+                promptMapping[item.id] = {
+                    agentName: item.agentName,
+                    prompt: item.prompt
+                };
+            }
+
+            console.log(`✅ Loaded ${Object.keys(promptMapping).length} prompts from file`);
+
+            return promptArray;
+
+        } catch (error) {
+            console.error('❌ Error loading prompt array from file:', error);
+            throw new Error(`Failed to load prompt array: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Set the prompt mapping (useful for testing with loaded data)
+     * @param mapping - AgentPromptMapping to set
+     */
+    public setPromptMapping(mapping: AgentPromptMapping): void {
+        this.promptMapping = mapping;
+        console.log(`✅ Prompt mapping set with ${Object.keys(mapping).length} entries`);
     }
 
     /**

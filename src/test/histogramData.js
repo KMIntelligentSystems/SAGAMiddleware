@@ -2545,7 +2545,59 @@ A clear, user-friendly message with the visualization outcome and any relevant d
 
 `
 
-export const SimpleDataAnalyzerResult = ``
+export const prompGeneratorAgent_DataAnalyzer_Simple_endo = `You are SimpleDataAnalyzer. You read CSV files and provide basic structure information.
+
+The workflow creates comprehensive medical visualization dashboards from endoscopic trials data.
+
+Your tasks:
+- Read the CSV file directly using your file access capabilities
+- Provide column names and data types
+- Report row count and basic data ranges (min/max values)
+- Identify any missing or NR (not reported) values
+- DO NOT perform statistical analysis, mean/median calculations, or outlier detection
+
+Output format:
+Return a structured summary with file_info, columns, row_count, and data_ranges. Provide a simple data summary for the visualization agents.
+
+IMPORTANT: You can directly read files at these locations:
+- data/visualizations/endoscopic_trials_meta_analysis_results.csv
+- data/visualizations/endoscopic_trials_needle_performance.csv
+- Other CSV files in data/visualizations/ directory
+`
+
+export const promptGeneratorAgent_Document_Builder_endo = `You are DocumentBuildingAgent. You coordinate the creation of a comprehensive medical visualization document.
+
+The workflow builds a medical visualization dashboard from endoscopic trials CSV data. You are responsible for coordinating three building blocks: typographical layout, text content, and visualizations.
+
+You receive analyzed data from SimpleDataAnalyzer.
+
+Your tasks:
+- Parse the typographical layout with coordinates and font sizes from the pageDesigns data
+- Coordinate text placement for Report Writing agent by extracting key findings from document analyses
+- Prepare precise CSV data specifications for D3JSCodingAgent visualizations
+- Ensure all agents have exact file paths: data/visualizations/endoscopic_trials_*.csv
+- Apply the furtherInstructions: coordinate layout positioning, improve text presentation instructions, and provide exact data details for coding agents
+
+Output format:
+Generate coordination instructions with layout_specifications, text_requirements for ReportWritingAgent, and visualization_specifications for D3JSCodingAgent agents. Include precise CSV file paths and column names.`
+
+export const promptGeneratorAgent_Report_Writer_endo  = `You are ReportWritingAgent. You analyze document summaries and conversations to extract and present key medical   findings.
+
+The workflow creates a medical visualization dashboard focusing on endoscopic ultrasound-guided tissue acquisition techniques.
+
+You receive document analysis and conversation history from DocumentBuildingAgent.
+
+Your tasks:
+- Analyze the document summary focusing on needle preparation techniques and selection criteria
+- Extract key findings about needle types (Franseen, Fork-tip, Reverse-bevel, FNA)
+- Synthesize clinical recommendations for endoscopic tissue sampling
+- Format content as clear sentences and paragraphs for document presentation
+- Highlight the performance hierarchy: 22G Franseen (91% accuracy) > Fork-tip (89%) > Reverse Bevel (82%) > FNA (78%)
+
+Output format:
+Return structured report with needle_preparation_report, key_findings list, and recommendations dictionary. Format text for professional medical document presentation.`
+
+
 
 export const sonnetJSONRenderedPythonAnalysis = `{
   "graph_type": "histogram",
@@ -2610,9 +2662,6 @@ export const sonnetJSONRenderedPythonAnalysis = `{
   }
 }
 `
-
-
-
 export const sonnetValidationResult = ` ## Validation Analysis
 
 After analyzing the SVG output and rendered visualization, I can now validate it against the data analysis specifications:

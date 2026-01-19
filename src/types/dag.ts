@@ -155,6 +155,83 @@ export interface WorkflowRequirements {
     };
 }
 
+export interface DocumentAnalysisResult {
+  analysisId: string;
+  documentPath: string;
+  sessionId: string;
+  timestamp: number;
+  originalAnalysis: {
+    summary: string;
+    keyFindings: string[];
+    visualizationSuggestions: any[];
+    rawAnalysis: string;
+  };
+  conversationHistory: Array<{
+    question: string;
+    answer: string;
+  }>;
+  dataFiles: {
+    csvFiles: string[];
+    manifestFiles: string[];
+  };
+  metadata: {
+    submittedAt: string;
+    conversationLength: number;
+    followUpQuestions: number;
+  };
+  status: 'stored' | 'workflow_pending' | 'workflow_submitted' | 'completed';
+}
+
+export interface DocumentWorkflowResult {
+  workflowId: string;
+  analysisId: string;
+  workflowRequirements: any;
+  documentPath: string;
+  timestamp: number;
+  status: 'pending_coordination' | 'coordinated' | 'submitted_to_backend' | 'executed';
+}
+
+export interface PageDesignResult {
+  designId: string;
+  timestamp: number;
+  pages: Array<{
+    rectangles: Array<{
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      fillColor: string;
+      strokeColor: string;
+    }>;
+    textElements: Array<{
+      id: string;
+      x: number;
+      y: number;
+      text: string;
+      fontFamily: string;
+      fontSize: number;
+      color: string;
+    }>;
+    canvasSize: {
+      width: number;
+      height: number;
+    };
+  }>;
+  metadata: {
+    createdAt: string;
+    totalPages: number;
+    totalElements: number;
+  };
+  status: 'stored' | 'workflow_pending' | 'workflow_submitted' | 'completed';
+}
+
+export interface SharedStorage {
+  documentAnalyses: DocumentAnalysisResult[];
+  documentWorkflows: DocumentWorkflowResult[];
+  pageDesigns: PageDesignResult[];
+  furtherInstructions: string;
+}
 /**
  * Frontend Agent Specification
  * Detailed agent specifications from frontend Claude for Python execution

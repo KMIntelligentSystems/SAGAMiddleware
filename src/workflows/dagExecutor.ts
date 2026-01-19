@@ -28,7 +28,7 @@ import {
     ValidationStrategy
 } from '../process/FlowStrategies.js';
 
-
+import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 
 export class DAGExecutor {
     private coordinator: SagaCoordinator;
@@ -57,7 +57,7 @@ export class DAGExecutor {
      * Execute a DAG
      * Results stored in ContextManager by FlowStrategies
      */
-    async executeDAG(dag: DAGDefinition, input: any, prompts:  Array<[string, string]>): Promise<void> {
+    async executeDAG(dag: DAGDefinition, input: any, prompts: AgentPromptArray): Promise<void> {
         console.log(`\n🔀 ============================================`);
         console.log(`🔀 Executing DAG: ${dag.name}`);
         console.log(`🔀 Description: ${dag.description}`);
@@ -109,7 +109,7 @@ export class DAGExecutor {
         dag: DAGDefinition,
         nodeId: string,
         input: any,
-        prompts:  Array<[string, string]>
+        prompts:  AgentPromptArray
     ): Promise<void> {
         // Check if already executed (cycle detection)
         if (this.executionPath.has(nodeId)) {
@@ -148,8 +148,12 @@ export class DAGExecutor {
             if (node.type === 'entry') {
                 // Entry node - just log, no execution
                 const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent')
+                console.log('ENTRY conversation   ',JSON.stringify(conversationCtx))
                 if(node.agentName !== 'ConversationAgent'){   
-                    this.coordinator.contextManager.updateContext(node.agentName, {lastTransactionResult: conversationCtx.lastTransactionResult})
+                    this.coordinator.contextManager.updateContext(node.agentName, {
+                        lastTransactionResult: conversationCtx.lastTransactionResult,
+                        userQuery: conversationCtx.userQuery
+                    })
                     console.log(`   Entry node, continuing...`, node.agentName);
                 }
                
@@ -222,7 +226,7 @@ export class DAGExecutor {
         node: DAGNode,
         incomingEdges: DAGEdge[],
         input: any,
-        prompts:  Array<[string, string]>
+        prompts:  AgentPromptArray
     ): Promise<void> {
         // Determine strategy from incoming edge
         const primaryEdge = incomingEdges[0]; // Use first edge to determine strategy
@@ -306,7 +310,7 @@ export class DAGExecutor {
         dag: DAGDefinition,
         edge: DAGEdge,
         input: any,
-        prompts:  Array<[string, string]>
+        prompts:  AgentPromptArray
     ): Promise<void> {
         // Check edge condition if present
         if (edge.condition) {

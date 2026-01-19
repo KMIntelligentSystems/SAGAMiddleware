@@ -199,12 +199,15 @@ The agent will use this data to create dynamic agent definitions and Python code
 export const createPrompt = `You will generate a task prompt for an agent in a workflow.
 
 I will provide:
-1. REQUIREMENTS - a workflow JSON with an agents array
+1. REQUIREMENTS - this JSON consists of several documents under different keys which will provide details pertinent to the overall task. Pay special attention to the key "furtherInstructions"
 2. AGENT NAME - the specific agent to create a prompt for
 
 Rules:
 - Start your response IMMEDIATELY with the prompt (no meta-commentary)
 - Do NOT begin with phrases like "Based on the context..." or "Selected agent:"
+- Look for information pertinent to each agent in the provided documents.
+- If the documents refer to csv files which will be used for coding agents, then provide the paths to the agents.
+- Use the "furtherInstructions" to guide you in understanding the workflow and the agents' roles. Look for specific information such as file paths.
 - Follow this structure:
 
 You are [agent name/role]. [What the agent does from its task].
@@ -213,7 +216,7 @@ You are [agent name/role]. [What the agent does from its task].
 [If agent receives input from another agent: State what input]
 
 Your tasks:
-- [Break the agent's task into 2-4 clear action items]
+- [Provide as much information as possible to assist the agent in its task]
 
 Output format:
 [Describe expected output based on agent.outputSchema]
@@ -223,6 +226,8 @@ IMPORTANT: Output must be [specify exact format]. Do NOT wrap in markdown code f
 If the agent generates HTML/JS/CSS code that references data files, convert any absolute file paths to relative paths (e.g., "C:/repos/SAGAMiddleware/data/file.csv" becomes "./data/file.csv" or "../data/file.csv" as appropriate).
 
 Match the formality and technical level to the agent's task. Keep it natural and actionable.
+
+You MUST provide a prompt for every agent.
 
 Now generate the prompt based on the requirements and agent name I provide.`
 
