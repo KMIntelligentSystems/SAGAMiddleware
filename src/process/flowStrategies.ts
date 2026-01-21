@@ -16,6 +16,52 @@ import { opusPythonAnalysisResult_Jan_02,  openaiPythonAnalysisResult_Jan_02, op
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js';
 
 /**
+ * Clean context data by removing redundant metadata and normalizing strings
+ * Preserves all actual data content needed for agent reasoning
+ */
+function cleanContextData(data: any): any {
+    if (!data || typeof data !== 'object') {
+        // Clean strings: remove escape characters and normalize whitespace
+        if (typeof data === 'string') {
+            return data
+                .replace(/\\n/g, '\n')           // Convert \n to actual newlines
+                .replace(/\\t/g, '\t')           // Convert \t to actual tabs
+                .replace(/\\\\/g, '\\')          // Convert \\ to single \
+                .replace(/\\"/g, '"')            // Convert \" to "
+                .replace(/\\'/g, "'")            // Convert \' to '
+                .replace(/\s+/g, ' ')            // Collapse multiple spaces to single space
+                .trim();                         // Remove leading/trailing whitespace
+        }
+        return data;
+    }
+
+    // If it's an array, clean each item
+    if (Array.isArray(data)) {
+        return data.map(item => cleanContextData(item));
+    }
+
+    const cleaned: any = {};
+
+    for (const [key, value] of Object.entries(data)) {
+        // Only skip timestamp metadata (not useful for agent reasoning)
+        if (key === 'timestamp') {
+            continue;
+        }
+
+        // Recursively clean nested objects and strings
+        if (typeof value === 'object' && value !== null) {
+            cleaned[key] = cleanContextData(value);
+        } else if (typeof value === 'string') {
+            cleaned[key] = cleanContextData(value);
+        } else {
+            cleaned[key] = value;
+        }
+    }
+
+    return cleaned;
+}
+
+/**
  * Flow Strategy Interface
  * Each strategy handles a specific type of processing step
  */
@@ -62,12 +108,7 @@ export const LLMCallStrategy: FlowStrategy = {
 
         console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} with LLM call`);
 
-           console.log('USER QUERY ', userQuery)
 
-
-        // Get the agent's context from ContextManager BEFORE clearing
-        const agentCtx = contextManager.getContext(source) as WorkingMemory;
-         
         // Extract prompt for targetAgent from prompts array
         let targetPrompt = '';
         if (prompts && Array.isArray(prompts)) {
@@ -87,10 +128,18 @@ export const LLMCallStrategy: FlowStrategy = {
             success: true,
             timestamp: new Date()
           };
-          
+
+    const ctx = contextManager.getContext(source) as WorkingMemory;
+
        agent.setTaskDescription(targetPrompt)
-       result = await agent.execute({'last result':agentCtx.lastTransactionResult,'User Information': agentCtx.userQuery});
-     console.log('RESULT ', result.result)
+       agent.deleteContext();
+
+       // Clean context to remove redundant/verbose data before passing to LLM
+       const cleanedCtx = cleanContextData(ctx);
+    //   const filePath = 'c:/repos/sagaMiddleware/data/cleaned.txt';
+          //      const fileContent = JSON.stringify( cleanedCtx, null, 2);
+              //  fs.writeFileSync(filePath, fileContent, 'utf-8');
+       result = await agent.execute({'FOR YOUR TASK: ': cleanedCtx});
 
         // Store result in target agent's context
         contextManager.updateContext(targetAgent, {
@@ -123,7 +172,7 @@ export const ContextPassStrategy: FlowStrategy = {
         if(agent.getName() === 'UserInput'){
            await agent.execute({});
         }
-
+//Passing context from entry to SimpleDataAnalyzer
         console.log(`🔄 ContextPassStrategy: Passing context from ${agent.getName()} to ${targetAgent}`);
 
         // Get the agent's name (works for both GenericAgent and BaseSDKAgent)
@@ -132,8 +181,6 @@ export const ContextPassStrategy: FlowStrategy = {
         // Retrieve source context
         const sourceContext = contextManager.getContext(agentName) as WorkingMemory;
         //This is the user workflow requirements
-        console.log('SOURCE ', sourceContext?.lastTransactionResult)
-        console.log('SOURCE USER ', sourceContext?.userQuery)
 
         if (!sourceContext || !sourceContext.lastTransactionResult) {
             console.warn(`⚠️ No context found for ${agentName}, passing empty context`);
@@ -150,7 +197,8 @@ export const ContextPassStrategy: FlowStrategy = {
                 console.warn(`⚠️ No prompt found for ${targetAgent} in prompts array`);
             }
         }
-
+// ContextPassStrategy: Found prompt for SimpleDataAnalyzer (1296 chars)
+//CONTEXT MGR SimpleDataAnalyzer
         // Pass context to target agent with extracted prompt
         contextManager.updateContext(targetAgent, {
             lastTransactionResult: sourceContext?.lastTransactionResult || {},      //This is the user workflow requirements
@@ -159,7 +207,7 @@ export const ContextPassStrategy: FlowStrategy = {
             transactionId: sourceContext?.transactionId || agentName,
             timestamp: new Date()
         });
-
+//Context passed to SimpleDataAnalyzer
         console.log(`✅ ContextPassStrategy: Context passed to ${targetAgent}`);
 
         return {
@@ -593,16 +641,17 @@ export const SDKAgentStrategy: FlowStrategy = {
                 console.warn(`⚠️ No prompt found for ${agent.getName()} in prompts array`);
             }
         }
+
         const ctx = contextManager.getContext(agent.getName());
+      
         contextManager.updateContext(agent.getName(),{prompt: targetPrompt})
         // Execute SDK agent (it will read its input from contextManager)
         const result = await agent.execute({});
-
         // Store result in target agent's context (or its own if no target specified)
         const target = targetAgent || agent.getName();
         contextManager.updateContext(target, {
             lastTransactionResult: result.result,
-            userQuery: ctx.lastTransactionResult,
+            userQuery: ctx.userQuery,
             transactionId: agent.getName(),
             timestamp: new Date()
         });

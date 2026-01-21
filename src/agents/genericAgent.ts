@@ -144,12 +144,11 @@ export class GenericAgent {
        result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
       }
 
-      if(this.definition.name === ' DocumentBuildingAgent'){
+      if(this.definition.name === 'DocumentBuildingAgent'){
         console.log('🔧 Document building agent: Reading test data from opus.html');
-         result = await this.invokeLLM(prompt);
-       //result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
+       //  result = await this.invokeLLM(prompt);
+       result.result = 'test'//fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
       }
-
     
   console.log('GENERIC RESULT ',result.result)
 
@@ -192,9 +191,11 @@ export class GenericAgent {
          // For objects, extract meaningful properties instead of stringifying the whole thing
          if (contextData.agentSpecificTask) {
            baseContext = contextData.agentSpecificTask;
+           console.log('HERE 1')
          } 
          else {
            baseContext = JSON.stringify(contextData, null, 2);
+             console.log('HERE 2')
          }
         if(contextData?.extendedCycleDependency?.previousResult){
           // baseContext += `**INPUTS FOR YOUR TASK**\n, ${JSON.stringify(contextData?.extendedCycleDependency?.previousResult)}`;
@@ -202,6 +203,7 @@ export class GenericAgent {
        }  else {
          baseContext = String(contextData);
        }
+
        
        // Add partner questions if available
        let contextWithQuestions = baseContext;
@@ -209,7 +211,7 @@ export class GenericAgent {
          contextWithQuestions = `${contextData.partnerQuestions}\n\n${baseContext}`;
        }
        
-       this.context.push(`${this.definition.name} received context: \n${contextWithQuestions}`);
+       this.context.push(`${this.definition.name} received context: \n${baseContext}`);
       /* for (let i = 0;i< this.context.length;i++   ){
           console.log('CONTEXT TEST ', this.context[i])
        }*/

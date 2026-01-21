@@ -1,25 +1,7 @@
-/**
- * DAG Executor
- *
- * Executes a DAG (Directed Acyclic Graph) of agents
- * Replaces/augments PipelineExecutor with graph-based execution
- */
-
-import { SagaCoordinator } from '../coordinator/sagaCoordinator.js';
-import {
-    DAGDefinition,
-    DAGNode,
-    DAGEdge,
-    DAGValidationResult,
-    DAGComplexity
-} from '../types/dag.js';
-import { AgentResult } from '../types/index.js';
-import { GenericAgent } from '../agents/genericAgent.js';
-import { BaseSDKAgent } from '../agents/baseSDKAgent.js';
+import { EventEmitter } from 'events';
 import { DataProfiler } from '../agents/dataProfiler.js';
 import { SimpleDataAnalyzer } from '../agents/simpleDataAnalyzer.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
-
 import {
     LLMCallStrategy,
     ContextPassStrategy,
@@ -28,184 +10,781 @@ import {
     ValidationStrategy
 } from '../process/FlowStrategies.js';
 
+
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 
-export class DAGExecutor {
-    private coordinator: SagaCoordinator;
+// Types matching your DAG structure
+interface DAGNode {
+    id: string;
+    type: string;
+    agentName: string;
+    metadata: Record<string, any>;
+}
+
+interface EdgeCondition {
+    type: string;
+    expression: string;
+}
+
+interface DAGEdge {
+    id: string;
+    from: string;
+    to: string;
+    flowType: 'llm_call' | 'context_pass' | 'sdk_agent' | 'autonomous_decision';
+    condition?: string; // JSON string that needs to be parsed
+}
+
+interface DAGDefinition {
+    id: string;
+    name: string;
+    description: string;
+    version: string;
+    nodes: DAGNode[];
+    edges: DAGEdge[];
+    entryNode: string;
+    exitNodes: string[];
+}
+
+interface ExecutionContext {
+    [key: string]: any;
+}
+
+interface NodeExecutionResult {
+    nodeId: string;
+    agentName: string;
+    agentType: string;
+    success: boolean;
+    output: any;
+    error?: Error;
+    timestamp: Date;
+    duration: number;
+}
+
+interface ExecutionResult {
+    dagId: string;
+    dagName: string;
+    success: boolean;
+    startTime: Date;
+    endTime: Date;
+    duration: number;
+    nodeResults: NodeExecutionResult[];
+    finalContext: ExecutionContext;
+    error?: Error;
+}
+
+// Simple executor interface - you provide the implementation
+export interface NodeExecutor {
+    /**
+     * Execute a node - you handle the agent execution logic
+     * @param nodeId - The ID of the node
+     * @param agentName - The name of the agent to execute
+     * @param agentType - Type of agent ('sdk_agent' or 'agent')
+     * @param flowType - The type of flow that led to this node
+     * @param context - Current execution context
+     * @returns Promise with the execution result
+     */
+    executeNode(
+        nodeId: string,
+        agentName: string,
+        agentType: string,
+        flowType: string,
+        context: ExecutionContext
+    ): Promise<any>;
+}
+
+/**
+ * DAG Executor - handles only the flow control
+ */
+export class DAGExecutor extends EventEmitter {
+    private dag: DAGDefinition;
+    private nodeExecutor: NodeExecutor;
+    private executionResults: NodeExecutionResult[] = [];
+    private context: ExecutionContext = {};
+    private executedNodes: Set<string> = new Set();
+    private pendingNodes: Map<string, Set<string>> = new Map(); // nodeId -> set of predecessor nodes
+    
+    constructor(dag: DAGDefinition, nodeExecutor: NodeExecutor) {
+        super();
+        this.dag = dag;
+        this.nodeExecutor = nodeExecutor;
+        this.validateDAG();
+        this.buildDependencyMap();
+    }
+
+    /**
+     * Validate DAG structure
+     */
+    private validateDAG(): void {
+        const entryNode = this.dag.nodes.find(n => n.id === this.dag.entryNode);
+        if (!entryNode) {
+            throw new Error(`Entry node ${this.dag.entryNode} not found`);
+        }
+
+        for (const exitNodeId of this.dag.exitNodes) {
+            const exitNode = this.dag.nodes.find(n => n.id === exitNodeId);
+            if (!exitNode) {
+                throw new Error(`Exit node ${exitNodeId} not found`);
+            }
+        }
+
+        // Validate all edge references
+        for (const edge of this.dag.edges) {
+            const fromNode = this.dag.nodes.find(n => n.id === edge.from);
+            const toNode = this.dag.nodes.find(n => n.id === edge.to);
+            
+            if (!fromNode) {
+                throw new Error(`Edge ${edge.id}: source node ${edge.from} not found`);
+            }
+            if (!toNode) {
+                throw new Error(`Edge ${edge.id}: target node ${edge.to} not found`);
+            }
+        }
+    }
+
+    /**
+     * Build dependency map for each node
+     */
+    private buildDependencyMap(): void {
+        for (const node of this.dag.nodes) {
+            const incomingEdges = this.getIncomingEdges(node.id);
+            const predecessors = new Set(incomingEdges.map(e => e.from));
+            this.pendingNodes.set(node.id, predecessors);
+        }
+    }
+
+    /**
+     * Get all outgoing edges from a node
+     */
+    private getOutgoingEdges(nodeId: string): DAGEdge[] {
+        return this.dag.edges.filter(edge => edge.from === nodeId);
+    }
+
+    /**
+     * Get all incoming edges to a node
+     */
+    private getIncomingEdges(nodeId: string): DAGEdge[] {
+        return this.dag.edges.filter(edge => edge.to === nodeId);
+    }
+
+    /**
+     * Get node by ID
+     */
+    private getNode(nodeId: string): DAGNode | undefined {
+        return this.dag.nodes.find(n => n.id === nodeId);
+    }
+
+    /**
+     * Evaluate edge condition based on context
+     */
+    private evaluateCondition(edge: DAGEdge, context: ExecutionContext): boolean {
+        if (!edge.condition) return true;
+
+        try {
+            const conditionObj: EdgeCondition = JSON.parse(edge.condition);
+            const expression = conditionObj.expression;
+
+            // Simple evaluation - check for success patterns
+            if (expression.includes('success === true') || expression.includes('success==true')) {
+                return context.success === true || context.lastNodeOutput?.success === true;
+            } else if (expression.includes('success === false') || expression.includes('success==false')) {
+                return context.success === false || context.lastNodeOutput?.success === false;
+            }
+
+            // For more complex expressions, you can extend this
+            console.warn(`Complex condition detected: ${expression}, defaulting to true`);
+            return true;
+        } catch (error) {
+            console.warn(`Failed to evaluate condition for edge ${edge.id}:`, error);
+            return true;
+        }
+    }
+
+    /**
+     * Get edges to follow from current node based on flow type and conditions
+     */
+    private getNextEdges(currentNodeId: string): DAGEdge[] {
+        const outgoingEdges = this.getOutgoingEdges(currentNodeId);
+        const validEdges: DAGEdge[] = [];
+
+        for (const edge of outgoingEdges) {
+            // For autonomous_decision, evaluate condition
+            if (edge.flowType === 'autonomous_decision') {
+                if (this.evaluateCondition(edge, this.context)) {
+                    validEdges.push(edge);
+                }
+            } else {
+                // For other flow types, always include
+                validEdges.push(edge);
+            }
+        }
+
+        return validEdges;
+    }
+
+    /**
+     * Check if all required predecessors of a node have been executed
+     */
+    private canExecuteNode(nodeId: string): boolean {
+        const predecessors = this.pendingNodes.get(nodeId);
+        if (!predecessors || predecessors.size === 0) return true;
+
+        // Check if all predecessors are executed
+        for (const pred of predecessors) {
+            if (!this.executedNodes.has(pred)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Execute a single node
+     */
+    private async executeNodeInternal(nodeId: string, incomingFlowType: string): Promise<NodeExecutionResult> {
+        // Skip if already executed
+        if (this.executedNodes.has(nodeId)) {
+            const existingResult = this.executionResults.find(r => r.nodeId === nodeId);
+            if (existingResult) {
+                return existingResult;
+            }
+        }
+
+        const node = this.getNode(nodeId);
+        if (!node) {
+            throw new Error(`Node ${nodeId} not found`);
+        }
+
+        this.emit('nodeStart', { 
+            nodeId, 
+            agentName: node.agentName,
+            agentType: node.type,
+            flowType: incomingFlowType
+        });
+
+        const startTime = Date.now();
+        
+        try {
+            // Call the external executor - it handles the actual agent execution
+            const output = await this.nodeExecutor.executeNode(
+                nodeId,
+                node.agentName,
+                node.type,
+                incomingFlowType,
+                this.context
+            );
+            
+            const duration = Date.now() - startTime;
+
+            // Update context with node output
+            this.context[nodeId] = output;
+            this.context.lastNodeOutput = output;
+            this.context.lastExecutedNode = nodeId;
+            
+            // Merge output into context if it's an object
+            if (output && typeof output === 'object') {
+                this.context = { ...this.context, ...output };
+            }
+
+            const result: NodeExecutionResult = {
+                nodeId,
+                agentName: node.agentName,
+                agentType: node.type,
+                success: true,
+                output,
+                timestamp: new Date(),
+                duration
+            };
+
+            this.executedNodes.add(nodeId);
+            this.executionResults.push(result);
+            
+            this.emit('nodeComplete', { 
+                nodeId, 
+                agentName: node.agentName,
+                agentType: node.type,
+                flowType: incomingFlowType,
+                duration,
+                output 
+            });
+
+            return result;
+        } catch (error) {
+            const duration = Date.now() - startTime;
+            
+            const result: NodeExecutionResult = {
+                nodeId,
+                agentName: node.agentName,
+                agentType: node.type,
+                success: false,
+                output: null,
+                error: error as Error,
+                timestamp: new Date(),
+                duration
+            };
+
+            this.executedNodes.add(nodeId);
+            this.executionResults.push(result);
+            
+            this.emit('nodeError', { 
+                nodeId, 
+                agentName: node.agentName,
+                agentType: node.type,
+                flowType: incomingFlowType,
+                error,
+                duration
+            });
+
+            throw error;
+        }
+    }
+
+    /**
+     * Process a node and its downstream path
+     */
+    private async processNode(nodeId: string, incomingFlowType: string): Promise<void> {
+        console.log('PROCESS NODE ', nodeId)
+        console.log('INCOMING ',incomingFlowType)
+        // Check if node can be executed (all predecessors done)
+        if (!this.canExecuteNode(nodeId)) {
+            return; // Will be executed later when all predecessors are done
+        }
+
+        // Skip if already executed
+        if (this.executedNodes.has(nodeId)) {
+            return;
+        }
+
+        // Execute the node
+        await this.executeNodeInternal(nodeId, incomingFlowType);
+
+        // If this is an exit node, we're done with this path
+        if (this.dag.exitNodes.includes(nodeId)) {
+            return;
+        }
+
+        // Get next edges based on flow type and conditions
+        const nextEdges = this.getNextEdges(nodeId);
+
+        if (nextEdges.length === 0) {
+            return; // Dead end
+        }
+
+        if (nextEdges.length === 1) {
+            // Sequential execution
+            const edge = nextEdges[0];
+            await this.processNode(edge.to, edge.flowType);
+        } else {
+            // Parallel execution - multiple outgoing edges
+            await this.executeParallelBranches(nextEdges);
+        }
+    }
+
+    /**
+     * Execute parallel branches
+     */
+    private async executeParallelBranches(edges: DAGEdge[]): Promise<void> {
+        const branchNodes = edges.map(e => e.to);
+        
+        this.emit('parallelStart', { 
+            branches: edges.map(e => ({
+                from: e.from,
+                to: e.to,
+                flowType: e.flowType
+            }))
+        });
+
+        // Execute all branches in parallel
+        const branchPromises = edges.map(edge => 
+            this.executeBranch(edge.to, edge.flowType)
+        );
+
+        await Promise.all(branchPromises);
+
+        this.emit('parallelComplete', { nodeIds: branchNodes });
+
+        // After parallel branches complete, find and execute convergence point
+        await this.executeConvergencePoint(branchNodes);
+    }
+
+    /**
+     * Execute a single branch (may contain multiple sequential nodes)
+     */
+    private async executeBranch(startNodeId: string, incomingFlowType: string): Promise<void> {
+        let currentNodeId = startNodeId;
+        let currentFlowType = incomingFlowType;
+
+        while (currentNodeId) {
+            // Check if we can execute this node
+            if (!this.canExecuteNode(currentNodeId)) {
+                break; // Wait for other branches to complete
+            }
+
+            // Skip if already executed
+            if (this.executedNodes.has(currentNodeId)) {
+                break;
+            }
+
+            // Execute the node
+            await this.executeNodeInternal(currentNodeId, currentFlowType);
+
+            // Get next edges
+            const nextEdges = this.getNextEdges(currentNodeId);
+
+            if (nextEdges.length === 0) {
+                break; // End of branch
+            }
+
+            if (nextEdges.length === 1) {
+                // Continue in this branch
+                const edge = nextEdges[0];
+                currentNodeId = edge.to;
+                currentFlowType = edge.flowType;
+
+                // Check if this node has multiple incoming edges (convergence point)
+                const incomingEdges = this.getIncomingEdges(currentNodeId);
+                if (incomingEdges.length > 1) {
+                    // This is a convergence point, stop here
+                    break;
+                }
+            } else {
+                // Nested parallel branches - handle recursively
+                await this.executeParallelBranches(nextEdges);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Find and execute the convergence point where parallel branches meet
+     */
+    private async executeConvergencePoint(branchNodes: string[]): Promise<void> {
+        // Find nodes that have all branch nodes as predecessors
+        const convergenceNodes = new Set<string>();
+
+        for (const node of this.dag.nodes) {
+            if (this.executedNodes.has(node.id)) continue;
+
+            const incomingEdges = this.getIncomingEdges(node.id);
+            const predecessors = new Set(incomingEdges.map(e => e.from));
+
+            // Check if this node has edges from all branch nodes (or their descendants)
+            let hasAllBranches = true;
+            for (const branchNode of branchNodes) {
+                if (!this.isAncestor(branchNode, node.id)) {
+                    hasAllBranches = false;
+                    break;
+                }
+            }
+
+            if (hasAllBranches && this.canExecuteNode(node.id)) {
+                convergenceNodes.add(node.id);
+            }
+        }
+
+        // Execute convergence nodes
+        for (const nodeId of convergenceNodes) {
+            const incomingEdges = this.getIncomingEdges(nodeId);
+            const flowType = incomingEdges[0]?.flowType || 'context_pass';
+            await this.processNode(nodeId, flowType);
+        }
+    }
+
+    /**
+     * Check if ancestorId is an ancestor of descendantId
+     */
+    private isAncestor(ancestorId: string, descendantId: string): boolean {
+        const visited = new Set<string>();
+        const queue: string[] = [ancestorId];
+
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+            if (current === descendantId) return true;
+            if (visited.has(current)) continue;
+            visited.add(current);
+
+            const outgoingEdges = this.getOutgoingEdges(current);
+            for (const edge of outgoingEdges) {
+                queue.push(edge.to);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Execute the entire DAG
+     */
+    async execute(initialContext: ExecutionContext = {}): Promise<ExecutionResult> {
+        const startTime = new Date();
+        this.context = { ...initialContext };
+        this.executionResults = [];
+        this.executedNodes.clear();
+
+        this.emit('executionStart', { 
+            dagId: this.dag.id, 
+            dagName: this.dag.name,
+            version: this.dag.version
+        });
+
+        try {
+            // Start from entry node
+            await this.processNode(this.dag.entryNode, 'context_pass');
+
+            const endTime = new Date();
+            const duration = endTime.getTime() - startTime.getTime();
+
+            const result: ExecutionResult = {
+                dagId: this.dag.id,
+                dagName: this.dag.name,
+                success: true,
+                startTime,
+                endTime,
+                duration,
+                nodeResults: this.executionResults,
+                finalContext: this.context
+            };
+
+            this.emit('executionComplete', result);
+
+            return result;
+        } catch (error) {
+            const endTime = new Date();
+            const duration = endTime.getTime() - startTime.getTime();
+
+            const result: ExecutionResult = {
+                dagId: this.dag.id,
+                dagName: this.dag.name,
+                success: false,
+                startTime,
+                endTime,
+                duration,
+                nodeResults: this.executionResults,
+                finalContext: this.context,
+                error: error as Error
+            };
+
+            this.emit('executionError', result);
+
+            return result;
+        }
+    }
+
+    /**
+     * Get execution statistics
+     */
+    getStatistics() {
+        const totalNodes = this.executionResults.length;
+        const successfulNodes = this.executionResults.filter(r => r.success).length;
+        const failedNodes = this.executionResults.filter(r => !r.success).length;
+        const totalDuration = this.executionResults.reduce((sum, r) => sum + r.duration, 0);
+        const avgDuration = totalNodes > 0 ? totalDuration / totalNodes : 0;
+
+        const sdkAgents = this.executionResults.filter(r => r.agentType === 'sdk_agent').length;
+        const regularAgents = this.executionResults.filter(r => r.agentType === 'agent').length;
+
+        return {
+            totalNodes,
+            successfulNodes,
+            failedNodes,
+            successRate: totalNodes > 0 ? (successfulNodes / totalNodes) * 100 : 0,
+            totalDuration,
+            avgDuration,
+            sdkAgents,
+            regularAgents,
+            nodeBreakdown: this.executionResults.map(r => ({
+                nodeId: r.nodeId,
+                agentName: r.agentName,
+                agentType: r.agentType,
+                duration: r.duration,
+                success: r.success
+            }))
+        };
+    }
+
+    /**
+     * Get execution path
+     */
+    getExecutionPath(): string[] {
+        return this.executionResults
+            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+            .map(r => `${r.nodeId} (${r.agentName})`);
+    }
+}
+
+/**
+ * Example implementation of NodeExecutor
+ */
+export class ExampleNodeExecutor implements NodeExecutor {
+    async executeNode(
+        nodeId: string,
+        agentName: string,
+        agentType: string,
+        flowType: string,
+        context: ExecutionContext
+    ): Promise<any> {
+        console.log(`  Executing: ${agentName} [${agentType}] via ${flowType}`);
+
+        // Simulate execution time
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Your actual agent execution logic goes here
+        // This is just a placeholder that returns mock data
+
+        if (agentType === 'sdk_agent') {
+            return {
+                success: true,
+                data: `Output from SDK agent: ${agentName}`,
+                type: 'sdk_agent'
+            };
+        } else if (agentType === 'agent') {
+            return {
+                success: Math.random() > 0.1, // 90% success rate
+                data: `Output from agent: ${agentName}`,
+                type: 'agent'
+            };
+        } else if (agentType === 'entry' || agentType === 'exit') {
+            return context;
+        }
+
+        return { success: true, data: `Output from ${agentName}` };
+    }
+}
+
+/**
+ * Strategy-based NodeExecutor implementation
+ * Integrates with FlowStrategies from flowStrategies.ts
+ */
+export class StrategyBasedNodeExecutor implements NodeExecutor {
+    private coordinator: any; // SagaCoordinator
     private strategyMap: Map<string, any>;
-    private executionPath: Set<string> = new Set(); // Track execution to prevent cycles
+    private prompts: any; // AgentPromptArray
+    private dag: DAGDefinition | null = null;
 
-    // Execution metadata (just for logging/tracking)
-    private currentDagId: string = '';
-    private executionStartTime: Date = new Date();
-
-    constructor(coordinator: SagaCoordinator) {
+    constructor(coordinator: any, prompts?: any, dag?: DAGDefinition) {
         this.coordinator = coordinator;
+        this.prompts = prompts;
+        this.dag = dag || null;
 
-        // Map flow types to strategies
+        // Map flow types to strategies (using imports from top of file)
         this.strategyMap = new Map([
             ['llm_call', LLMCallStrategy],
             ['context_pass', ContextPassStrategy],
             ['execute_agents', ExecuteAgentsStrategy],
             ['sdk_agent', SDKAgentStrategy],
             ['validation', ValidationStrategy],
-            ['autonomous_decision', ContextPassStrategy] // Uses existing strategy - routing via edge conditions
+            ['autonomous_decision', ContextPassStrategy]
         ]);
     }
 
     /**
-     * Execute a DAG
-     * Results stored in ContextManager by FlowStrategies
+     * Set the DAG definition after construction (for cases where DAG is created later)
      */
-    async executeDAG(dag: DAGDefinition, input: any, prompts: AgentPromptArray): Promise<void> {
-        console.log(`\n🔀 ============================================`);
-        console.log(`🔀 Executing DAG: ${dag.name}`);
-        console.log(`🔀 Description: ${dag.description}`);
-        console.log(`🔀 Nodes: ${dag.nodes.length}, Edges: ${dag.edges.length}`);
-
-        // Initialize execution metadata
-        this.currentDagId = dag.id;
-        this.executionStartTime = new Date();
-        this.executionPath.clear();
-
-        try {
-            // Phase 1: Validate DAG
-            console.log('📋 Phase 1: Validating DAG structure...');
-            const validation = this.validateDAG(dag);
-            if (!validation.valid) {
-                throw new Error(`DAG validation failed:\n${validation.errors.join('\n')}`);
-            }
-            console.log(`✅ DAG validation passed`);
-            if (validation.warnings.length > 0) {
-                console.log(`⚠️  Warnings:\n${validation.warnings.join('\n')}`);
-            }
-
-            // Phase 2: Display DAG topology
-            console.log('\n📊 DAG Topology:');
-            this.displayTopology(dag);
-
-            // Phase 3: Execute from entry node - results stored in ContextManager
-            console.log('\n🚀 Phase 2: Executing DAG...\n');
-            await this.executeNode(dag, dag.entryNode, input, prompts);
-
-            // Phase 4: Summary
-            const duration = Date.now() - this.executionStartTime.getTime();
-            console.log(`\n✅ DAG execution completed in ${duration}ms`);
-            console.log(`   Nodes executed: ${this.executionPath.size}/${dag.nodes.length}`);
-
-        } catch (error) {
-            const duration = Date.now() - this.executionStartTime.getTime();
-            console.error(`\n❌ DAG execution failed after ${duration}ms`);
-            console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
-            throw error;
-        }
+    setDAG(dag: DAGDefinition): void {
+        this.dag = dag;
     }
 
-    /**
-     * Execute a single node in the DAG
-     * Traverses graph, delegates to strategies for execution
-     */
-    private async executeNode(
-        dag: DAGDefinition,
+    async executeNode(
         nodeId: string,
-        input: any,
-        prompts:  AgentPromptArray
-    ): Promise<void> {
-        // Check if already executed (cycle detection)
-        if (this.executionPath.has(nodeId)) {
-            console.log(`⏭️  Node ${nodeId} already executed, skipping...`);
-            return;
+        agentName: string,
+        agentType: string,
+        flowType: string,
+        context: ExecutionContext
+    ): Promise<any> {
+        console.log(`\n▶️  Executing Node: ${nodeId} (${agentName})`);
+        console.log(`   Type: ${agentType}, FlowType: ${flowType}`);
+        //▶️  Executing Node: report-writer (ReportWritingAgent)
+   //Type: agent, FlowType: llm_call
+
+        // Handle entry/exit nodes
+        if (agentType === 'entry') {
+            const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent');
+            if (agentName !== 'ConversationAgent') {
+                this.coordinator.contextManager.updateContext(agentName, {
+                    lastTransactionResult: conversationCtx.lastTransactionResult,
+                    userQuery: conversationCtx.userQuery
+                });
+            }
+            return context;
         }
 
-        // Get node definition
-        const node = dag.nodes.find(n => n.id === nodeId);
-        if (!node) {
-            throw new Error(`Node not found: ${nodeId}`);
+        if (agentType === 'exit') {
+            console.log(`🏁 Reached exit node: ${nodeId}`);
+            return context;
         }
 
-        // Check if all incoming edges are satisfied
-        const incomingEdges = dag.edges.filter(e => e.to === nodeId);
-        const unsatisfiedDeps = incomingEdges.filter(
-            edge => !this.executionPath.has(edge.from)
+        // Get the strategy for this flow type
+        const strategy = this.strategyMap.get(flowType);
+        if (!strategy) {
+            throw new Error(`No strategy found for flowType: ${flowType}`);
+        }
+
+        // Determine the agent/object to pass to the strategy
+        let agentOrName: any;
+        const sourceNodeId = context.lastExecutedNode || nodeId;
+
+        // Look up source node information from DAG if available
+        let sourceNode = null;
+        let sourceAgentName = sourceNodeId;
+        if (this.dag) {
+            sourceNode = this.dag.nodes.find(n => n.id === sourceNodeId);
+            if (sourceNode) {
+                sourceAgentName = sourceNode.agentName;
+            }
+        }
+
+        if (flowType === 'context_pass' || flowType === 'autonomous_decision') {
+            // For context-based strategies
+            agentOrName = {
+                getName: () => sourceAgentName
+            };
+        } else if (flowType === 'sdk_agent') {
+            // For SDK agents, instantiate the SOURCE agent (not the target)
+            if (sourceNode && sourceNode.type === 'sdk_agent') {
+                agentOrName = this.instantiateSDKAgent(sourceAgentName);
+            } else {
+                throw new Error(`sdk_agent flowType but source node ${sourceNodeId} is not an sdk_agent (type: ${sourceNode?.type})`);
+            }
+        } else if (flowType === 'llm_call' || flowType === 'validation') {
+            // For LLM calls, get the TARGET GenericAgent instance (the current node's agent)
+            // The source agent's context will be passed as input via contextManager
+            const genericAgent = this.coordinator.agents.get(agentName);
+            if (!genericAgent) {
+                throw new Error(`GenericAgent not found in registry: ${agentName}`);
+            }
+            agentOrName = genericAgent;
+        } else if (flowType === 'execute_agents') {
+            // For execute_agents, instantiate the SOURCE SDK agent
+            if (sourceNode && sourceNode.type === 'sdk_agent') {
+                agentOrName = this.instantiateSDKAgent(sourceAgentName);
+            } else {
+                throw new Error(`execute_agents flowType but source node ${sourceNodeId} is not an sdk_agent`);
+            }
+        }
+
+        // Execute using strategy
+        const result = await strategy.execute(
+            agentOrName,
+            agentName,
+            this.coordinator.contextManager,
+            sourceAgentName,
+            context.userQuery,
+            this.coordinator.agents,
+            {}, // nodeMetadata
+            this.prompts
         );
 
-        if (unsatisfiedDeps.length > 0) {
-            // Execute dependencies first
-            console.log(`⏸️  Node ${nodeId} waiting for dependencies: ${unsatisfiedDeps.map(e => e.from).join(', ')}`);
-            for (const edge of unsatisfiedDeps) {
-                await this.executeNode(dag, edge.from, input, prompts);
-            }
-        }
-
-        try {
-            console.log(`\n▶️  Executing Node: ${nodeId} (${node.agentName})`);
-            console.log(`   Type: ${node.type}`);
-
-            // Mark as executed (for cycle detection)
-            this.executionPath.add(nodeId);
-
-            // Execute the node based on type
-            if (node.type === 'entry') {
-                // Entry node - just log, no execution
-                const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent')
-                console.log('ENTRY conversation   ',JSON.stringify(conversationCtx))
-                if(node.agentName !== 'ConversationAgent'){   
-                    this.coordinator.contextManager.updateContext(node.agentName, {
-                        lastTransactionResult: conversationCtx.lastTransactionResult,
-                        userQuery: conversationCtx.userQuery
-                    })
-                    console.log(`   Entry node, continuing...`, node.agentName);
-                }
-               
-                //   Entry node, continuing... conversation-agent
-            } else if (node.type === 'exit') {
-                // Exit node - results already in ContextManager
-                console.log(`🏁 Reached exit node: ${nodeId}`);
-                return;
-            } else {
-                // Execute node using strategy - strategy updates ContextManager
-                console.log('INCOMING EDGES', incomingEdges)
-                await this.executeNodeWithStrategy(dag, node, incomingEdges, input, prompts);
-            }
-
-            console.log(`✅ Node ${nodeId} completed`);
-
-            // Find outgoing edges
-            const outgoingEdges = dag.edges.filter(e => e.from === nodeId);
-
-            if (outgoingEdges.length === 0 && !dag.exitNodes.includes(nodeId)) {
-                console.log(`⚠️  Node ${nodeId} has no outgoing edges but is not marked as exit node`);
-                return;
-            }
-
-            // Execute downstream nodes
-            if (outgoingEdges.length > 1) {
-                console.log(`🔀 Node ${nodeId} has ${outgoingEdges.length} outgoing edges - executing in parallel`);
-                await Promise.all(
-                    outgoingEdges.map(edge => this.executeEdge(dag, edge, input, prompts))
-                );
-            } else if (outgoingEdges.length === 1) {
-                // Single outgoing edge
-                console.log('OUTGOIN EDGES ', outgoingEdges[0])
-                await this.executeEdge(dag, outgoingEdges[0], input, prompts);
-            }
-
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            console.error(`❌ Error executing node ${nodeId}: ${errorMsg}`);
-            throw error;
-        }
+        return {
+            success: result.success,
+            data: result.result,
+            agentName: result.agentName
+        };
     }
 
-    /**
-     * Instantiate SDK agent by transaction type
-     * Injects the coordinator's context manager for shared context access
-     */
-    private instantiateSDKAgent(node: DAGNode): BaseSDKAgent {
-        const transactionType = node.stepConfig?.transactionType || node.agentName;
+    private instantiateSDKAgent(agentName: string): any {
         const contextManager = this.coordinator.contextManager;
 
-        switch (transactionType) {
+        switch (agentName) {
             case 'DataProfiler':
                 return new DataProfiler(contextManager);
             case 'SimpleDataAnalyzer':
@@ -213,335 +792,111 @@ export class DAGExecutor {
             case 'D3JSCodeValidator':
                 return new D3JSCodeValidator(contextManager, this.coordinator);
             default:
-                throw new Error(`Unknown SDK agent transaction type: ${transactionType}`);
+                throw new Error(`Unknown SDK agent: ${agentName}`);
         }
     }
-
-    /**
-     * Execute node using appropriate flow strategy
-     * Strategy handles ContextManager updates
-     */
-    private async executeNodeWithStrategy(
-        dag: DAGDefinition,
-        node: DAGNode,
-        incomingEdges: DAGEdge[],
-        input: any,
-        prompts:  AgentPromptArray
-    ): Promise<void> {
-        // Determine strategy from incoming edge
-        const primaryEdge = incomingEdges[0]; // Use first edge to determine strategy
-        if (!primaryEdge) {
-            throw new Error(`Node ${node.id} has no incoming edges`);
-        }
-
-        // Get source agent/node name for context lookups
-        const sourceNode = dag.nodes.find(n => n.id === primaryEdge.from);
-        const sourceAgentName = sourceNode?.agentName || primaryEdge.from;
-
-        // Determine strategy based on flowType
-        // flowType describes HOW to handle the transition/data flow between nodes
-        // Each strategy is responsible for executing the target agent if needed
-        const strategyType = primaryEdge.flowType;
-
-        const strategy = this.strategyMap.get(strategyType);
-        if (!strategy) {
-            throw new Error(`No strategy found for: ${strategyType}`);
-        }
-
-        console.log(`   FlowType: ${primaryEdge.flowType} → Strategy: ${strategyType}`);
-        console.log(`   Source: ${sourceAgentName} (${sourceNode?.type}) → Target: ${node.agentName} (${node.type})`);
-        // FlowType: sdk_agent → Strategy: sdk_agent
-        // Source: SimpleDataAnalyzer (sdk_agent) → Target: D3JSCodingAgent (agent)
-        // FlowType: llm_call → Strategy: llm_call
-        // Source: D3JSCodingAgent (agent) → Target: D3JSCodeValidator (sdk_agent)
-
-        // NEW: Get target node metadata for prompt injection
-        // This allows strategies to inject prompts into the target agent's context
-        const targetNodeMetadata = node.metadata;
-
-        // Determine what to pass to strategy based on flowType
-        let agentOrName: any;
-
-        if (strategyType === 'context_pass' || strategyType === 'autonomous_decision') {
-            // For context-based strategies, pass a name object to look up context in ContextManager
-            agentOrName = {
-                getName: () => sourceAgentName
-            };
-            console.log(`📝 Using context key: ${sourceAgentName}`);
-        } else if (strategyType === 'execute_agents' /*&& sourceNode.type === 'sdk_agent'*/) {
-            agentOrName = this.instantiateSDKAgent(sourceNode);
-        } else if (strategyType === 'llm_call' || strategyType === 'validation') {
-            // For LLM calls and validation, get the actual GenericAgent instance
-            const genericAgent = this.coordinator.agents.get(sourceAgentName);
-            if (!genericAgent) {
-                throw new Error(`GenericAgent not found in registry: ${sourceAgentName}}`);
-            }
-            console.log('LLM ', genericAgent)
-            agentOrName = genericAgent;
-        } else if (strategyType === 'sdk_agent') {
-            // For SDK agents, execute the SOURCE SDK agent and pass results to target
-            if (sourceNode.type !== 'sdk_agent') {
-                throw new Error(`Edge has sdk_agent flowType but source ${sourceNode.id} is not an sdk_agent node type`);
-            }
-            agentOrName = this.instantiateSDKAgent(sourceNode);
-        } else {
-            throw new Error(`Unsupported flowType: ${strategyType}`);
-        }
-
-        console.log('NODE AGENT NAME', node.agentName)
-
-        // Execute using strategy - strategy updates ContextManager
-        await strategy.execute(
-            agentOrName,
-            node.agentName,
-            this.coordinator.contextManager,
-            sourceAgentName, // Source agent name for context tracking
-            input, // userQuery - can be passed if needed
-            this.coordinator.agents, // agents registry for ExecuteAgentsStrategy
-            targetNodeMetadata, // Pass target node metadata for prompt injection
-            prompts
-        );
-    }
-
-    /**
-     * Execute an edge (transition to next node)
-     */
-    private async executeEdge(
-        dag: DAGDefinition,
-        edge: DAGEdge,
-        input: any,
-        prompts:  AgentPromptArray
-    ): Promise<void> {
-        // Check edge condition if present
-        if (edge.condition) {
-            // Get result from ContextManager for condition evaluation
-            const sourceNode = dag.nodes.find(n => n.id === edge.from);
-            const ctx = this.coordinator.contextManager.getContext(sourceNode?.agentName || edge.from);
-
-            const conditionMet = this.evaluateCondition(edge.condition, ctx?.lastTransactionResult);
-            if (!conditionMet) {
-                console.log(`⏭️  Edge ${edge.id} condition not met, skipping target ${edge.to}`);
-                return;
-            }
-        }
-
-        // Execute target node
-        await this.executeNode(dag, edge.to, input,prompts);
-    }
-
-    /**
-     * Evaluate edge condition
-     */
-    private evaluateCondition(
-        condition: { type: string; expression: string },
-        result: any
-    ): boolean {
-        // Simple condition evaluation
-        // Can be extended with more sophisticated expression parsing
-        switch (condition.type) {
-            case 'result':
-                return result && result.success === true;
-            case 'context':
-                // Check context for condition
-                return true; // Placeholder
-            case 'custom':
-                // Custom expression evaluation
-                return true; // Placeholder
-            default:
-                return true;
-        }
-    }
-
-    /**
-     * Validate DAG structure
-     */
-    private validateDAG(dag: DAGDefinition): DAGValidationResult {
-        const errors: string[] = [];
-        const warnings: string[] = [];
-
-        // Check for empty DAG
-        if (dag.nodes.length === 0) {
-            errors.push('DAG has no nodes');
-        }
-
-        // Check entry node exists
-        if (!dag.nodes.find(n => n.id === dag.entryNode)) {
-            errors.push(`Entry node not found: ${dag.entryNode}`);
-        }
-
-        // Check exit nodes exist
-        dag.exitNodes.forEach(exitNode => {
-            if (!dag.nodes.find(n => n.id === exitNode)) {
-                errors.push(`Exit node not found: ${exitNode}`);
-            }
-        });
-
-        // Check for cycles
-        const cycles = this.detectCycles(dag);
-        if (cycles.length > 0) {
-            errors.push(`Cycles detected:\n${cycles.join('\n')}`);
-        }
-
-        // Check for unreachable nodes
-        const unreachable = this.findUnreachableNodes(dag);
-        if (unreachable.length > 0) {
-            warnings.push(`Unreachable nodes: ${unreachable.join(', ')}`);
-        }
-
-        // Check edge validity
-        dag.edges.forEach(edge => {
-            if (!dag.nodes.find(n => n.id === edge.from)) {
-                errors.push(`Edge ${edge.id} references non-existent source node: ${edge.from}`);
-            }
-            if (!dag.nodes.find(n => n.id === edge.to)) {
-                errors.push(`Edge ${edge.id} references non-existent target node: ${edge.to}`);
-            }
-        });
-
-        // Calculate complexity metrics
-        const metrics = this.calculateComplexity(dag);
-
-        return {
-            valid: errors.length === 0,
-            errors,
-            warnings,
-            metrics
-        };
-    }
-
-    /**
-     * Detect cycles using DFS
-     */
-    private detectCycles(dag: DAGDefinition): string[] {
-        const cycles: string[] = [];
-        const visited = new Set<string>();
-        const recursionStack = new Set<string>();
-
-        const dfs = (nodeId: string, path: string[]) => {
-            visited.add(nodeId);
-            recursionStack.add(nodeId);
-            path.push(nodeId);
-
-            const outgoing = dag.edges.filter(e => e.from === nodeId);
-            for (const edge of outgoing) {
-                if (!visited.has(edge.to)) {
-                    dfs(edge.to, [...path]);
-                } else if (recursionStack.has(edge.to)) {
-                    cycles.push(`${[...path, edge.to].join(' → ')}`);
-                }
-            }
-
-            recursionStack.delete(nodeId);
-        };
-
-        if (dag.entryNode) {
-            dfs(dag.entryNode, []);
-        }
-
-        return cycles;
-    }
-
-    /**
-     * Find unreachable nodes
-     */
-    private findUnreachableNodes(dag: DAGDefinition): string[] {
-        const reachable = new Set<string>();
-
-        const dfs = (nodeId: string) => {
-            reachable.add(nodeId);
-            const outgoing = dag.edges.filter(e => e.from === nodeId);
-            outgoing.forEach(edge => {
-                if (!reachable.has(edge.to)) {
-                    dfs(edge.to);
-                }
-            });
-        };
-
-        if (dag.entryNode) {
-            dfs(dag.entryNode);
-        }
-
-        return dag.nodes
-            .map(n => n.id)
-            .filter(id => !reachable.has(id));
-    }
-
-    /**
-     * Calculate DAG complexity metrics
-     */
-    private calculateComplexity(dag: DAGDefinition): DAGComplexity {
-        const maxDepth = this.calculateMaxDepth(dag);
-        const branchingFactor = dag.nodes.length > 0
-            ? dag.edges.length / dag.nodes.length
-            : 0;
-        const parallelPaths = this.countParallelPaths(dag);
-
-        return {
-            nodeCount: dag.nodes.length,
-            edgeCount: dag.edges.length,
-            maxDepth,
-            branchingFactor,
-            parallelPaths,
-            cyclomaticComplexity: dag.edges.length - dag.nodes.length + 2
-        };
-    }
-
-    /**
-     * Calculate maximum depth (longest path)
-     */
-    private calculateMaxDepth(dag: DAGDefinition): number {
-        const depths = new Map<string, number>();
-
-        const dfs = (nodeId: string): number => {
-            if (depths.has(nodeId)) {
-                return depths.get(nodeId)!;
-            }
-
-            const outgoing = dag.edges.filter(e => e.from === nodeId);
-            if (outgoing.length === 0) {
-                depths.set(nodeId, 1);
-                return 1;
-            }
-
-            const maxChildDepth = Math.max(...outgoing.map(e => dfs(e.to)));
-            const depth = maxChildDepth + 1;
-            depths.set(nodeId, depth);
-            return depth;
-        };
-
-        return dag.entryNode ? dfs(dag.entryNode) : 0;
-    }
-
-    /**
-     * Count parallel execution paths
-     */
-    private countParallelPaths(dag: DAGDefinition): number {
-        let parallelPaths = 0;
-
-        dag.nodes.forEach(node => {
-            const outgoing = dag.edges.filter(e => e.from === node.id);
-            if (outgoing.length > 1) {
-                parallelPaths += outgoing.length;
-            }
-        });
-
-        return parallelPaths;
-    }
-
-    /**
-     * Display DAG topology
-     */
-    private displayTopology(dag: DAGDefinition): void {
-        console.log(`   Entry: ${dag.entryNode}`);
-        console.log(`   Exit: ${dag.exitNodes.join(', ')}`);
-        console.log(`   Nodes (${dag.nodes.length}):`);
-        dag.nodes.forEach(node => {
-            console.log(`      - ${node.id}: ${node.agentName} (${node.type})`);
-        });
-        console.log(`   Edges (${dag.edges.length}):`);
-        dag.edges.forEach(edge => {
-            console.log(`      - ${edge.from} →[${edge.flowType}]→ ${edge.to}`);
-        });
-    }
-
 }
+
+/**
+ * Usage Example
+ */
+export async function main() {
+    const dagDefinition: DAGDefinition = {
+        "id": "medical-viz-dag-v1",
+        "name": "Medical Visualization Dashboard",
+        "description": "Creates comprehensive medical visualization dashboard from endoscopic trials CSV data",
+        "version": "1.0.0",
+        "nodes": [
+            { "id": "entry", "type": "entry", "agentName": "ConversationAgent", "metadata": {} },
+            { "id": "csv-reader", "type": "sdk_agent", "agentName": "SimpleDataAnalyzer", "metadata": {} },
+            { "id": "doc-builder", "type": "agent", "agentName": "DocumentBuildingAgent", "metadata": {} },
+            { "id": "report-writer", "type": "agent", "agentName": "ReportWritingAgent", "metadata": {} },
+            { "id": "meta-viz", "type": "agent", "agentName": "D3JSCodingAgent", "metadata": {} },
+            { "id": "meta-viz-validator", "type": "sdk_agent", "agentName": "D3JSCodeValidator", "metadata": {} },
+            { "id": "meta-viz-retry", "type": "agent", "agentName": "D3JSCodingAgent", "metadata": {} },
+            { "id": "needle-analyzer", "type": "sdk_agent", "agentName": "SimpleDataAnalyzer", "metadata": {} },
+            { "id": "needle-viz", "type": "agent", "agentName": "D3JSCodingAgent", "metadata": {} },
+            { "id": "needle-viz-validator", "type": "sdk_agent", "agentName": "D3JSCodeValidator", "metadata": {} },
+            { "id": "needle-viz-retry", "type": "agent", "agentName": "D3JSCodingAgent", "metadata": {} },
+            { "id": "html-builder", "type": "agent", "agentName": "HTMLLayoutDesignAgent", "metadata": {} },
+            { "id": "html-validator", "type": "agent", "agentName": "ValidatingAgent", "metadata": {} },
+            { "id": "conversation-final", "type": "agent", "agentName": "ConversationAgent", "metadata": {} },
+            { "id": "exit", "type": "exit", "agentName": "exit", "metadata": {} }
+        ],
+        "edges": [
+            { "id": "edge-1", "from": "entry", "to": "csv-reader", "flowType": "context_pass" },
+            { "id": "edge-2", "from": "csv-reader", "to": "doc-builder", "flowType": "sdk_agent" },
+            { "id": "edge-3a", "from": "doc-builder", "to": "report-writer", "flowType": "llm_call" },
+            { "id": "edge-3b", "from": "doc-builder", "to": "meta-viz", "flowType": "llm_call" },
+            { "id": "edge-3c", "from": "doc-builder", "to": "needle-analyzer", "flowType": "llm_call" },
+            { "id": "edge-4", "from": "meta-viz", "to": "meta-viz-validator", "flowType": "llm_call" },
+            { "id": "edge-5a", "from": "meta-viz-validator", "to": "html-builder", "flowType": "autonomous_decision", "condition": "{\"type\":\"result\",\"expression\":\"success === true\"}" },
+            { "id": "edge-5b", "from": "meta-viz-validator", "to": "meta-viz-retry", "flowType": "autonomous_decision", "condition": "{\"type\":\"result\",\"expression\":\"success === false\"}" },
+            { "id": "edge-6", "from": "meta-viz-retry", "to": "html-builder", "flowType": "llm_call" },
+            { "id": "edge-7", "from": "needle-analyzer", "to": "needle-viz", "flowType": "sdk_agent" },
+            { "id": "edge-8", "from": "needle-viz", "to": "needle-viz-validator", "flowType": "llm_call" },
+            { "id": "edge-9a", "from": "needle-viz-validator", "to": "html-builder", "flowType": "autonomous_decision", "condition": "{\"type\":\"result\",\"expression\":\"success === true\"}" },
+            { "id": "edge-9b", "from": "needle-viz-validator", "to": "needle-viz-retry", "flowType": "autonomous_decision", "condition": "{\"type\":\"result\",\"expression\":\"success === false\"}" },
+            { "id": "edge-10", "from": "needle-viz-retry", "to": "html-builder", "flowType": "llm_call" },
+            { "id": "edge-11", "from": "report-writer", "to": "html-builder", "flowType": "llm_call" },
+            { "id": "edge-12", "from": "html-builder", "to": "html-validator", "flowType": "llm_call" },
+            { "id": "edge-13", "from": "html-validator", "to": "conversation-final", "flowType": "llm_call" },
+            { "id": "edge-14", "from": "conversation-final", "to": "exit", "flowType": "context_pass" }
+        ],
+        "entryNode": "entry",
+        "exitNodes": ["exit"]
+    };
+
+    // Create your node executor implementation
+    const nodeExecutor = new ExampleNodeExecutor();
+
+    // Create DAG executor
+    const executor = new DAGExecutor(dagDefinition, nodeExecutor);
+
+    // Listen to events
+    executor.on('executionStart', (data) => {
+        console.log(`\nStarting: ${data.dagName} v${data.version}`);
+        console.log('='.repeat(60));
+    });
+
+    executor.on('nodeStart', (data) => {
+        console.log(`\n[${data.nodeId}] ${data.agentName} (${data.agentType}) via ${data.flowType}`);
+    });
+
+    executor.on('nodeComplete', (data) => {
+        console.log(`  ✓ Completed in ${data.duration}ms`);
+    });
+
+    executor.on('parallelStart', (data) => {
+        console.log(`\n⚡ Parallel execution starting:`);
+        data.branches.forEach((b: any) => {
+            console.log(`   ${b.from} → ${b.to} [${b.flowType}]`);
+        });
+    });
+
+    executor.on('parallelComplete', () => {
+        console.log(`⚡ Parallel branches completed\n`);
+    });
+
+    // Execute
+    const result = await executor.execute({ source: 'test' });
+
+    console.log('\n' + '='.repeat(60));
+    console.log('Execution Statistics:');
+    const stats = executor.getStatistics();
+    console.log(`  Total Nodes: ${stats.totalNodes}`);
+    console.log(`  Success Rate: ${stats.successRate.toFixed(2)}%`);
+    console.log(`  SDK Agents: ${stats.sdkAgents}`);
+    console.log(`  Regular Agents: ${stats.regularAgents}`);
+    console.log(`  Duration: ${stats.totalDuration}ms`);
+
+    console.log('\nExecution Path:');
+    executor.getExecutionPath().forEach((step, i) => {
+        console.log(`  ${i + 1}. ${step}`);
+    });
+
+    return result;
+}
+
+// Run main when executed directly
+main().catch(console.error);

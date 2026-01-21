@@ -46,7 +46,7 @@ export class SimpleDataAnalyzer extends BaseSDKAgent {
 
             const prompt = ctx.prompt;
             const userQuery = ctx.userQuery;
-          //  console.log({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery})
+         //   console.log({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery})
 
             // Execute analysis query - agent will read file and provide analysis
             const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//await this.executeQuery(JSON.stringify({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery}));//fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//

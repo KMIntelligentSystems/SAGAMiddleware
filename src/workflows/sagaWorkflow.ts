@@ -21,7 +21,7 @@ import { claudeMDResuilt } from '../test/histogramData.js'
 import { extractAvailableAgents } from '../utils/agentRegistry.js';
 import { DAGDesigner } from '../agents/dagDesigner.js';
 import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
-import { DAGExecutor } from './dagExecutor.js';
+import { DAGExecutor, StrategyBasedNodeExecutor } from './dagExecutor.js';
 import { PromptGeneratorAgent, AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 import { CSVAnalyzerAgent } from '../agents/csvAnalyzerAgent.js'
 import * as fs from 'fs'
@@ -572,8 +572,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider:'openai' , //'anthropic' 'openai' 'gemini'
-        model:'gpt-5.2',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        provider: 'anthropic' , //'anthropic' 'openai' 'gemini'
+        model:  'claude-opus-4-5',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  8192,
        // apiKey: process.env.ANTHROPIC_API_KEY
@@ -1135,11 +1135,7 @@ const requirements_endo: WorkflowRequirements = {
       lastTransactionResult: JSON.stringify(requirements_endo),
       userQuery: JSON.stringify(sharedStorage, null, 2)
     });
-    const dagExecutor = new DAGExecutor(this.coordinator);
-//const startDag = JSON.parse(dagStart) as DAGDefinition //dagStart
-    //When using conversationAgent as entry. Now just entry
-   // await dagExecutor.executeDAG(startDag, requirements);
-  
+
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory
 
     // STEP 1: Analyze CSV file to get statistics (efficient, ~5 turns) for use by prompt generator
@@ -1159,9 +1155,22 @@ const requirements_endo: WorkflowRequirements = {
 
     console.log('DAG ', dagDesignerCtx.lastTransactionResult)
 
-   const dag = await dagExecutor.executeDAG(dagDesignerCtx.lastTransactionResult, requirements_endo, promptArray);
+    // Create the new DAG executor with strategy-based node executor
+    const nodeExecutor = new StrategyBasedNodeExecutor(this.coordinator, promptArray, dagDesignerCtx.lastTransactionResult);
+    const dagExecutor = new DAGExecutor(dagDesignerCtx.lastTransactionResult, nodeExecutor);
+
+    // Execute the DAG
+    const dag = await dagExecutor.execute({
+        source: 'workflow',
+        userQuery: JSON.stringify(requirements_endo)
+    });
 
     console.log('\n✅ DAG Execution Complete!');
+    console.log('Result:', {
+        success: dag.success,
+        duration: dag.duration,
+        nodesExecuted: dag.nodeResults.length
+    });
 //    console.log('Result:', dag);
    //   const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
 
