@@ -8,7 +8,7 @@ import {
     ExecuteAgentsStrategy,
     SDKAgentStrategy,
     ValidationStrategy
-} from '../process/FlowStrategies.js';
+} from '../process/flowStrategies.js';
 
 
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
@@ -81,6 +81,8 @@ export interface NodeExecutor {
      * @param agentType - Type of agent ('sdk_agent' or 'agent')
      * @param flowType - The type of flow that led to this node
      * @param context - Current execution context
+     * @param targetAgents - Array of target agent names (from outgoing edges)
+     * @param sourceAgentName - Source agent name for context retrieval
      * @returns Promise with the execution result
      */
     executeNode(
@@ -88,7 +90,9 @@ export interface NodeExecutor {
         agentName: string,
         agentType: string,
         flowType: string,
-        context: ExecutionContext
+        context: ExecutionContext,
+        targetAgents: string[],
+        sourceAgentName: string
     ): Promise<any>;
 }
 
@@ -239,6 +243,17 @@ export class DAGExecutor extends EventEmitter {
     }
 
     /**
+     * Get target agent names from outgoing edges
+     */
+    private getTargetAgentsForNode(nodeId: string): string[] {
+        const outgoingEdges = this.getOutgoingEdges(nodeId);
+        return outgoingEdges.map(edge => {
+            const targetNode = this.dag.nodes.find(n => n.id === edge.to);
+            return targetNode?.agentName || edge.to;
+        });
+    }
+
+    /**
      * Execute a single node
      */
     private async executeNodeInternal(nodeId: string, incomingFlowType: string): Promise<NodeExecutionResult> {
@@ -255,23 +270,33 @@ export class DAGExecutor extends EventEmitter {
             throw new Error(`Node ${nodeId} not found`);
         }
 
-        this.emit('nodeStart', { 
-            nodeId, 
+        this.emit('nodeStart', {
+            nodeId,
             agentName: node.agentName,
             agentType: node.type,
             flowType: incomingFlowType
         });
 
         const startTime = Date.now();
-        
+
         try {
+            // Get source agent name from previous node
+            const sourceNodeId = this.context.lastExecutedNode || nodeId;
+            const sourceNode = this.getNode(sourceNodeId);
+            const sourceAgentName = sourceNode?.agentName || sourceNodeId;
+
+            // Get target agents from outgoing edges
+            const targetAgents = this.getTargetAgentsForNode(nodeId);
+
             // Call the external executor - it handles the actual agent execution
             const output = await this.nodeExecutor.executeNode(
                 nodeId,
                 node.agentName,
                 node.type,
                 incomingFlowType,
-                this.context
+                this.context,
+                targetAgents,
+                sourceAgentName
             );
             
             const duration = Date.now() - startTime;
@@ -621,7 +646,9 @@ export class ExampleNodeExecutor implements NodeExecutor {
         agentName: string,
         agentType: string,
         flowType: string,
-        context: ExecutionContext
+        context: ExecutionContext,
+        targetAgents: string[],
+        sourceAgentName: string
     ): Promise<any> {
         console.log(`  Executing: ${agentName} [${agentType}] via ${flowType}`);
 
@@ -659,29 +686,20 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
     private coordinator: any; // SagaCoordinator
     private strategyMap: Map<string, any>;
     private prompts: any; // AgentPromptArray
-    private dag: DAGDefinition | null = null;
 
-    constructor(coordinator: any, prompts?: any, dag?: DAGDefinition) {
+    constructor(coordinator: any, prompts?: any) {
         this.coordinator = coordinator;
         this.prompts = prompts;
-        this.dag = dag || null;
 
-        // Map flow types to strategies (using imports from top of file)
+        // Map agentType to strategies (not flowType!)
+        // agentType determines which strategy to use for execution
         this.strategyMap = new Map([
-            ['llm_call', LLMCallStrategy],
-            ['context_pass', ContextPassStrategy],
-            ['execute_agents', ExecuteAgentsStrategy],
-            ['sdk_agent', SDKAgentStrategy],
-            ['validation', ValidationStrategy],
-            ['autonomous_decision', ContextPassStrategy]
+            ['agent', LLMCallStrategy],              // GenericAgents use LLM calls
+            ['sdk_agent', SDKAgentStrategy],         // SDK agents use SDK strategy
+            ['entry', ContextPassStrategy],          // Entry nodes just pass context
+            ['exit', ContextPassStrategy],           // Exit nodes just pass context
+            ['execute_agents', ExecuteAgentsStrategy] // Special case for DataProfiler workflow
         ]);
-    }
-
-    /**
-     * Set the DAG definition after construction (for cases where DAG is created later)
-     */
-    setDAG(dag: DAGDefinition): void {
-        this.dag = dag;
     }
 
     async executeNode(
@@ -689,12 +707,13 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
         agentName: string,
         agentType: string,
         flowType: string,
-        context: ExecutionContext
+        context: ExecutionContext,
+        targetAgents: string[],
+        sourceAgentName: string
     ): Promise<any> {
         console.log(`\n▶️  Executing Node: ${nodeId} (${agentName})`);
         console.log(`   Type: ${agentType}, FlowType: ${flowType}`);
-        //▶️  Executing Node: report-writer (ReportWritingAgent)
-   //Type: agent, FlowType: llm_call
+        console.log(`   Targets: ${targetAgents.join(', ')}, Source: ${sourceAgentName}`);
 
         // Handle entry/exit nodes
         if (agentType === 'entry') {
@@ -713,64 +732,37 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             return context;
         }
 
-        // Get the strategy for this flow type
-        const strategy = this.strategyMap.get(flowType);
+        // Get the strategy based on current node's agentType
+        const strategy = this.strategyMap.get(agentType);
         if (!strategy) {
-            throw new Error(`No strategy found for flowType: ${flowType}`);
+            throw new Error(`No strategy found for agentType: ${agentType}`);
         }
 
-        // Determine the agent/object to pass to the strategy
-        let agentOrName: any;
-        const sourceNodeId = context.lastExecutedNode || nodeId;
-
-        // Look up source node information from DAG if available
-        let sourceNode = null;
-        let sourceAgentName = sourceNodeId;
-        if (this.dag) {
-            sourceNode = this.dag.nodes.find(n => n.id === sourceNodeId);
-            if (sourceNode) {
-                sourceAgentName = sourceNode.agentName;
-            }
-        }
-
-        if (flowType === 'context_pass' || flowType === 'autonomous_decision') {
-            // For context-based strategies
-            agentOrName = {
-                getName: () => sourceAgentName
-            };
-        } else if (flowType === 'sdk_agent') {
-            // For SDK agents, instantiate the SOURCE agent (not the target)
-            if (sourceNode && sourceNode.type === 'sdk_agent') {
-                agentOrName = this.instantiateSDKAgent(sourceAgentName);
-            } else {
-                throw new Error(`sdk_agent flowType but source node ${sourceNodeId} is not an sdk_agent (type: ${sourceNode?.type})`);
-            }
-        } else if (flowType === 'llm_call' || flowType === 'validation') {
-            // For LLM calls, get the TARGET GenericAgent instance (the current node's agent)
-            // The source agent's context will be passed as input via contextManager
-            const genericAgent = this.coordinator.agents.get(agentName);
-            if (!genericAgent) {
+        // Get or instantiate the CURRENT node's agent
+        let agent: any;
+        if (agentType === 'sdk_agent') {
+            agent = this.instantiateSDKAgent(agentName);
+        } else if (agentType === 'agent') {
+            agent = this.coordinator.agents.get(agentName);
+            if (!agent) {
                 throw new Error(`GenericAgent not found in registry: ${agentName}`);
             }
-            agentOrName = genericAgent;
-        } else if (flowType === 'execute_agents') {
-            // For execute_agents, instantiate the SOURCE SDK agent
-            if (sourceNode && sourceNode.type === 'sdk_agent') {
-                agentOrName = this.instantiateSDKAgent(sourceAgentName);
-            } else {
-                throw new Error(`execute_agents flowType but source node ${sourceNodeId} is not an sdk_agent`);
-            }
+        } else {
+            // For special cases like context_pass
+            agent = {
+                getName: () => agentName
+            };
         }
 
         // Execute using strategy
         const result = await strategy.execute(
-            agentOrName,
-            agentName,
+            agent,
+            targetAgents,
             this.coordinator.contextManager,
             sourceAgentName,
             context.userQuery,
             this.coordinator.agents,
-            {}, // nodeMetadata
+            {},
             this.prompts
         );
 

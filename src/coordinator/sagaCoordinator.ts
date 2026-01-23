@@ -8,7 +8,7 @@ import {
   MCPServerConfig
 } from '../types/index.js';
 import { ProcessFlowStep } from '../types/pipelineConfig.js';
-import { getFlowStrategy } from '../process/FlowStrategies.js';
+import { getFlowStrategy } from '../process/flowStrategies.js';
 import {
   SagaState,
   SagaTransaction,
@@ -286,7 +286,7 @@ sleep(ms: number) {
         // Execute using the strategy
         result = await strategy.execute(
           agentOrName,
-          step.targetAgent || step.agent,
+          [step.targetAgent || step.agent],  // Wrap in array for new interface
           this.contextManager,
           step.agent,  // Source agent name for context tracking
           input.userQuery,

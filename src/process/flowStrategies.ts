@@ -68,7 +68,7 @@ function cleanContextData(data: any): any {
 export interface FlowStrategy {
     execute(
         agent: GenericAgent | BaseSDKAgent,
-        targetAgent: string,
+        targetAgents: string[],  // Array of target agent names (for parallel execution)
         contextManager: ContextManager,
         source: string,  // Source agent name for context tracking
         userQuery?: any,
@@ -86,7 +86,7 @@ export interface FlowStrategy {
 export const LLMCallStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
-        targetAgent: string,
+        targetAgents: string[],
         contextManager: ContextManager,
         source: string,
         userQuery?: any,
@@ -99,17 +99,16 @@ export const LLMCallStrategy: FlowStrategy = {
             name: agent.getName ? agent.getName() : 'NO getName',
             constructor: agent.constructor.name,
             isGenericAgent: agent instanceof GenericAgent,
-            targetAgent: targetAgent
+            targetAgents: targetAgents
         });
 
         if (!(agent instanceof GenericAgent)) {
             throw new Error(`LLMCallStrategy requires GenericAgent, got: ${agent.constructor.name} (name: ${agent.getName ? agent.getName() : 'unknown'})`);
         }
 
-        console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} with LLM call`);
+        console.log(`🔄 LLMCallStrategy: Executing ${agent.getName()} for targets: ${targetAgents.join(', ')}`);
 
-
-        // Extract prompt for targetAgent from prompts array
+        // Extract prompt for current agent from prompts array
         let targetPrompt = '';
         if (prompts && Array.isArray(prompts)) {
             const promptEntry = prompts.find(item => item.agentName === agent.getName());
@@ -121,34 +120,25 @@ export const LLMCallStrategy: FlowStrategy = {
             }
         }
 
-        // Clear agent's internal context to avoid contamination from previous executions
-        let result: AgentResult = {
-            agentName: 'cycle_start',
-            result: '',
-            success: true,
-            timestamp: new Date()
-          };
+        // Get input from source context
+        const ctx = contextManager.getContext(source) as WorkingMemory;
+        const cleanedCtx = cleanContextData(ctx);
 
-    const ctx = contextManager.getContext(source) as WorkingMemory;
+        // Execute agent ONCE
+        agent.setTaskDescription(targetPrompt);
+        agent.deleteContext();
+        const result = await agent.execute({'FOR YOUR TASK: ': cleanedCtx});
 
-       agent.setTaskDescription(targetPrompt)
-       agent.deleteContext();
+        // Store result in ALL target agents' contexts
+        for (const targetAgent of targetAgents) {
+            contextManager.updateContext(targetAgent, {
+                lastTransactionResult: result.result,
+                transactionId: agent.getId(),
+                timestamp: new Date()
+            });
+            console.log(`✅ LLMCallStrategy: Stored result in ${targetAgent} context`);
+        }
 
-       // Clean context to remove redundant/verbose data before passing to LLM
-       const cleanedCtx = cleanContextData(ctx);
-    //   const filePath = 'c:/repos/sagaMiddleware/data/cleaned.txt';
-          //      const fileContent = JSON.stringify( cleanedCtx, null, 2);
-              //  fs.writeFileSync(filePath, fileContent, 'utf-8');
-       result = await agent.execute({'FOR YOUR TASK: ': cleanedCtx});
-
-        // Store result in target agent's context
-        contextManager.updateContext(targetAgent, {
-            lastTransactionResult: result.result,
-            transactionId: agent.getId(),
-            timestamp: new Date()
-        });
-
-        console.log(`✅ LMCaLllStrategy: Stored result in ${targetAgent} context`);
         return result;
     }
 };
@@ -161,7 +151,7 @@ export const LLMCallStrategy: FlowStrategy = {
 export const ContextPassStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
-        targetAgent: string,
+        targetAgents: string[],
         contextManager: ContextManager,
         source: string,
         userQuery?: string,
@@ -172,43 +162,41 @@ export const ContextPassStrategy: FlowStrategy = {
         if(agent.getName() === 'UserInput'){
            await agent.execute({});
         }
-//Passing context from entry to SimpleDataAnalyzer
-        console.log(`🔄 ContextPassStrategy: Passing context from ${agent.getName()} to ${targetAgent}`);
 
-        // Get the agent's name (works for both GenericAgent and BaseSDKAgent)
         const agentName = agent.getName();
+        console.log(`🔄 ContextPassStrategy: Passing context from ${agentName} to ${targetAgents.join(', ')}`);
 
         // Retrieve source context
         const sourceContext = contextManager.getContext(agentName) as WorkingMemory;
-        //This is the user workflow requirements
 
         if (!sourceContext || !sourceContext.lastTransactionResult) {
             console.warn(`⚠️ No context found for ${agentName}, passing empty context`);
         }
 
-        // Extract prompt for targetAgent from prompts array
-        let targetPrompt = '';
-        if (prompts && Array.isArray(prompts)) {
-            const promptEntry = prompts.find(item => item.agentName === targetAgent);
-            if (promptEntry) {
-                targetPrompt = promptEntry.prompt;
-                console.log(`📝 ContextPassStrategy: Found prompt for ${targetAgent} (${targetPrompt.length} chars)`);
-            } else {
-                console.warn(`⚠️ No prompt found for ${targetAgent} in prompts array`);
+        // Pass context to ALL target agents
+        for (const targetAgent of targetAgents) {
+            // Extract prompt for this target agent
+            let targetPrompt = '';
+            if (prompts && Array.isArray(prompts)) {
+                const promptEntry = prompts.find(item => item.agentName === targetAgent);
+                if (promptEntry) {
+                    targetPrompt = promptEntry.prompt;
+                    console.log(`📝 ContextPassStrategy: Found prompt for ${targetAgent} (${targetPrompt.length} chars)`);
+                } else {
+                    console.warn(`⚠️ No prompt found for ${targetAgent} in prompts array`);
+                }
             }
+
+            // Pass context to this target agent
+            contextManager.updateContext(targetAgent, {
+                lastTransactionResult: sourceContext?.lastTransactionResult || {},
+                prompt: targetPrompt,
+                userQuery: sourceContext?.userQuery,
+                transactionId: sourceContext?.transactionId || agentName,
+                timestamp: new Date()
+            });
+            console.log(`✅ ContextPassStrategy: Context passed to ${targetAgent}`);
         }
-// ContextPassStrategy: Found prompt for SimpleDataAnalyzer (1296 chars)
-//CONTEXT MGR SimpleDataAnalyzer
-        // Pass context to target agent with extracted prompt
-        contextManager.updateContext(targetAgent, {
-            lastTransactionResult: sourceContext?.lastTransactionResult || {},      //This is the user workflow requirements
-            prompt: targetPrompt,
-            userQuery:  sourceContext?.userQuery,
-            transactionId: sourceContext?.transactionId || agentName,
-            timestamp: new Date()
-        });
-//Context passed to SimpleDataAnalyzer
-        console.log(`✅ ContextPassStrategy: Context passed to ${targetAgent}`);
 
         return {
             agentName: agentName,
@@ -231,7 +219,7 @@ export const ContextPassStrategy: FlowStrategy = {
 export const ExecuteAgentsStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
-        targetAgent: string,
+        targetAgents: string[],
         contextManager: ContextManager,
         source: string,
         userQuery?: string,
@@ -239,7 +227,7 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         nodeMetadata?: any,
         prompts?: AgentPromptArray
     ): Promise<AgentResult> {
-        console.log(`🔄 ExecuteAgentsStrategy: Executing agents created by ${agent.getName()}`);
+        console.log(`🔄 ExecuteAgentsStrategy: Executing agents created by ${agent.getName()} for targets: ${targetAgents.join(', ')}`);
 
         // Get the ToolCallingAgent from the registry
         const toolCallingAgent = agentsRegistry?.get('ToolCallingAgent');
@@ -261,7 +249,7 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
         if (!Array.isArray(agentDefinitions)) {
             throw new Error(`Expected agent definitions to be an array, got: ${typeof agentDefinitions}`);
         }
-     
+
         const genericAgents = createGenericAgentsFromDefinitions(agentDefinitions);
 
         console.log(`✅ Created ${genericAgents.length} GenericAgent(s) with taskDescription in context`);
@@ -276,6 +264,9 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
             console.log(`    Dependencies:`, agent.getDependencies());
         });
 
+        // For ExecuteAgentsStrategy, we typically have one target
+        const targetAgent = targetAgents[0] || agentName;
+
         // Execute the generic agents with linear context (adapted from ExecuteGenericAgentsProcess)
         const executionResult = await executeGenericAgentsWithLinearContext(
             genericAgents,
@@ -285,22 +276,26 @@ export const ExecuteAgentsStrategy: FlowStrategy = {
             agentName
         );
 
-           // Validate that Python code output
-           let result: AgentResult = {
+        // Validate that Python code output
+        let result: AgentResult = {
             agentName: 'cycle_start',
             result: '',
             success: true,
             timestamp: new Date()
-          };
-//  
+        };
+
         const validatingCtx = contextManager.getContext(targetAgent);
         const prompt = getPrompt('D3ReadyAnalysis');
         const validatingAgent = agentsRegistry?.get(targetAgent);
         validatingAgent.setTaskDescription(prompt);
         result.result = openaiPythonAnalysisResult_Jan_02//opusPythonAnalysisResult_Jan_02//await validatingAgent.execute({'ANALYZE THE PROVIDED INFORMATION': validatingCtx.lastTransactionResult})
-        contextManager.updateContext(targetAgent, {lastTransactionResult: result.result})
 
-        console.log(`✅ ExecuteAgentsStrategy: Results stored in ${targetAgent} context`);
+        // Store result in ALL target agents' contexts
+        for (const target of targetAgents) {
+            contextManager.updateContext(target, {lastTransactionResult: result.result});
+            console.log(`✅ ExecuteAgentsStrategy: Results stored in ${target} context`);
+        }
+
         return executionResult;
     }
 };
@@ -616,7 +611,7 @@ function cleanPythonCode(rawCode: string): string {
 export const SDKAgentStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
-        targetAgent: string,
+        targetAgents: string[],
         contextManager: ContextManager,
         source: string,
         userQuery?: string,
@@ -629,9 +624,10 @@ export const SDKAgentStrategy: FlowStrategy = {
             throw new Error(`SDKAgentStrategy requires BaseSDKAgent, got: ${agent.constructor.name}`);
         }
 
-        console.log(`🔄 SDKAgentStrategy: Executing SDK agent ${agent.getName()}`);
+        console.log(`🔄 SDKAgentStrategy: Executing SDK agent ${agent.getName()} for targets: ${targetAgents.join(', ')}`);
 
-          let targetPrompt = '';
+        // Get prompt for current agent
+        let targetPrompt = '';
         if (prompts && Array.isArray(prompts)) {
             const promptEntry = prompts.find(item => item.agentName === agent.getName());
             if (promptEntry) {
@@ -643,20 +639,22 @@ export const SDKAgentStrategy: FlowStrategy = {
         }
 
         const ctx = contextManager.getContext(agent.getName());
-      
-        contextManager.updateContext(agent.getName(),{prompt: targetPrompt})
-        // Execute SDK agent (it will read its input from contextManager)
-        const result = await agent.execute({});
-        // Store result in target agent's context (or its own if no target specified)
-        const target = targetAgent || agent.getName();
-        contextManager.updateContext(target, {
-            lastTransactionResult: result.result,
-            userQuery: ctx.userQuery,
-            transactionId: agent.getName(),
-            timestamp: new Date()
-        });
+        contextManager.updateContext(agent.getName(), {prompt: targetPrompt});
 
-        console.log(`✅ SDKAgentStrategy: ${agent.getName()} completed, stored in ${target} context`);
+        // Execute SDK agent ONCE (it will read its input from contextManager)
+        const result = await agent.execute({});
+
+        // Store result in ALL target agents' contexts
+        for (const targetAgent of targetAgents) {
+            contextManager.updateContext(targetAgent, {
+                lastTransactionResult: result.result,
+                userQuery: ctx?.userQuery,
+                transactionId: agent.getName(),
+                timestamp: new Date()
+            });
+            console.log(`✅ SDKAgentStrategy: Stored result in ${targetAgent} context`);
+        }
+
         return result;
     }
 };
@@ -674,20 +672,21 @@ export const SDKAgentStrategy: FlowStrategy = {
 export const ValidationStrategy: FlowStrategy = {
     async execute(
         agent: GenericAgent | BaseSDKAgent,
-        targetAgent: string,
+        targetAgents: string[],
         contextManager: ContextManager,
         source: string,
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
-        nodeMetadata?: any
+        nodeMetadata?: any,
+        prompts?: AgentPromptArray
     ): Promise<AgentResult> {
         if (!(agent instanceof GenericAgent)) {
             throw new Error(`ValidationStrategy requires GenericAgent, got: ${agent.constructor.name}`);
         }
 
-        console.log(`🔄 ValidationStrategy: Executing ${agent.getName()} for validation`);
+        console.log(`🔄 ValidationStrategy: Executing ${agent.getName()} for validation, targets: ${targetAgents.join(', ')}`);
 
-        // Execute validation agent
+        // Execute validation agent ONCE
         const result = await agent.execute({ userQuery: userQuery || '' });
 
         // Get CODE/data from validator's own context (stored by previous step)
@@ -696,17 +695,19 @@ export const ValidationStrategy: FlowStrategy = {
 
         console.log(`📦 ValidationStrategy: Merging ANALYSIS with CODE from ${agent.getName()} context`);
 
-        // Store merged result in target agent's context
-        contextManager.updateContext(targetAgent, {
-            lastTransactionResult: {
-                ANALYSIS: result.result,  // Validator's analysis
-                CODE: code                // Code/data from previous step
-            },
-            transactionId: agent.getId(),
-            timestamp: new Date()
-        });
+        // Store merged result in ALL target agents' contexts
+        for (const targetAgent of targetAgents) {
+            contextManager.updateContext(targetAgent, {
+                lastTransactionResult: {
+                    ANALYSIS: result.result,  // Validator's analysis
+                    CODE: code                // Code/data from previous step
+                },
+                transactionId: agent.getId(),
+                timestamp: new Date()
+            });
+            console.log(`✅ ValidationStrategy: Merged result stored in ${targetAgent} context`);
+        }
 
-        console.log(`✅ ValidationStrategy: Merged result stored in ${targetAgent} context`);
         return result;
     }
 };

@@ -1156,7 +1156,7 @@ const requirements_endo: WorkflowRequirements = {
     console.log('DAG ', dagDesignerCtx.lastTransactionResult)
 
     // Create the new DAG executor with strategy-based node executor
-    const nodeExecutor = new StrategyBasedNodeExecutor(this.coordinator, promptArray, dagDesignerCtx.lastTransactionResult);
+    const nodeExecutor = new StrategyBasedNodeExecutor(this.coordinator, promptArray);
     const dagExecutor = new DAGExecutor(dagDesignerCtx.lastTransactionResult, nodeExecutor);
 
     // Execute the DAG
