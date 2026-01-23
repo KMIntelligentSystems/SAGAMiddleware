@@ -1,15 +1,25 @@
 import { AgentDefinition, AgentResult, LLMConfig, MCPToolCall } from '../types/index.js';
 import { mcpClientManager, ToolCallContext } from '../mcp/mcpClient.js';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
 // Assuming you've already imported the GoogleGenerativeAI class
 //import { GoogleGenerativeAI } from '@google/genai';
 import { GoogleGenAI, mcpToTool, FunctionCallingConfigMode } from '@google/genai';
 import * as fs from 'fs';
-import { userVizQuery, sonnetJSONRenderedPythonAnalysis, openaiPythonAnalysisResult, geminiConversationAnalysis } from '../test/histogramData.js'; 
+import { userVizQuery, sonnetJSONRenderedPythonAnalysis, openaiPythonAnalysisResult, geminiConversationAnalysis } from '../test/histogramData.js';
 
-// Initialize the client
+// Initialize shared Gemini client
 const genAI = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY as string,
+});
+
+// Note: Semaphore was removed as branches now execute sequentially
+// Sequential execution prevents race conditions without needing a semaphore
+
+// Shared OpenAI client to avoid race conditions from creating multiple clients
+const sharedOpenAIClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 120000, // 2 minute timeout for API calls
+  maxRetries: 2, // Retry failed requests twice
 });
 
 
@@ -147,9 +157,16 @@ export class GenericAgent {
       if(this.definition.name === 'DocumentBuildingAgent'){
         console.log('🔧 Document building agent: Reading test data from opus.html');
        //  result = await this.invokeLLM(prompt);
-       result.result = 'test'//fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
+       result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/gemini_endo_doc_builder.txt', 'utf-8');
       }
-    
+
+      if(this.definition.name === 'ReportWritingAgent'){
+        console.log('🔧 Using reportwritingagent - BEFORE invokeLLM');
+         result = await this.invokeLLM(prompt);
+         console.log('🔧 Using reportwritingagent - AFTER invokeLLM, result length:', result.result?.length);
+  //     result.result = 'test'//fs.readFileSync('C:/repos/sagaMiddleware/data/gemini_endo_doc_builder.txt', 'utf-8');
+      }
+    console.log('GENERIC AGENT ',this.definition.name)
   console.log('GENERIC RESULT ',result.result)
 
 
@@ -338,12 +355,13 @@ console.log('MODEL ', config.model)
   
 
   private async invokeOpenAI(prompt: string, config: LLMConfig): Promise<AgentResult> {
-    const { OpenAI } = await import('openai');
-    
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-    console.log('TYPE ',this.definition.agentType)
+    console.log('🚀 invokeOpenAI ENTRY - Agent:', this.getName())
+
+    try {
+      // Use shared client instead of creating new one
+      const client = sharedOpenAIClient;
+      console.log('✅ Using shared OpenAI client - Agent:', this.getName())
+      console.log('TYPE ',this.definition.agentType, 'Agent:', this.getName())
 
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
     if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
@@ -459,41 +477,58 @@ console.log('MODEL ', config.model)
    //   console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
       
       // Set forceToolUse to false to allow more natural tool selection
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
+      const result = await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
+      return result;
     }
 
-    
 
-   const userMessage: OpenAI.ChatCompletionMessageParam = {
-    role: "user",
-    content: prompt,
-  };
-    const response = await client.chat.completions.create({
+    console.log('HERE IN OPENAI - Agent:', this.getName(), 'Model:', config.model)
+    const userMessage: OpenAI.ChatCompletionMessageParam = {
+      role: "user",
+      content: prompt,
+    };
+    console.log('ABOUT TO CALL OPENAI - Agent:', this.getName(), 'Timestamp:', new Date().toISOString())
+
+    console.log('🔵 Creating OpenAI API call - Agent:', this.getName())
+
+    // Create the promise and log it
+    const apiCall = client.chat.completions.create({
        messages: [userMessage],
         model: config.model,
       //  temperature: 0.3,
      //   maxTokens: 3000,
     });
-   return  {
+
+    console.log('🟡 API call created, now awaiting... - Agent:', this.getName())
+
+    // Add a timeout wrapper
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        console.error('⏱️  OpenAI API call TIMEOUT after 180 seconds - Agent:', this.getName());
+        reject(new Error('OpenAI API call timeout after 180 seconds'));
+      }, 180000); // 3 minutes
+    });
+
+    const response = await Promise.race([apiCall, timeout]);
+    console.log('🟢 Await completed! - Agent:', this.getName())
+
+    console.log('✅ RESPONSE RECEIVED - Agent:', this.getName(), 'Timestamp:', new Date().toISOString(), 'Response length:', response.choices[0]?.message?.content?.length)
+    return  {
      agentName: this.getName(),
      result: response.choices[0].message.content as string,
      success: true,
      timestamp: new Date()}
- 
-    // No tools available, use regular completion
-  /*  const response = await client.chat.completions.create({
-      model: config.model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: config.temperature || 0.7,
-      max_tokens: config.maxTokens || 1000
-    });
-
-    return response.choices[0].message.content || "";*/
-  
+    } catch (error) {
+      console.error('❌ OPENAI ERROR - Agent:', this.getName(), 'Error:', error)
+      throw error;
+    }
   }
 
 //https://github.com/googleapis/js-genai/blob/main/sdk-samples/chat_afc.ts
     private async invokeGemini(prompt: string, config: LLMConfig, ai: GoogleGenAI): Promise<AgentResult> {
+    console.log('🚀 invokeGemini ENTRY - Agent:', this.getName())
+
+    try {
 
 /*const chat = await ai.chats.create({
     model: 'gemini-3-pro-preview',
@@ -645,34 +680,30 @@ try {
       //  temperature: 0.3,
      //   maxTokens: 3000,
     });*/
-   return  {
-     agentName: this.getName(),
-     result: resp?.text,
-     success: true,
-     timestamp: new Date()}
- 
-    // No tools available, use regular completion
-  /*  const response = await client.chat.completions.create({
-      model: config.model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: config.temperature || 0.7,
-      max_tokens: config.maxTokens || 1000
-    });
-
-    return response.choices[0].message.content || "";*/
-  
+      return  {
+        agentName: this.getName(),
+        result: resp?.text,
+        success: true,
+        timestamp: new Date()
+      }
+    } catch (error) {
+      console.error('❌ GEMINI ERROR - Agent:', this.getName(), 'Error:', error)
+      throw error;
+    }
   }
 
  
 
   private async invokeAnthropic(prompt: string, config: LLMConfig): Promise<AgentResult> {
-    console.log('🚀 ENTRY: invokeAnthropic method started');
-    const { Anthropic } = await import('@anthropic-ai/sdk');
-    
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY
-    });
-    console.log('✅ Anthropic client created');
+    console.log('🚀 invokeAnthropic ENTRY - Agent:', this.getName());
+
+    try {
+      const { Anthropic } = await import('@anthropic-ai/sdk');
+
+      const client = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY
+      });
+      console.log('✅ Anthropic client created - Agent:', this.getName());
 
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
     if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
@@ -829,15 +860,15 @@ console.log('MESSAGE ', message)
       }
 
       return  {
-     agentName: this.getName(),
-     result: parsedResult,
-     success: true,
-     timestamp: new Date()}
-
-  /*  return response.content
-      .filter(content => content.type === 'text')
-      .map(content => content.type === 'text' ? content.text : '')
-      .join('');*/
+        agentName: this.getName(),
+        result: parsedResult,
+        success: true,
+        timestamp: new Date()
+      }
+    } catch (error) {
+      console.error('❌ ANTHROPIC ERROR - Agent:', this.getName(), 'Error:', error)
+      throw error;
+    }
   }
 
   private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = true): Promise<AgentResult> {

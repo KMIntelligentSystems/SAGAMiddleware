@@ -74,7 +74,8 @@ export interface FlowStrategy {
         userQuery?: any,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any,  // Target node metadata for prompt injection
-        prompts?: AgentPromptArray
+        prompts?: AgentPromptArray,
+        nodeId?: string
     ): Promise<AgentResult>;
 }
 
@@ -92,14 +93,16 @@ export const LLMCallStrategy: FlowStrategy = {
         userQuery?: any,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?:any,
-        prompts?: AgentPromptArray
+        prompts?: AgentPromptArray,
+         nodeId?: string
     ): Promise<AgentResult> {
         // Only GenericAgent can make LLM calls in this strategy
         console.log(`🔍 LLMCallStrategy received agent:`, {
             name: agent.getName ? agent.getName() : 'NO getName',
             constructor: agent.constructor.name,
             isGenericAgent: agent instanceof GenericAgent,
-            targetAgents: targetAgents
+            targetAgents: targetAgents,
+            nodeId: nodeId
         });
 
         if (!(agent instanceof GenericAgent)) {
@@ -111,7 +114,7 @@ export const LLMCallStrategy: FlowStrategy = {
         // Extract prompt for current agent from prompts array
         let targetPrompt = '';
         if (prompts && Array.isArray(prompts)) {
-            const promptEntry = prompts.find(item => item.agentName === agent.getName());
+            const promptEntry = prompts.find(item => item.agentName === agent.getName()  && item.id === nodeId);
             if (promptEntry) {
                 targetPrompt = promptEntry.prompt;
                 console.log(`📝 LLMCallStrategy: Found prompt for ${agent.getName()} (${targetPrompt.length} chars)`);
@@ -121,13 +124,15 @@ export const LLMCallStrategy: FlowStrategy = {
         }
 
         // Get input from source context
-        const ctx = contextManager.getContext(source) as WorkingMemory;
+        const ctx = contextManager.getContext(agent.getName()) as WorkingMemory;
         const cleanedCtx = cleanContextData(ctx);
 
         // Execute agent ONCE
+        console.log(`🎯 LLMCallStrategy: About to execute ${agent.getName()}`);
         agent.setTaskDescription(targetPrompt);
-        agent.deleteContext();
+      //  agent.deleteContext();
         const result = await agent.execute({'FOR YOUR TASK: ': cleanedCtx});
+        console.log(`✅ LLMCallStrategy: Completed execution of ${agent.getName()}, success: ${result.success}`);
 
         // Store result in ALL target agents' contexts
         for (const targetAgent of targetAgents) {
@@ -157,7 +162,8 @@ export const ContextPassStrategy: FlowStrategy = {
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any,
-        prompts?: AgentPromptArray
+        prompts?: AgentPromptArray,
+        nodeId?: string
     ): Promise<AgentResult> {
         if(agent.getName() === 'UserInput'){
            await agent.execute({});
@@ -178,7 +184,7 @@ export const ContextPassStrategy: FlowStrategy = {
             // Extract prompt for this target agent
             let targetPrompt = '';
             if (prompts && Array.isArray(prompts)) {
-                const promptEntry = prompts.find(item => item.agentName === targetAgent);
+                const promptEntry = prompts.find(item => item.agentName === targetAgent  && item.id === nodeId);
                 if (promptEntry) {
                     targetPrompt = promptEntry.prompt;
                     console.log(`📝 ContextPassStrategy: Found prompt for ${targetAgent} (${targetPrompt.length} chars)`);
@@ -617,7 +623,8 @@ export const SDKAgentStrategy: FlowStrategy = {
         userQuery?: string,
         agentsRegistry?: Map<string, GenericAgent>,
         nodeMetadata?: any,
-        prompts?: AgentPromptArray
+        prompts?: AgentPromptArray,
+         nodeId?: string
     ): Promise<AgentResult> {
         // Only SDK agents allowed in this strategy
         if (!(agent instanceof BaseSDKAgent)) {
@@ -629,7 +636,7 @@ export const SDKAgentStrategy: FlowStrategy = {
         // Get prompt for current agent
         let targetPrompt = '';
         if (prompts && Array.isArray(prompts)) {
-            const promptEntry = prompts.find(item => item.agentName === agent.getName());
+            const promptEntry = prompts.find(item => item.agentName === agent.getName() && item.id === nodeId);
             if (promptEntry) {
                 targetPrompt = promptEntry.prompt;
                 console.log(`📝 SDKAgentStrategy: Found prompt for ${agent.getName()} (${targetPrompt.length} chars)`);

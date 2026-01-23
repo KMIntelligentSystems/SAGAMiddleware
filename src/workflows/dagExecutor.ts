@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { DataProfiler } from '../agents/dataProfiler.js';
 import { SimpleDataAnalyzer } from '../agents/simpleDataAnalyzer.js';
 import { D3JSCodeValidator } from '../agents/d3jsCodeValidator.js';
+import { GenericAgent } from '../agents/genericAgent.js';
 import {
     LLMCallStrategy,
     ContextPassStrategy,
@@ -419,12 +420,15 @@ export class DAGExecutor extends EventEmitter {
             }))
         });
 
-        // Execute all branches in parallel
-        const branchPromises = edges.map(edge => 
-            this.executeBranch(edge.to, edge.flowType)
-        );
-
-        await Promise.all(branchPromises);
+        // Execute branches sequentially (parallel execution causes OpenAI SDK to hang)
+        // Issue: When using Promise.all with OpenAI calls, the await hangs even with semaphore
+        console.log(`⚡ Executing ${edges.length} branches sequentially`);
+        for (const edge of edges) {
+            console.log(`  📌 Starting branch: ${edge.to}`);
+            await this.executeBranch(edge.to, edge.flowType);
+            console.log(`  ✅ Completed branch: ${edge.to}`);
+        }
+        console.log(`✅ All ${edges.length} branches completed`);
 
         this.emit('parallelComplete', { nodeIds: branchNodes });
 
@@ -436,22 +440,27 @@ export class DAGExecutor extends EventEmitter {
      * Execute a single branch (may contain multiple sequential nodes)
      */
     private async executeBranch(startNodeId: string, incomingFlowType: string): Promise<void> {
+        console.log(`🌿 executeBranch START - Node: ${startNodeId}, FlowType: ${incomingFlowType}`);
         let currentNodeId = startNodeId;
         let currentFlowType = incomingFlowType;
 
         while (currentNodeId) {
             // Check if we can execute this node
             if (!this.canExecuteNode(currentNodeId)) {
+                console.log(`⏸️  Cannot execute node ${currentNodeId} yet - waiting for predecessors`);
                 break; // Wait for other branches to complete
             }
 
             // Skip if already executed
             if (this.executedNodes.has(currentNodeId)) {
+                console.log(`⏭️  Node ${currentNodeId} already executed - skipping`);
                 break;
             }
 
             // Execute the node
+            console.log(`▶️  executeBranch: Executing node ${currentNodeId}`);
             await this.executeNodeInternal(currentNodeId, currentFlowType);
+            console.log(`✅ executeBranch: Completed node ${currentNodeId}`);
 
             // Get next edges
             const nextEdges = this.getNextEdges(currentNodeId);
@@ -711,19 +720,24 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
         targetAgents: string[],
         sourceAgentName: string
     ): Promise<any> {
-        console.log(`\n▶️  Executing Node: ${nodeId} (${agentName})`);
+        console.log(`\n▶️  StrategyBasedNodeExecutor.executeNode ENTRY: ${nodeId} (${agentName})`);
         console.log(`   Type: ${agentType}, FlowType: ${flowType}`);
         console.log(`   Targets: ${targetAgents.join(', ')}, Source: ${sourceAgentName}`);
 
         // Handle entry/exit nodes
         if (agentType === 'entry') {
-            const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent');
-            if (agentName !== 'ConversationAgent') {
+            
+         //   if (agentName !== 'ConversationAgent') {
+                const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent');
                 this.coordinator.contextManager.updateContext(agentName, {
                     lastTransactionResult: conversationCtx.lastTransactionResult,
                     userQuery: conversationCtx.userQuery
                 });
-            }
+console.log('USER QUERY  ',conversationCtx.userQuery )
+                  this.coordinator.contextManager.updateContext('ReportWritingAgent', {
+                    userQuery: conversationCtx.userQuery
+                });
+         //   }
             return context;
         }
 
@@ -743,10 +757,9 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
         if (agentType === 'sdk_agent') {
             agent = this.instantiateSDKAgent(agentName);
         } else if (agentType === 'agent') {
-            agent = this.coordinator.agents.get(agentName);
-            if (!agent) {
-                throw new Error(`GenericAgent not found in registry: ${agentName}`);
-            }
+            // CRITICAL: Instantiate a NEW GenericAgent for each node execution
+            // to prevent race conditions when the same agent is used in parallel branches
+            agent = this.instantiateGenericAgent(agentName);
         } else {
             // For special cases like context_pass
             agent = {
@@ -755,6 +768,7 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
         }
 
         // Execute using strategy
+        console.log(`🎬 StrategyBasedNodeExecutor: About to call strategy.execute for ${agentName}`);
         const result = await strategy.execute(
             agent,
             targetAgents,
@@ -763,8 +777,10 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             context.userQuery,
             this.coordinator.agents,
             {},
-            this.prompts
+            this.prompts,
+            nodeId
         );
+        console.log(`🏁 StrategyBasedNodeExecutor: strategy.execute completed for ${agentName}, success: ${result.success}`);
 
         return {
             success: result.success,
@@ -786,6 +802,17 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             default:
                 throw new Error(`Unknown SDK agent: ${agentName}`);
         }
+    }
+
+    private instantiateGenericAgent(agentName: string): GenericAgent {
+        // Get the template agent from registry
+        const templateAgent = this.coordinator.agents.get(agentName);
+        if (!templateAgent) {
+            throw new Error(`GenericAgent not found in registry: ${agentName}`);
+        }
+
+        // Create a NEW instance to prevent race conditions in parallel execution
+        return new GenericAgent(templateAgent.getAgentDefinition());
     }
 }
 
