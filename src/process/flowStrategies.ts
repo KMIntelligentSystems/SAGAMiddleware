@@ -649,12 +649,13 @@ export const SDKAgentStrategy: FlowStrategy = {
         contextManager.updateContext(agent.getName(), {prompt: targetPrompt});
 
         // Execute SDK agent ONCE (it will read its input from contextManager)
-        const result = await agent.execute({});
+        const result = await agent.execute({id: nodeId});
 
         // Store result in ALL target agents' contexts
         for (const targetAgent of targetAgents) {
             contextManager.updateContext(targetAgent, {
-                lastTransactionResult: result.result,
+//lastTransactionResult: result.result,
+                sdkResult: result.result,
                 userQuery: ctx?.userQuery,
                 transactionId: agent.getName(),
                 timestamp: new Date()

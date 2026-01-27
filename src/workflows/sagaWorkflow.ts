@@ -572,8 +572,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider:'anthropic', //'anthropic' 'openai' 'gemini'
-        model: 'claude-opus-4-5',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        provider:'openai', //'anthropic' 'openai' 'gemini'
+        model:'gpt-5.2',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens:  8192,
        // apiKey: process.env.ANTHROPIC_API_KEY

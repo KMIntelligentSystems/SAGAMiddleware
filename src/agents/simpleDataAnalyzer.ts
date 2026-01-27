@@ -23,8 +23,8 @@ import { BaseSDKAgent } from './baseSDKAgent.js';
 import { AgentResult, WorkingMemory } from '../types/index.js';
 import * as fs from 'fs'
 export class SimpleDataAnalyzer extends BaseSDKAgent {
-    constructor(contextManager?: any) {
-        super('SimpleDataAnalyzer', 15, contextManager);
+    constructor(contextManager?: any, nodeId?: string ) {
+        super('SimpleDataAnalyzer', 15, contextManager,nodeId);
         // No custom tools needed - uses built-in file reading capabilities
     }
 
@@ -45,12 +45,20 @@ export class SimpleDataAnalyzer extends BaseSDKAgent {
             }
 
             const prompt = ctx.prompt;
-            const userQuery = ctx.userQuery;
-         //   console.log({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery})
+            const userQuery = ctx.userQuery;//UNDEFINED FOR csv_reader
+        
+        //  
 
             // Execute analysis query - agent will read file and provide analysis
-            const output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//await this.executeQuery(JSON.stringify({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery}));//fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//
-
+            let output = ';'
+            if(_input === 'csv_reader'){
+                  console.log({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery, 'LAST RESULT': ctx.lastTransactionResult})
+             output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//await this.executeQuery(JSON.stringify({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': userQuery}));//fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo.txt', 'utf-8');//              
+            } else if(this.nodeId === 'needle-analyzer'){
+             const docBuilderRes = ctx.lastTransactionResult;
+           //    console.log({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:': docBuilderRes})
+             output = fs.readFileSync('C:/repos/SAGAMiddleware/data/simpleDataAnalyzerResponse_endo_needle_viz.txt', 'utf-8');//await this.executeQuery(JSON.stringify({'YOUR PROMPT:': prompt, 'CONVERSATION HISTORY:':docBuilderRes}));         
+            }
             // Store analysis results in context
             this.setContext(output);
 

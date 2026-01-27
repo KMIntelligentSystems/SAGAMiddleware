@@ -14,10 +14,11 @@ export abstract class BaseSDKAgent {
     protected options: Options;
     protected agentName: string;
     protected contextManager: ContextManager;
+    protected nodeId: string;
 
-    constructor(agentName: string, maxTurns: number = 15, contextManager?: ContextManager) {
+    constructor(agentName: string, maxTurns: number = 15, contextManager?: ContextManager, nodeId?: string) {
         this.agentName = agentName;
-
+        this.nodeId = nodeId;
         // Base options - SDK agents run locally with Claude Code CLI
         this.options = {
             permissionMode: 'bypassPermissions',

@@ -150,8 +150,14 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for D3JSCodingAgent
       if(this.definition.name === 'D3JSCodingAgent'){
         console.log('🔧 D3JSCodingAgent: Reading test data from opus.html');
-     //    result = await this.invokeLLM(prompt);
-       result.result = fs.readFileSync('C:/repos/Main/openai_5_2_issues.html', 'utf-8');
+       //  result = await this.invokeLLM(prompt);
+       if(this.definition.id === 'meta-viz'){
+               //  result = await this.invokeLLM(prompt);
+               result.result = fs.readFileSync('C:/repos/Main/openai_meta_viz', 'utf-8');
+       } else if(this.definition.id === 'needle-viz'){
+               //  result = await this.invokeLLM(prompt);
+               result.result = fs.readFileSync('C:/repos/Main/gemini_meta_viz.html', 'utf-8');
+       }
       }
 
       if(this.definition.name === 'DocumentBuildingAgent'){
@@ -162,9 +168,9 @@ export class GenericAgent {
 
       if(this.definition.name === 'ReportWritingAgent'){
         console.log('🔧 Using reportwritingagent - BEFORE invokeLLM');
-         result = await this.invokeLLM(prompt);
+      //   result = await this.invokeLLM(prompt);
          console.log('🔧 Using reportwritingagent - AFTER invokeLLM, result length:', result.result?.length);
-  //     result.result = 'test'//fs.readFileSync('C:/repos/sagaMiddleware/data/gemini_endo_doc_builder.txt', 'utf-8');
+       result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_reportwritingAgent_endo_Result.txt', 'utf-8');
       }
     console.log('GENERIC AGENT ',this.definition.name)
   console.log('GENERIC RESULT ',result.result)
