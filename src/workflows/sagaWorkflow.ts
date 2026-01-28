@@ -24,6 +24,7 @@ import { WorkflowRequirements, DAGDefinition } from '../types/dag.js'
 import { DAGExecutor, StrategyBasedNodeExecutor } from './dagExecutor.js';
 import { PromptGeneratorAgent, AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 import { CSVAnalyzerAgent } from '../agents/csvAnalyzerAgent.js'
+import { UserQueryAnalyzerAgent, AgentDataArray } from '../agents/userQueryAnalyzerAgent.js'
 import * as fs from 'fs'
 
 import { SharedStorageParser } from '../parsers/sharedStorageParser.js';
@@ -1155,6 +1156,17 @@ const requirements_endo: WorkflowRequirements = {
 
     console.log('DAG ', dagDesignerCtx.lastTransactionResult)
 
+    // STEP 3: Analyze user query to extract detailed agent-specific data
+    const userQueryAnalyzer = new UserQueryAnalyzerAgent(
+        dagDesignerCtx.lastTransactionResult,
+        sharedStorage, // Pass the user query data
+        this.coordinator.contextManager
+    );
+    const userQueryResult = await userQueryAnalyzer.execute();
+ //   const agentDataArray = userQueryResult.result as AgentDataArray;
+
+ //  console.log('User Query Analysis Results:', agentDataArray)
+
     // Create the new DAG executor with strategy-based node executor
     const nodeExecutor = new StrategyBasedNodeExecutor(this.coordinator, promptArray);
     const dagExecutor = new DAGExecutor(dagDesignerCtx.lastTransactionResult, nodeExecutor);
@@ -1171,53 +1183,8 @@ const requirements_endo: WorkflowRequirements = {
         duration: dag.duration,
         nodesExecuted: dag.nodeResults.length
     });
-//    console.log('Result:', dag);
-   //   const pipelineExecutor: PipelineExecutor = new PipelineExecutor(this.coordinator);
-
-      // PHASE 1: Execute DATA_PROFILING_PIPELINE
-      console.log('\n🔄 PHASE 1: Data Profiling Pipeline');
-  /*    let profilingState = await pipelineExecutor.executePipeline(
-        DATA_PROFILING_PIPELINE,
-        data.message || ''
-      );
-
-      const result = profilingState.lastControlFlowResult as AgentResult;
-      console.log('✅ Data Profiling Complete:', {
-        success: result?.success,
-        hasResult: !!result?.result
-      });
-
-      // Check for errors in profiling phase
-      if (!profilingState.lastControlFlowResult?.success) {
-        console.error('❌ Data profiling failed');
-        console.error('   Error:', profilingState.lastControlFlowResult?.error);
-
-        // TODO: Implement compensation pipeline here (Option 1)
-        // For now, we log the error and continue
-        // Future: await pipelineExecutor.executePipeline(PYTHON_CODE_UPDATE_PIPELINE, ...);
-
-        // Return early - don't proceed to visualization if profiling failed
-        return;
-      }
-
-      // PHASE 2: Execute D3_VISUALIZATION_PIPELINE with previous state
-      console.log('\n🔄 PHASE 2: D3 Visualization Pipeline');
-
-      let visualizationState = await pipelineExecutor.executePipeline(
-        D3_VISUALIZATION_PIPELINE,
-        data.message || '',
-        profilingState
-      );
-
-      console.log('✅ Visualization Complete:', {
-        completed: visualizationState.completed,
-        errors: visualizationState.errors.length
-      });
-
-      const finalResult = pipelineExecutor.getFinalResult();
-      console.log('📊 Final Pipeline Result:', finalResult ? 'Available' : 'None');*/
-
-      // PHASE 3: Handle user review responses
+  console.log('\n🔄 PHASE 1: Data Profiling Pipeline');
+  
       if (opType === 'profile_approved') {
         console.log('✅ PROFILE APPROVED by user');
         // TODO: Send success notification to user

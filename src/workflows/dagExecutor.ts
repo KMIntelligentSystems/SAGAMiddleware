@@ -155,6 +155,7 @@ export class DAGExecutor extends EventEmitter {
             const predecessors = new Set(incomingEdges.map(e => e.from));
             this.pendingNodes.set(node.id, predecessors);
         }
+        console.log('DEPENDENCY ', this.pendingNodes)
     }
 
     /**
@@ -187,6 +188,7 @@ export class DAGExecutor extends EventEmitter {
         try {
             const conditionObj: EdgeCondition = JSON.parse(edge.condition);
             const expression = conditionObj.expression;
+            console.log('CONDITION ', conditionObj)
 
             // Simple evaluation - check for success patterns
             if (expression.includes('success === true') || expression.includes('success==true')) {
@@ -210,10 +212,14 @@ export class DAGExecutor extends EventEmitter {
     private getNextEdges(currentNodeId: string): DAGEdge[] {
         const outgoingEdges = this.getOutgoingEdges(currentNodeId);
         const validEdges: DAGEdge[] = [];
+        const autonomousEdges: DAGEdge[] = [];
 
         for (const edge of outgoingEdges) {
+            console.log('AUTO ', edge.flowType)
             // For autonomous_decision, evaluate condition
             if (edge.flowType === 'autonomous_decision') {
+                autonomousEdges.push(edge);
+                console.log('AUTO CONTEXT ', this.context)
                 if (this.evaluateCondition(edge, this.context)) {
                     validEdges.push(edge);
                 }
@@ -223,7 +229,39 @@ export class DAGExecutor extends EventEmitter {
             }
         }
 
+        // Prune unreachable autonomous decision paths from dependencies
+        if (autonomousEdges.length > 0) {
+            this.pruneUnreachablePaths(currentNodeId, autonomousEdges, validEdges);
+        }
+
         return validEdges;
+    }
+
+    /**
+     * Prune unreachable autonomous decision paths from dependency map
+     * When an autonomous decision is made, remove the unchosen paths from downstream dependencies
+     */
+    private pruneUnreachablePaths(currentNodeId: string, allAutonomousEdges: DAGEdge[], selectedEdges: DAGEdge[]): void {
+        // Find which autonomous edges were NOT selected
+        const unselectedEdges = allAutonomousEdges.filter(edge => !selectedEdges.includes(edge));
+
+        if (unselectedEdges.length === 0) return;
+
+        console.log(`🔪 Pruning unreachable paths from ${currentNodeId}:`);
+
+        // For each unselected edge, remove its target from all downstream dependency maps
+        for (const unselectedEdge of unselectedEdges) {
+            const unreachableNode = unselectedEdge.to;
+            console.log(`  ❌ Removing unreachable node: ${unreachableNode}`);
+
+            // Remove this unreachable node from all pending dependency sets
+            for (const [nodeId, predecessors] of this.pendingNodes.entries()) {
+                if (predecessors.has(unreachableNode)) {
+                    console.log(`    🔧 Removing ${unreachableNode} from ${nodeId}'s dependencies`);
+                    predecessors.delete(unreachableNode);
+                }
+            }
+        }
     }
 
     /**
@@ -755,11 +793,11 @@ console.log('USER QUERY  ',conversationCtx.userQuery )
         // Get or instantiate the CURRENT node's agent
         let agent: any;
         if (agentType === 'sdk_agent') {
-            agent = this.instantiateSDKAgent(agentName);
+            agent = this.instantiateSDKAgent(agentName, nodeId);
         } else if (agentType === 'agent') {
             // CRITICAL: Instantiate a NEW GenericAgent for each node execution
             // to prevent race conditions when the same agent is used in parallel branches
-            agent = this.instantiateGenericAgent(agentName);
+            agent = this.instantiateGenericAgent(agentName, nodeId);
         } else {
             // For special cases like context_pass
             agent = {
@@ -789,28 +827,29 @@ console.log('USER QUERY  ',conversationCtx.userQuery )
         };
     }
 
-    private instantiateSDKAgent(agentName: string): any {
+    private instantiateSDKAgent(agentName: string, nodeId: string): any {
         const contextManager = this.coordinator.contextManager;
 
         switch (agentName) {
             case 'DataProfiler':
                 return new DataProfiler(contextManager);
             case 'SimpleDataAnalyzer':
-                return new SimpleDataAnalyzer(contextManager);
+                return new SimpleDataAnalyzer(contextManager,nodeId);
             case 'D3JSCodeValidator':
-                return new D3JSCodeValidator(contextManager, this.coordinator);
+                return new D3JSCodeValidator(contextManager, this.coordinator, nodeId);
             default:
                 throw new Error(`Unknown SDK agent: ${agentName}`);
         }
     }
 
-    private instantiateGenericAgent(agentName: string): GenericAgent {
+    private instantiateGenericAgent(agentName: string, nodeId: string): GenericAgent {
         // Get the template agent from registry
         const templateAgent = this.coordinator.agents.get(agentName);
         if (!templateAgent) {
             throw new Error(`GenericAgent not found in registry: ${agentName}`);
         }
-
+        const agentDefinition = templateAgent.getAgentDefinition();
+        agentDefinition.id = nodeId;
         // Create a NEW instance to prevent race conditions in parallel execution
         return new GenericAgent(templateAgent.getAgentDefinition());
     }

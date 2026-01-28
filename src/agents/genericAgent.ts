@@ -149,11 +149,11 @@ export class GenericAgent {
 
       // TEMPORARY: For testing, return hardcoded data for D3JSCodingAgent
       if(this.definition.name === 'D3JSCodingAgent'){
-        console.log('🔧 D3JSCodingAgent: Reading test data from opus.html');
+        console.log('🔧 D3JSCodingAgent: Reading test data from opus.html', this.definition.id);
        //  result = await this.invokeLLM(prompt);
        if(this.definition.id === 'meta-viz'){
                //  result = await this.invokeLLM(prompt);
-               result.result = fs.readFileSync('C:/repos/Main/openai_meta_viz', 'utf-8');
+               result.result = fs.readFileSync('C:/repos/Main/openai_meta_viz.html', 'utf-8');
        } else if(this.definition.id === 'needle-viz'){
                //  result = await this.invokeLLM(prompt);
                result.result = fs.readFileSync('C:/repos/Main/gemini_meta_viz.html', 'utf-8');

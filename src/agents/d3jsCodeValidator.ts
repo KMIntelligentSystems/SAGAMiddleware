@@ -27,8 +27,8 @@ export class D3JSCodeValidator extends BaseSDKAgent {
     private d3Client: D3VisualizationClient | null = null;
     private coordinator: any; // Reference to SagaCoordinator for local tools
 
-    constructor(contextManager?: any, coordinator?: any) {
-        super('D3JSCodeValidator', 20, contextManager);
+    constructor(contextManager?: any, coordinator?: any,  nodeId?: string ) {
+        super('D3JSCodeValidator', 20, contextManager, nodeId);
         this.coordinator = coordinator;
 
         // Setup MCP tools for D3 visualization analysis and decision making
@@ -251,7 +251,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
     async execute(input: D3ValidationInput): Promise<AgentResult> {
         try {
             const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
-
+console.log('VALIDATOR PROMPT 1', ctx)
             if (!ctx || !ctx.lastTransactionResult) {
                 return {
                     agentName: 'D3JSCodeValidator',
@@ -267,15 +267,23 @@ export class D3JSCodeValidator extends BaseSDKAgent {
               RELATIVE PATH: ./data/prices.csv **NOTE** Use relative path in html 
               Outputs: Complete D3.js HTML histogram visualization`
 
-            input.pythonAnalysis = ctx.lastTransactionResult.ANALYSIS;
-            input.d3jsCode = ctx.lastTransactionResult.CODE;
-            
-            const prompt = this.buildPrompt(input);
+              
+          //  input.pythonAnalysis = ''//ctx.lastTransactionResult.ANALYSIS;
+        //    input.d3jsCode = ''//ctx.lastTransactionResult.CODE;
+            console.log('VALIDATOR PROMPT 2')
+            const prompt = ''//this.buildPrompt(input);
         //    console.log('VALIDATOR PROMPT', prompt)
-            const output = opusCodeValidatorResult //await this.executeQuery(prompt); //opusCodeValidatorResult //openai3Issues//
+            const output = 'THIS IS A TEST';//opusCodeValidatorResult //await this.executeQuery(prompt); //opusCodeValidatorResult //openai3Issues//
+console.log('VALIDATOR PROMPT', output)
+         //   this.setContext({ APPRAISAL: output, ANALYSIS: input.pythonAnalysis, CODE: input.d3jsCode });//CODE: input.d3jsCode,USER_REQUIREMENT: userQuery, ANALYSIS: input.pythonAnalysis,
+            //TEST
+             const args =  {
+                code: 'test code',
+                message: ''
+            }   
+            await this.handleTriggerConversation(args)
+            const conversationAgent = this.coordinator.agents.get('ConversationAgent');
 
-            this.setContext({ APPRAISAL: output, ANALYSIS: input.pythonAnalysis, CODE: input.d3jsCode });//CODE: input.d3jsCode,USER_REQUIREMENT: userQuery, ANALYSIS: input.pythonAnalysis,
-            
 
             return {
                 agentName: 'D3JSCodeValidator',

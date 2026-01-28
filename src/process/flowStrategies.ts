@@ -14,6 +14,7 @@ import { getPrompt, hasPrompt } from '../config/promptRegistry.js';
 import { validateWorkflowRequirements } from '../tools/workflowRequirementsBuilder.js';
 import { opusPythonAnalysisResult_Jan_02,  openaiPythonAnalysisResult_Jan_02, openaiD3JSCodingAgentPrompt_Jan_02 , openaiDataProfilerPrompt_Jan_02, opusD3JSCodingAgentPrompt_Jan_02  } from '../test/histogramData.js'
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js';
+import { AgentDataArray } from '../agents/userQueryAnalyzerAgent.js';
 
 /**
  * Clean context data by removing redundant metadata and normalizing strings
@@ -123,6 +124,25 @@ export const LLMCallStrategy: FlowStrategy = {
             }
         }
 
+        // Get agent-specific data from UserQueryAnalyzerAgent context
+        const userQueryCtx = contextManager.getContext('UserQueryAnalyzerAgent') as WorkingMemory;
+        let agentSpecificData: any = null;
+
+        if (userQueryCtx?.lastTransactionResult) {
+            const agentDataArray = userQueryCtx.lastTransactionResult as AgentDataArray;
+            // Find the data entry for this specific agent by matching agentName and nodeId
+            const dataEntry = agentDataArray.find(item =>
+                item.agentName === agent.getName() && item.id === nodeId
+            );
+
+            if (dataEntry) {
+                agentSpecificData = dataEntry.agentData;
+                console.log(`📦 LLMCallStrategy: Found agent-specific data for ${agent.getName()} (node: ${nodeId})`);
+            } else {
+                console.warn(`⚠️ No agent-specific data found for ${agent.getName()} (node: ${nodeId}) in UserQueryAnalyzerAgent context`);
+            }
+        }
+
         // Get input from source context
         const ctx = contextManager.getContext(agent.getName()) as WorkingMemory;
         const cleanedCtx = cleanContextData(ctx);
@@ -130,19 +150,33 @@ export const LLMCallStrategy: FlowStrategy = {
         // Execute agent ONCE
         console.log(`🎯 LLMCallStrategy: About to execute ${agent.getName()}`);
         agent.setTaskDescription(targetPrompt);
-      //  agent.deleteContext();
-        const result = await agent.execute({'FOR YOUR TASK: ': cleanedCtx});
+
+        // Build execution input with agent-specific data if available
+        const executionInput: any = {'FOR YOUR TASK: ': cleanedCtx};
+        if (agentSpecificData) {
+            executionInput['AGENT_SPECIFIC_DATA'] = agentSpecificData;
+        }
+
+        const result = await agent.execute(executionInput);
         console.log(`✅ LLMCallStrategy: Completed execution of ${agent.getName()}, success: ${result.success}`);
 
         // Store result in ALL target agents' contexts
+        let prevCtx;
         for (const targetAgent of targetAgents) {
+            prevCtx = contextManager.getContext(targetAgent)
             contextManager.updateContext(targetAgent, {
                 lastTransactionResult: result.result,
                 transactionId: agent.getId(),
                 timestamp: new Date()
             });
             console.log(`✅ LLMCallStrategy: Stored result in ${targetAgent} context`);
+            if(targetAgent === 'D3JSCodeValidator'){
+                console.log('HTML LAYOUT ', result.result)
+            }
         }
+        /*
+1. ReportWritingAgent adds report to layout
+        */
 
         return result;
     }
@@ -653,15 +687,25 @@ export const SDKAgentStrategy: FlowStrategy = {
 
         // Store result in ALL target agents' contexts
         for (const targetAgent of targetAgents) {
-            contextManager.updateContext(targetAgent, {
-//lastTransactionResult: result.result,
-                sdkResult: result.result,
-                userQuery: ctx?.userQuery,
-                transactionId: agent.getName(),
-                timestamp: new Date()
+            if(result.result === 'THIS IS A TEST'){
+                contextManager.updateContext(targetAgent, {
+                   // lastTransactionResult: result.result,
+                    sdkInput: ctx?.lastTransactionResult,
+                    userQuery: ctx?.userQuery,
+                    transactionId: agent.getName(),
+                    timestamp: new Date()
             });
+            }
+
             console.log(`✅ SDKAgentStrategy: Stored result in ${targetAgent} context`);
+              if(targetAgent === 'HTMLLayoutDesignAgent'){
+                console.log('HTML LAYOUT SDK ', result.result)
+            }
         }
+            /*
+2. D3JSCodeValidator adds ' ' to layout
+        */
+
 
         return result;
     }
