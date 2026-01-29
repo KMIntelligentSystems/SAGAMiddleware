@@ -95,6 +95,22 @@ export interface NodeExecutor {
         targetAgents: string[],
         sourceAgentName: string
     ): Promise<any>;
+
+    /**
+     * Distribute execution results to target agents (for decision nodes)
+     * @param sourceAgentName - Name of the agent that produced the result
+     * @param targetAgents - Array of target agent names to receive the result
+     * @param result - The result to distribute
+     * @param nodeId - The ID of the node
+     * @param agentType - Type of the agent that produced the result
+     */
+    distributeResultsToTargets(
+        sourceAgentName: string,
+        targetAgents: string[],
+        result: any,
+        nodeId: string,
+        agentType: string
+    ): Promise<void>;
 }
 
 /**
@@ -219,7 +235,7 @@ export class DAGExecutor extends EventEmitter {
             // For autonomous_decision, evaluate condition
             if (edge.flowType === 'autonomous_decision') {
                 autonomousEdges.push(edge);
-                console.log('AUTO CONTEXT ', this.context)
+              //  console.log('AUTO CONTEXT ', this.context)
                 if (this.evaluateCondition(edge, this.context)) {
                     validEdges.push(edge);
                 }
@@ -233,7 +249,7 @@ export class DAGExecutor extends EventEmitter {
         if (autonomousEdges.length > 0) {
             this.pruneUnreachablePaths(currentNodeId, autonomousEdges, validEdges);
         }
-
+console.log('AUTO VALID ', validEdges)
         return validEdges;
     }
 
@@ -283,13 +299,31 @@ export class DAGExecutor extends EventEmitter {
 
     /**
      * Get target agent names from outgoing edges
+     * For decision nodes, only returns targets for edges that will be followed
      */
-    private getTargetAgentsForNode(nodeId: string): string[] {
-        const outgoingEdges = this.getOutgoingEdges(nodeId);
-        return outgoingEdges.map(edge => {
+    private getTargetAgentsForNode(nodeId: string, evaluateConditions: boolean = false): string[] {
+        let edges: DAGEdge[];
+
+        if (evaluateConditions) {
+            // Use getNextEdges to filter based on conditions (for decision nodes)
+            edges = this.getNextEdges(nodeId);
+        } else {
+            // Get all outgoing edges (for normal nodes)
+            edges = this.getOutgoingEdges(nodeId);
+        }
+
+        return edges.map(edge => {
             const targetNode = this.dag.nodes.find(n => n.id === edge.to);
             return targetNode?.agentName || edge.to;
         });
+    }
+
+    /**
+     * Check if a node has autonomous decision edges
+     */
+    private hasAutonomousDecisionEdges(nodeId: string): boolean {
+        const outgoingEdges = this.getOutgoingEdges(nodeId);
+        return outgoingEdges.some(edge => edge.flowType === 'autonomous_decision');
     }
 
     /**
@@ -324,8 +358,14 @@ export class DAGExecutor extends EventEmitter {
             const sourceNode = this.getNode(sourceNodeId);
             const sourceAgentName = sourceNode?.agentName || sourceNodeId;
 
-            // Get target agents from outgoing edges
-            const targetAgents = this.getTargetAgentsForNode(nodeId);
+            // Check if this node has autonomous decision edges
+            const hasDecisionEdges = this.hasAutonomousDecisionEdges(nodeId);
+
+            // For decision nodes, we'll determine targets AFTER execution
+            // For normal nodes, get all target agents now
+            const targetAgents = hasDecisionEdges ? [] : this.getTargetAgentsForNode(nodeId);
+
+            console.log(`🔍 Node ${nodeId} has decision edges: ${hasDecisionEdges}, initial targets: ${targetAgents.join(', ')}`);
 
             // Call the external executor - it handles the actual agent execution
             const output = await this.nodeExecutor.executeNode(
@@ -337,17 +377,27 @@ export class DAGExecutor extends EventEmitter {
                 targetAgents,
                 sourceAgentName
             );
-            
+
             const duration = Date.now() - startTime;
 
-            // Update context with node output
+            // Update context with node output BEFORE evaluating conditions
             this.context[nodeId] = output;
             this.context.lastNodeOutput = output;
             this.context.lastExecutedNode = nodeId;
-            
+
             // Merge output into context if it's an object
             if (output && typeof output === 'object') {
                 this.context = { ...this.context, ...output };
+            }
+
+            // For decision nodes, NOW evaluate conditions and update only valid targets
+            if (hasDecisionEdges) {
+                const validTargets = this.getTargetAgentsForNode(nodeId, true);
+                console.log(`✅ Decision node ${nodeId}: Valid targets after condition evaluation: ${validTargets.join(', ')}`);
+
+                // Manually update contexts for valid targets only
+                // This is done by calling a method on the nodeExecutor to distribute results
+                await this.nodeExecutor.distributeResultsToTargets(node.agentName, validTargets, output, nodeId, node.type);
             }
 
             const result: NodeExecutionResult = {
@@ -723,6 +773,18 @@ export class ExampleNodeExecutor implements NodeExecutor {
 
         return { success: true, data: `Output from ${agentName}` };
     }
+
+    async distributeResultsToTargets(
+        sourceAgentName: string,
+        targetAgents: string[],
+        result: any,
+        nodeId: string,
+        agentType: string
+    ): Promise<void> {
+        console.log(`📤 ExampleNodeExecutor: Distributing results from ${sourceAgentName} (${agentType}) to ${targetAgents.join(', ')}`);
+        // In a real implementation, this would update the context manager or storage
+        // For the example executor, this is a no-op since it doesn't maintain state
+    }
 }
 
 /**
@@ -771,7 +833,7 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
                     lastTransactionResult: conversationCtx.lastTransactionResult,
                     userQuery: conversationCtx.userQuery
                 });
-console.log('USER QUERY  ',conversationCtx.userQuery )
+//console.log('USER QUERY  ',conversationCtx.userQuery )
                   this.coordinator.contextManager.updateContext('ReportWritingAgent', {
                     userQuery: conversationCtx.userQuery
                 });
@@ -852,6 +914,75 @@ console.log('USER QUERY  ',conversationCtx.userQuery )
         agentDefinition.id = nodeId;
         // Create a NEW instance to prevent race conditions in parallel execution
         return new GenericAgent(templateAgent.getAgentDefinition());
+    }
+
+    async distributeResultsToTargets(
+        sourceAgentName: string,
+        targetAgents: string[],
+        result: any,
+        nodeId: string,
+        agentType: string
+    ): Promise<void> {
+        console.log(`\n📤 StrategyBasedNodeExecutor: Distributing results from ${sourceAgentName} (${agentType}) to ${targetAgents.join(', ')}`);
+
+        // Replicate the context distribution logic from the strategies
+        // This mimics what LLMCallStrategy and SDKAgentStrategy do when writing to target contexts
+
+        if (agentType === 'agent') {
+            // For GenericAgent (LLM-based), replicate LLMCallStrategy context distribution
+            let prevCtx;
+            let preCtxRes;
+            for (const targetAgent of targetAgents) {
+                prevCtx = this.coordinator.contextManager.getContext(targetAgent);
+                preCtxRes = prevCtx?.lastTransactionResult;
+
+                if (preCtxRes) {
+                    this.coordinator.contextManager.updateContext(targetAgent, {
+                        lastTransactionResult: result.data,
+                        prevResult: prevCtx?.lastTransactionResult,
+                        transactionId: nodeId,
+                        timestamp: new Date()
+                    });
+                } else {
+                    this.coordinator.contextManager.updateContext(targetAgent, {
+                        lastTransactionResult: result.data,
+                        transactionId: nodeId,
+                        timestamp: new Date()
+                    });
+                }
+
+                console.log(`✅ Distributed GenericAgent result to ${targetAgent}`);
+            }
+        } else if (agentType === 'sdk_agent') {
+            // For SDK Agent, replicate SDKAgentStrategy context distribution
+            const ctx = this.coordinator.contextManager.getContext(sourceAgentName);
+
+            for (const targetAgent of targetAgents) {
+                this.coordinator.contextManager.updateContext(targetAgent, {
+                    sdkResult: result.data,
+                    sdkInput: ctx?.lastTransactionResult,
+                    userQuery: ctx?.userQuery,
+                    transactionId: sourceAgentName,
+                    timestamp: new Date()
+                });
+
+                if(targetAgent === 'HTMLLayoutDesignAgent'){
+                    console.log('DISTRIBUTE ', JSON.stringify(ctx))
+                }
+
+                console.log(`✅ Distributed SDK Agent result to ${targetAgent}`);
+            }
+        } else {
+            console.warn(`⚠️ Unknown agentType for distribution: ${agentType}, using generic distribution`);
+            // Fallback: generic distribution
+            for (const targetAgent of targetAgents) {
+                this.coordinator.contextManager.updateContext(targetAgent, {
+                    lastTransactionResult: result,
+                    transactionId: sourceAgentName,
+                    timestamp: new Date()
+                });
+            }
+        }
     }
 }
 

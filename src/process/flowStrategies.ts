@@ -145,6 +145,9 @@ export const LLMCallStrategy: FlowStrategy = {
 
         // Get input from source context
         const ctx = contextManager.getContext(agent.getName()) as WorkingMemory;
+        if(agent.getName() === 'HTMLLayoutDesignAgent'){
+            console.log('TARGET FOR HTML ', JSON.stringify(ctx))
+        }
         const cleanedCtx = cleanContextData(ctx);
 
         // Execute agent ONCE
@@ -162,16 +165,31 @@ export const LLMCallStrategy: FlowStrategy = {
 
         // Store result in ALL target agents' contexts
         let prevCtx;
+        let preCtxRes;
         for (const targetAgent of targetAgents) {
-            prevCtx = contextManager.getContext(targetAgent)
-            contextManager.updateContext(targetAgent, {
-                lastTransactionResult: result.result,
-                transactionId: agent.getId(),
-                timestamp: new Date()
+            if(targetAgent === 'HTMLLayoutDesignAgent'){
+               // console.log('HTML REPORT ', JSON.stringify(result.result))
+            }
+            prevCtx = contextManager.getContext(targetAgent) as WorkingMemory;
+            preCtxRes = prevCtx?.lastTransactionResult;
+            if(preCtxRes){
+                contextManager.updateContext(targetAgent, {
+                    lastTransactionResult: result.result,
+                    prevResult: prevCtx?.lastTransactionResult,
+                    transactionId: agent.getId(),
+                    timestamp: new Date()
             });
+            } else{
+                contextManager.updateContext(targetAgent, {
+                    lastTransactionResult: result.result,
+                    transactionId: agent.getId(),
+                    timestamp: new Date()
+            });
+            }
+         
             console.log(`✅ LLMCallStrategy: Stored result in ${targetAgent} context`);
             if(targetAgent === 'D3JSCodeValidator'){
-                console.log('HTML LAYOUT ', result.result)
+            //    console.log('HTML LAYOUT ', result.result)//html->this is a test-> needle-viz
             }
         }
         /*
@@ -665,6 +683,17 @@ export const SDKAgentStrategy: FlowStrategy = {
             throw new Error(`SDKAgentStrategy requires BaseSDKAgent, got: ${agent.constructor.name}`);
         }
 
+        if(!targetAgents){
+            console.log('HEREE')
+              let result: AgentResult = {
+      agentName: '',
+      result: 'TEST',
+      success: true,
+      timestamp: new Date()
+    };
+    return result;
+        }
+
         console.log(`🔄 SDKAgentStrategy: Executing SDK agent ${agent.getName()} for targets: ${targetAgents.join(', ')}`);
 
         // Get prompt for current agent
@@ -685,23 +714,31 @@ export const SDKAgentStrategy: FlowStrategy = {
         // Execute SDK agent ONCE (it will read its input from contextManager)
         const result = await agent.execute({id: nodeId});
 
-        // Store result in ALL target agents' contexts
+          let prevCtx  = contextManager.getContext('HTMLLayoutDesignAgent') as WorkingMemory;;
+//console.log('HTML CONDITION ', JSON.stringify(prevCtx))
+console.log('HTML CONDITION ')
+        let preCtxRes;
         for (const targetAgent of targetAgents) {
-            if(result.result === 'THIS IS A TEST'){
+            console.log(`✅ SDKAgentStrategy: Stored result in ${targetAgent} context`);
+            prevCtx = contextManager.getContext(targetAgent) as WorkingMemory;
+            preCtxRes = prevCtx?.sdkInput;
+            if(preCtxRes){
                 contextManager.updateContext(targetAgent, {
-                   // lastTransactionResult: result.result,
-                    sdkInput: ctx?.lastTransactionResult,
+                    lastTransactionResult: result.result,
+                    sdkInput: {'DATA PROVISION:':ctx?.lastTransactionResult, 'DATA PROVISION NEXT:':preCtxRes} ,
                     userQuery: ctx?.userQuery,
-                    transactionId: agent.getName(),
+                    timestamp: new Date()
+            });
+            } else{
+                contextManager.updateContext(targetAgent, {
+                    lastTransactionResult: result.result,
+                    sdkInput: ctx?.lastTransactionResult,
                     timestamp: new Date()
             });
             }
-
-            console.log(`✅ SDKAgentStrategy: Stored result in ${targetAgent} context`);
-              if(targetAgent === 'HTMLLayoutDesignAgent'){
-                console.log('HTML LAYOUT SDK ', result.result)
-            }
-        }
+        } 
+       
+        
             /*
 2. D3JSCodeValidator adds ' ' to layout
         */

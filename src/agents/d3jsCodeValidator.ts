@@ -251,7 +251,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
     async execute(input: D3ValidationInput): Promise<AgentResult> {
         try {
             const ctx = this.contextManager.getContext('D3JSCodeValidator') as WorkingMemory;
-console.log('VALIDATOR PROMPT 1', ctx)
+//console.log('VALIDATOR PROMPT 1', ctx)
             if (!ctx || !ctx.lastTransactionResult) {
                 return {
                     agentName: 'D3JSCodeValidator',

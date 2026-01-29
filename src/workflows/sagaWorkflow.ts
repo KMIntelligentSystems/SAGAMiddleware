@@ -666,7 +666,7 @@ Focus: Only array extraction
     //   message.data = {message: claudeMDResuilt};
 
 
-        console.log(`\n🧵 Received create_code from browser:` + JSON.stringify(message.data));
+     //   console.log(`\n🧵 Received create_code from browser:` + JSON.stringify(message.data));
         await this.handleOpenAIThreadRequest(message)
        } else if (message.type === 'update_code' && message.source === 'react-app') {
         console.log(`📊 Received start-graph-request from browser: ${JSON.stringify(message.data)}`);
@@ -1154,7 +1154,7 @@ const requirements_endo: WorkflowRequirements = {
     const promptGenResult = await promptGeneratorAgent.execute();
     const promptArray = promptGenResult.result as AgentPromptArray;
 
-    console.log('DAG ', dagDesignerCtx.lastTransactionResult)
+//console.log('DAG ', dagDesignerCtx.lastTransactionResult)
 
     // STEP 3: Analyze user query to extract detailed agent-specific data
     const userQueryAnalyzer = new UserQueryAnalyzerAgent(

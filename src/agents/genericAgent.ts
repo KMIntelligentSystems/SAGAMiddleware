@@ -173,7 +173,7 @@ export class GenericAgent {
        result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_reportwritingAgent_endo_Result.txt', 'utf-8');
       }
     console.log('GENERIC AGENT ',this.definition.name)
-  console.log('GENERIC RESULT ',result.result)
+ // console.log('GENERIC RESULT ',result.result)
 
 
       return {

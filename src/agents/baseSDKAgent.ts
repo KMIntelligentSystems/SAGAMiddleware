@@ -120,7 +120,7 @@ export abstract class BaseSDKAgent {
      */
     setContext(value: any){
         console.log('SDK NAME', this.getName())
-          console.log('SDK VALUE',value)
+      //    console.log('SDK VALUE',value)
          this.contextManager.updateContext(this.agentName, {
             lastTransactionResult: value,
             transactionId: 'tx-2',

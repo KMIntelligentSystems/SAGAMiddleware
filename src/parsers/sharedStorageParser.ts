@@ -151,7 +151,7 @@ export class SharedStorageParser {
    * Parse PageDesignResult from raw data
    */
   private static parsePageDesign(data: any): PageDesignResult {
-    console.log('DAAAAAAAAAAATAAAAAAA  ', data)
+//    console.log('DAAAAAAAAAAATAAAAAAA  ', data)
     return {
       designId: data.designId || '',
       timestamp: data.timestamp || Date.now(),
