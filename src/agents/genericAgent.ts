@@ -18,7 +18,7 @@ const genAI = new GoogleGenAI({
 // Shared OpenAI client to avoid race conditions from creating multiple clients
 const sharedOpenAIClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  timeout: 120000, // 2 minute timeout for API calls
+  timeout: 600000, // 10 minute timeout for API calls
   maxRetries: 2, // Retry failed requests twice
 });
 
@@ -156,7 +156,7 @@ export class GenericAgent {
                result.result = fs.readFileSync('C:/repos/Main/openai_meta_viz.html', 'utf-8');
        } else if(this.definition.id === 'needle-viz'){
                //  result = await this.invokeLLM(prompt);
-               result.result = fs.readFileSync('C:/repos/Main/gemini_meta_viz.html', 'utf-8');
+               result.result = fs.readFileSync('C:/repos/Main/gemini_needle_viz.html', 'utf-8');//
        }
       }
 
@@ -172,10 +172,19 @@ export class GenericAgent {
          console.log('🔧 Using reportwritingagent - AFTER invokeLLM, result length:', result.result?.length);
        result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_reportwritingAgent_endo_Result.txt', 'utf-8');
       }
+      
+      if(this.definition.name === 'HTMLLayoutDesignAgent'){
+        console.log('🔧 Using HTMLLayoutDesignAgent - BEFORE invokeLLM');
+         result = await this.invokeLLM(prompt);
+         console.log('🔧 Using HTMLLayoutDesignAgent - AFTER invokeLLM, result length:', result.result?.length);
+     //  result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_reportwritingAgent_endo_Result.txt', 'utf-8');
+      }
+
+
     console.log('GENERIC AGENT ',this.definition.name)
- // console.log('GENERIC RESULT ',result.result)
-
-
+    if(this.definition.name === 'HTMLLayoutDesignAgent'){
+      console.log('GENERIC RESULT ',result.result) 
+    }
       return {
         agentName: this.definition.name,
         result: result.result,  // Extract just the result data, not the whole AgentResult
@@ -498,25 +507,16 @@ console.log('MODEL ', config.model)
     console.log('🔵 Creating OpenAI API call - Agent:', this.getName())
 
     // Create the promise and log it
-    const apiCall = client.chat.completions.create({
+    console.log('🟡 API call starting... - Agent:', this.getName())
+
+    const response = await client.chat.completions.create({
        messages: [userMessage],
         model: config.model,
       //  temperature: 0.3,
      //   maxTokens: 3000,
     });
 
-    console.log('🟡 API call created, now awaiting... - Agent:', this.getName())
-
-    // Add a timeout wrapper
-    const timeout = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        console.error('⏱️  OpenAI API call TIMEOUT after 180 seconds - Agent:', this.getName());
-        reject(new Error('OpenAI API call timeout after 180 seconds'));
-      }, 180000); // 3 minutes
-    });
-
-    const response = await Promise.race([apiCall, timeout]);
-    console.log('🟢 Await completed! - Agent:', this.getName())
+    console.log('🟢 API call completed! - Agent:', this.getName())
 
     console.log('✅ RESPONSE RECEIVED - Agent:', this.getName(), 'Timestamp:', new Date().toISOString(), 'Response length:', response.choices[0]?.message?.content?.length)
     return  {
@@ -820,7 +820,7 @@ try{
     // No tools available, use regular completion
     console.log('🔄 Starting Anthropic API call...');
     const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('API call timeout after 120 seconds')), 120000)
+      setTimeout(() => reject(new Error('API call timeout after 120 seconds')), 240000)
     );
     
     const apiPromise = client.messages.create({

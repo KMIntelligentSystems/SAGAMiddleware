@@ -182,7 +182,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
 
             // Call the local tool function
             const result = await trigger_conversation(toolContext, args);
-
+console.log('IN D3 JS CODE VALIDATOR    ', JSON.stringify(result, null, 2))
             return {
                 content: [{
                     type: 'text' as const,

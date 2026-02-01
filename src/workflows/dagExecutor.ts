@@ -14,6 +14,83 @@ import {
 
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 
+/**
+ * Clean context data by removing redundant metadata and normalizing strings
+ * Preserves all actual data content needed for agent reasoning
+ */
+function cleanContextData(data: any): any {
+    if (!data || typeof data !== 'object') {
+        // Clean strings: detect and parse JSON strings, then normalize
+        if (typeof data === 'string') {
+            // Try to detect and parse JSON-stringified data
+            let parsed = data;
+            if ((data.startsWith('{') && data.endsWith('}')) ||
+                (data.startsWith('[') && data.endsWith(']')) ||
+                (data.startsWith('"') && data.endsWith('"'))) {
+                try {
+                    parsed = JSON.parse(data);
+                    // If parsed successfully and it's a string, recursively clean it
+                    if (typeof parsed === 'string') {
+                        return cleanContextData(parsed);
+                    }
+                    // If it's an object or array, recursively clean it
+                    if (typeof parsed === 'object') {
+                        return cleanContextData(parsed);
+                    }
+                } catch (e) {
+                    // Not valid JSON, continue with string cleaning
+                    parsed = data;
+                }
+            }
+
+            // Clean the string by removing escape characters
+            // Apply replacements multiple times to handle nested escaping
+            let cleaned = parsed;
+            let prevCleaned = '';
+
+            // Keep cleaning until no more changes occur (handles multiple levels of escaping)
+            while (cleaned !== prevCleaned) {
+                prevCleaned = cleaned;
+                cleaned = cleaned
+                    .replace(/\\\\/g, '\\')          // Convert \\ to single \ (do first to prevent double-unescaping)
+                    .replace(/\\n/g, '\n')           // Convert \n to actual newlines
+                    .replace(/\\t/g, '\t')           // Convert \t to actual tabs
+                    .replace(/\\"/g, '"')            // Convert \" to "
+                    .replace(/\\'/g, "'");           // Convert \' to '
+            }
+
+            // Don't collapse newlines and tabs - only trim whitespace
+            return cleaned.trim();
+        }
+        return data;
+    }
+
+    // If it's an array, clean each item
+    if (Array.isArray(data)) {
+        return data.map(item => cleanContextData(item));
+    }
+
+    const cleaned: any = {};
+
+    for (const [key, value] of Object.entries(data)) {
+        // Only skip timestamp metadata (not useful for agent reasoning)
+        if (key === 'timestamp') {
+            continue;
+        }
+
+        // Recursively clean nested objects and strings
+        if (typeof value === 'object' && value !== null) {
+            cleaned[key] = cleanContextData(value);
+        } else if (typeof value === 'string') {
+            cleaned[key] = cleanContextData(value);
+        } else {
+            cleaned[key] = value;
+        }
+    }
+
+    return cleaned;
+}
+
 // Types matching your DAG structure
 interface DAGNode {
     id: string;
@@ -957,17 +1034,36 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             // For SDK Agent, replicate SDKAgentStrategy context distribution
             const ctx = this.coordinator.contextManager.getContext(sourceAgentName);
 
+
             for (const targetAgent of targetAgents) {
+                let sdkPrevRes;
+                let prevCtx = this.coordinator.contextManager.getContext(targetAgent);
+
+                if(prevCtx.sdkInput){
+                    // Clean both the existing sdkInput and the new lastTransactionResult
+                    const cleanedPrevInput = cleanContextData(prevCtx.sdkInput);
+                    const cleanedNewResult = cleanContextData(ctx?.lastTransactionResult);
+                    // Pass as structured object without stringifying to preserve D3.js/HTML code
+                    sdkPrevRes = {
+                        previous: cleanedPrevInput,
+                        current: cleanedNewResult
+                    };
+                } else{
+                    // Clean the lastTransactionResult before using it
+                    sdkPrevRes = cleanContextData(ctx?.lastTransactionResult);
+                }
+
                 this.coordinator.contextManager.updateContext(targetAgent, {
-                    sdkResult: result.data,
-                    sdkInput: ctx?.lastTransactionResult,
-                    userQuery: ctx?.userQuery,
+
+                 //   sdkResult: result.data, do not add result of validator
+                    sdkInput: sdkPrevRes,
+                 //   userQuery: ctx?.userQuery,
                     transactionId: sourceAgentName,
                     timestamp: new Date()
                 });
 
                 if(targetAgent === 'HTMLLayoutDesignAgent'){
-                    console.log('DISTRIBUTE ', JSON.stringify(ctx))
+                  //  console.log('DISTRIBUTE ', JSON.stringify(ctx))
                 }
 
                 console.log(`✅ Distributed SDK Agent result to ${targetAgent}`);

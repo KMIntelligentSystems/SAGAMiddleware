@@ -22,16 +22,47 @@ import { AgentDataArray } from '../agents/userQueryAnalyzerAgent.js';
  */
 function cleanContextData(data: any): any {
     if (!data || typeof data !== 'object') {
-        // Clean strings: remove escape characters and normalize whitespace
+        // Clean strings: detect and parse JSON strings, then normalize
         if (typeof data === 'string') {
-            return data
-                .replace(/\\n/g, '\n')           // Convert \n to actual newlines
-                .replace(/\\t/g, '\t')           // Convert \t to actual tabs
-                .replace(/\\\\/g, '\\')          // Convert \\ to single \
-                .replace(/\\"/g, '"')            // Convert \" to "
-                .replace(/\\'/g, "'")            // Convert \' to '
-                .replace(/\s+/g, ' ')            // Collapse multiple spaces to single space
-                .trim();                         // Remove leading/trailing whitespace
+            // Try to detect and parse JSON-stringified data
+            let parsed = data;
+            if ((data.startsWith('{') && data.endsWith('}')) ||
+                (data.startsWith('[') && data.endsWith(']')) ||
+                (data.startsWith('"') && data.endsWith('"'))) {
+                try {
+                    parsed = JSON.parse(data);
+                    // If parsed successfully and it's a string, recursively clean it
+                    if (typeof parsed === 'string') {
+                        return cleanContextData(parsed);
+                    }
+                    // If it's an object or array, recursively clean it
+                    if (typeof parsed === 'object') {
+                        return cleanContextData(parsed);
+                    }
+                } catch (e) {
+                    // Not valid JSON, continue with string cleaning
+                    parsed = data;
+                }
+            }
+
+            // Clean the string by removing escape characters
+            // Apply replacements multiple times to handle nested escaping
+            let cleaned = parsed;
+            let prevCleaned = '';
+
+            // Keep cleaning until no more changes occur (handles multiple levels of escaping)
+            while (cleaned !== prevCleaned) {
+                prevCleaned = cleaned;
+                cleaned = cleaned
+                    .replace(/\\\\/g, '\\')          // Convert \\ to single \ (do first to prevent double-unescaping)
+                    .replace(/\\n/g, '\n')           // Convert \n to actual newlines
+                    .replace(/\\t/g, '\t')           // Convert \t to actual tabs
+                    .replace(/\\"/g, '"')            // Convert \" to "
+                    .replace(/\\'/g, "'");           // Convert \' to '
+            }
+
+            // Don't collapse newlines and tabs - only collapse multiple spaces/tabs on same line
+            return cleaned.trim();
         }
         return data;
     }
@@ -167,9 +198,7 @@ export const LLMCallStrategy: FlowStrategy = {
         let prevCtx;
         let preCtxRes;
         for (const targetAgent of targetAgents) {
-            if(targetAgent === 'HTMLLayoutDesignAgent'){
-               // console.log('HTML REPORT ', JSON.stringify(result.result))
-            }
+          
             prevCtx = contextManager.getContext(targetAgent) as WorkingMemory;
             preCtxRes = prevCtx?.lastTransactionResult;
             if(preCtxRes){
@@ -714,28 +743,14 @@ export const SDKAgentStrategy: FlowStrategy = {
         // Execute SDK agent ONCE (it will read its input from contextManager)
         const result = await agent.execute({id: nodeId});
 
-          let prevCtx  = contextManager.getContext('HTMLLayoutDesignAgent') as WorkingMemory;;
-//console.log('HTML CONDITION ', JSON.stringify(prevCtx))
-console.log('HTML CONDITION ')
-        let preCtxRes;
+        
         for (const targetAgent of targetAgents) {
-            console.log(`✅ SDKAgentStrategy: Stored result in ${targetAgent} context`);
-            prevCtx = contextManager.getContext(targetAgent) as WorkingMemory;
-            preCtxRes = prevCtx?.sdkInput;
-            if(preCtxRes){
-                contextManager.updateContext(targetAgent, {
-                    lastTransactionResult: result.result,
-                    sdkInput: {'DATA PROVISION:':ctx?.lastTransactionResult, 'DATA PROVISION NEXT:':preCtxRes} ,
-                    userQuery: ctx?.userQuery,
-                    timestamp: new Date()
-            });
-            } else{
                 contextManager.updateContext(targetAgent, {
                     lastTransactionResult: result.result,
                     sdkInput: ctx?.lastTransactionResult,
                     timestamp: new Date()
+            
             });
-            }
         } 
        
         
