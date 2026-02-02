@@ -291,7 +291,7 @@ export class SagaWorkflow {
       //validation of rendering an agent [/AGENT  etc
       {
         agentName: 'ValidatingAgent',
-        agentType: 'processing',
+        agentType: 'tool',
         transactionId: 'tx-3',
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs 
         to be amended in the JSON object that does not follow the rules.`,
@@ -573,8 +573,8 @@ Focus: Only array extraction
       
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
-        provider: 'anthropic', //'anthropic' 'openai' 'gemini'
-        model: 'claude-sonnet-4-5',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        provider: 'openai', //'anthropic' 'openai' 'gemini'
+        model: 'gpt-5.2',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens: 24576, // Increased from 8192 to allow complete HTML generation
        // apiKey: process.env.ANTHROPIC_API_KEY

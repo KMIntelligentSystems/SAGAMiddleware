@@ -16,6 +16,9 @@ import { opusPythonAnalysisResult_Jan_02,  openaiPythonAnalysisResult_Jan_02, op
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js';
 import { AgentDataArray } from '../agents/userQueryAnalyzerAgent.js';
 
+import { renderD3VisualizationTool, getD3VisualizationToolSchema, getCsvDataTool, getCsvDataToolSchema } from '../tools/d3VisualizationTools.js';
+
+
 /**
  * Clean context data by removing redundant metadata and normalizing strings
  * Preserves all actual data content needed for agent reasoning
@@ -112,6 +115,36 @@ export interface FlowStrategy {
 }
 
 /**
+ * Register local tools for tool-enabled agents
+ * Registers D3 visualization tool and CSV data tool for agents with agentType === 'tool'
+ */
+function registerToolsForAgent(agent: GenericAgent): void {
+    // Only register if this is a tool agent and no tools are registered yet
+    if (agent.getAgentDefinition().agentType === 'tool' && agent.getLocalTools().length === 0) {
+
+        // Register D3 visualization tool
+        const d3ToolSchema = getD3VisualizationToolSchema();
+        agent.registerLocalTool({
+            name: d3ToolSchema.name,
+            serverName: 'local',
+            description: d3ToolSchema.description,
+            inputSchema: d3ToolSchema.inputSchema,
+            handler: renderD3VisualizationTool
+        });
+
+        // Register CSV data tool (pull model - agent fetches CSV on-demand)
+        const csvToolSchema = getCsvDataToolSchema();
+        agent.registerLocalTool({
+            name: csvToolSchema.name,
+            serverName: 'local',
+            description: csvToolSchema.description,
+            inputSchema: csvToolSchema.inputSchema,
+            handler: getCsvDataTool
+        });
+    }
+}
+
+/**
  * LLM Call Strategy
  * Executes a GenericAgent with an LLM call using a prompt from the config
  * Used for: Context preparation, data transformation, aggregation
@@ -176,9 +209,10 @@ export const LLMCallStrategy: FlowStrategy = {
 
         // Get input from source context
         const ctx = contextManager.getContext(agent.getName()) as WorkingMemory;
-        if(agent.getName() === 'HTMLLayoutDesignAgent'){
-            console.log('TARGET FOR HTML ', JSON.stringify(ctx))
-        }
+
+        // Register tools for tool-enabled agents
+        registerToolsForAgent(agent);
+
         const cleanedCtx = cleanContextData(ctx);
 
         // Execute agent ONCE

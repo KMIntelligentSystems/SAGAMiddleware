@@ -50,6 +50,15 @@ async function run() {
 
 
 
+// Local tool definition for non-MCP tools (like D3 visualization)
+export interface LocalToolDefinition {
+  name: string;
+  serverName: 'local';  // Marker to distinguish from MCP tools
+  description: string;
+  inputSchema: any;
+  handler: (args: any) => Promise<any>;  // Tool handler function
+}
+
 export class GenericAgent {
   private availableTools: any[] = [];
   private availableResources: any[] = [];
@@ -58,6 +67,8 @@ export class GenericAgent {
   private agentDefn: AgentDefinition;
   private counter = 0;
   private mcpInitialized = false;
+  private localTools: LocalToolDefinition[] = [];  // Store local tools separately
+
   constructor(private definition: AgentDefinition) {
     this.agentDefn = definition;
     // Don't call initializeMCPConnections here - it's async and can't be awaited in constructor
@@ -137,8 +148,11 @@ export class GenericAgent {
       // TEMPORARY: For testing, return hardcoded data for ValidatingAgent
       if(this.definition.name === 'ValidatingAgent'){
         console.log('🔧 ValidatingAgent: Returning test data (sonnetJSONRenderedPythonAnalysis)');
-      //  result = await this.invokeLLM(prompt);
+        if(this.definition.id === 'html-validator'){
+             result = await this.invokeLLM(prompt);
       // result.result = sonnetJSONRenderedPythonAnalysis;
+        }
+     
       }
 
       // TEMPORARY: For testing, return hardcoded data for D3JSCoordinatingAgent
@@ -175,14 +189,14 @@ export class GenericAgent {
       
       if(this.definition.name === 'HTMLLayoutDesignAgent'){
         console.log('🔧 Using HTMLLayoutDesignAgent - BEFORE invokeLLM');
-         result = await this.invokeLLM(prompt);
+      //   result = await this.invokeLLM(prompt);
          console.log('🔧 Using HTMLLayoutDesignAgent - AFTER invokeLLM, result length:', result.result?.length);
-     //  result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_reportwritingAgent_endo_Result.txt', 'utf-8');
+       result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_htmlLayout_needs_validation.txt', 'utf-8');
       }
 
 
     console.log('GENERIC AGENT ',this.definition.name)
-    if(this.definition.name === 'HTMLLayoutDesignAgent'){
+    if(this.definition.name === 'ValidatingAgent'){
       console.log('GENERIC RESULT ',result.result) 
     }
       return {
@@ -267,6 +281,47 @@ export class GenericAgent {
 
   deleteContext(){
     this.context = [];
+  }
+
+  /**
+   * Register a local tool (non-MCP) with this agent
+   * Local tools are functions that run in the Node.js process
+   * and can access the file system, unlike LLM-native tools
+   *
+   * Example: D3 visualization tool that renders and reads files
+   */
+  registerLocalTool(tool: LocalToolDefinition): void {
+    console.log(`🔧 [GenericAgent] Registering local tool: ${tool.name}`);
+
+    // Add to local tools list
+    this.localTools.push(tool);
+
+    // Add to available tools for LLM function calling
+    this.availableTools.push({
+      name: tool.name,
+      serverName: 'local',
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      handler: tool.handler
+    });
+
+    console.log(`✅ [GenericAgent] Local tool registered: ${tool.name}`);
+  }
+
+  /**
+   * Register multiple local tools at once
+   */
+  registerLocalTools(tools: LocalToolDefinition[]): void {
+    for (const tool of tools) {
+      this.registerLocalTool(tool);
+    }
+  }
+
+  /**
+   * Get all registered local tools
+   */
+  getLocalTools(): LocalToolDefinition[] {
+    return [...this.localTools];
   }
 
    createPrompt(): string {
@@ -535,163 +590,94 @@ console.log('MODEL ', config.model)
     console.log('🚀 invokeGemini ENTRY - Agent:', this.getName())
 
     try {
+      console.log('✅ Using Google Gemini client - Agent:', this.getName())
+      console.log('TYPE ',this.definition.agentType, 'Agent:', this.getName())
 
-/*const chat = await ai.chats.create({
-    model: 'gemini-3-pro-preview',
-    config: {
-      tools: [],//mcpToTool(weatherClient, multiplyClient)
-      toolConfig: {
-        functionCallingConfig: {
-          mode: FunctionCallingConfigMode.AUTO,
-        },
-      },
-    },
-  });*/
-let resp;
-try {
-    resp = await ai.models.generateContent({
-      model: "gemini-2.5-pro", // Use the correct API model name
-      contents: prompt,
-    });
-
-  } catch (error) {
-    console.error("An error occurred during API call:", error);
-  }
     // If MCP tools are available AND this is a tool agent, use native tool calling with MCP integration
-   /* if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
+    if (this.definition.agentType === 'tool' && this.availableTools.length > 0) {
+      // Gemini uses function declarations format (simpler than OpenAI's nested structure)
       const tools = this.availableTools.map(tool => {
-        // Fix schema for get_chunks tool
-        console.log("TOOL NAME ",tool.name)
+        console.log("TOOL NAME ", tool.name)
+
+        // For special tools, use fixed schemas
         if (tool.name === 'get_chunks') {
           return {
-            type: "function" as const,
-            function: {
-              name: tool.name,
-              description: "Retrieve chunks from a collection",
-              parameters: {
-                type: "object",
-                properties: {
-                  collection: { 
-                    type: "string", 
-                    description: "Collection name to retrieve chunks from" 
-                  },
-                  limit: { 
-                    type: "integer", 
-                    description: "Maximum number of chunks to retrieve",
-                    default: 10
-                  },
-                  ids: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "Optional array of specific chunk IDs to retrieve"
-                  }
+            name: tool.name,
+            description: "Retrieve chunks from a collection",
+            parameters: {
+              type: "object",
+              properties: {
+                collection: {
+                  type: "string",
+                  description: "Collection name to retrieve chunks from"
                 },
-                required: ["collection"]
-              }
+                limit: {
+                  type: "integer",
+                  description: "Maximum number of chunks to retrieve"
+                },
+                ids: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Optional array of specific chunk IDs to retrieve"
+                }
+              },
+              required: ["collection"]
             }
           };
         } else if (tool.name === 'index-file') {
           return {
-            type: "function" as const,
-            function: {
-              name: tool.name,
-              description: "Index a file into a vector collection",
-              parameters: {
-                type: "object",
-                properties: {
-                  filePath: { 
-                    type: "string", 
-                    description: "Path to the file to index" 
-                  },
-                  collection: { 
-                    type: "string", 
-                    description: "Name of the collection to store the indexed data" 
-                  },
-                  metadata: {
-                    type: "object",
-                    description: "Optional metadata for the indexed file",
-                    properties: {
-                      type: { type: "string" },
-                      source: { type: "string" },
-                      indexedAt: { type: "string" }
-                    }
-                  }
+            name: tool.name,
+            description: "Index a file into a vector collection",
+            parameters: {
+              type: "object",
+              properties: {
+                filePath: {
+                  type: "string",
+                  description: "Path to the file to index"
                 },
-                required: ["filePath", "collection"]
-              }
-            }
-          };
-        } else if (tool.name === 'calculate_energy_totals') {
-          return {
-            type: "function" as const,
-            function: {
-              name: tool.name,
-              description: "Calculate energy totals from records with grouping and operations",
-              parameters: {
-                type: "object",
-                properties: {
-                  energyRecords: {
-                    type: "array",
-                    description: "Array of energy data records",
-                    items: { type: "object" }
-                  },
-                  groupBy: {
-                    type: "array",
-                    description: "Array of field names to group by",
-                    items: { type: "string" }
-                  },
-                  operation: {
-                    type: "string",
-                    description: "Operation to perform (sum, avg, max, min)",
-                    enum: ["sum", "avg", "max", "min"]
-                  }
+                collection: {
+                  type: "string",
+                  description: "Name of the collection to store the indexed data"
                 },
-                required: ["energyRecords", "groupBy", "operation"]
-              }
+                metadata: {
+                  type: "object",
+                  description: "Optional metadata for the indexed file"
+                }
+              },
+              required: ["filePath", "collection"]
             }
           };
         }
-        
+
+        // For all other tools, use generic schema
         return {
-          type: "function" as const,
-          function: {
-            name: tool.name,
-            description: tool.description || `Execute ${tool.name} tool`,
-            parameters: tool.inputSchema || {
-              type: "object",
-              properties: {},
-              required: []
-            }
+          name: tool.name,
+          description: tool.description || `Execute ${tool.name} tool`,
+          parameters: tool.inputSchema || {
+            type: "object",
+            properties: {},
+            required: []
           }
         };
       });
-      
-      // For chunk_requester agent, ALWAYS force tool calls
-    //  const isChunkRequester = this.definition.name === 'chunk_requester';
-   //   console.log(`Agent ${this.definition.name}: forceToolUse=${isChunkRequester}, tools count=${tools.length}`);
-      
+
       // Set forceToolUse to false to allow more natural tool selection
-      return await this.handleLLMWithMCPTools(client, prompt, config, tools, 'openai', false);
-    }*/
+      return await this.handleLLMWithMCPTools(ai, prompt, config, tools, 'gemini', false);
+    }
 
-    
+    // No tools available, use regular completion
+    console.log('No tools for Gemini, using regular completion');
+    const response = await ai.models.generateContent({
+      model: config.model || "gemini-2.5-pro",
+      contents: prompt,
+    });
 
- /*  const userMessage: OpenAI.ChatCompletionMessageParam = {
-    role: "user",
-    content: prompt,
-  };
-    const response = await client.chat.completions.create({
-       messages: [userMessage],
-        model: config.model,
-      //  temperature: 0.3,
-     //   maxTokens: 3000,
-    });*/
-      return  {
-        agentName: this.getName(),
-        result: resp?.text,
-        success: true,
-        timestamp: new Date()
-      }
+    return {
+      agentName: this.getName(),
+      result: response.text,
+      success: true,
+      timestamp: new Date()
+    };
     } catch (error) {
       console.error('❌ GEMINI ERROR - Agent:', this.getName(), 'Error:', error)
       throw error;
@@ -877,11 +863,13 @@ console.log('MESSAGE ', message)
     }
   }
 
-  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic', forceToolUse: boolean = true): Promise<AgentResult> {
+  private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic' | 'gemini', forceToolUse: boolean = true): Promise<AgentResult> {
     // Create conversation loop to handle multiple tool calls
     let conversationHistory: any[] = [{ role: "user", content: prompt }];
     let maxIterations = 5; // Allow more iterations for finding data
     let hasExecutedTool = false; // Track if any tool has been executed
+    let localToolsExecuted = 0; // Track how many local tools have been executed
+    const LOCAL_TOOLS_REQUIRED = 2; // get_csv_data and render_d3_visualization
     console.log('CONTENT  ', prompt)
     while (maxIterations > 0) {
     //  console.log("TOOLS ", tools);
@@ -892,14 +880,14 @@ console.log('MESSAGE ', message)
         const shouldForceToolUse = forceToolUse || (this.definition.agentType === 'tool' && !hasExecutedTool);
         const toolChoice = shouldForceToolUse ? "required" : "auto";
         console.log(`Making OpenAI call with tool_choice=${toolChoice}, forceToolUse=${forceToolUse}, hasExecutedTool=${hasExecutedTool}, shouldForceToolUse=${shouldForceToolUse}`);
-        
+        console.log('TOKENS:    ', config.maxTokens)
         response = await client.chat.completions.create({
           model: config.model,
           messages: conversationHistory,
           tools: tools,
           tool_choice: toolChoice,
        //   temperature: config.temperature || 0.7,
-          max_completion_tokens: 4000
+          max_completion_tokens: config.maxTokens || 4000
         });
         
         const message = response.choices[0].message;
@@ -987,15 +975,15 @@ console.log('MESSAGE ', message)
               name: toolCall.function.name,
               arguments: parsedArgs
             });
-            
+
             console.log('TOOL RESULT   ',toolResult)
-            hasExecutedTool = true; // Mark that we've executed a tool
-            
+
             // Check if this was an indexing operation - no additional verification needed
             if (toolCall.function.name === 'index_file' || toolCall.function.name === 'index-file') {
               const collection = parsedArgs.collection
               if (collection) {
                 console.log(`✅ Indexing operation completed for collection: ${collection}`);
+                hasExecutedTool = true; // Mark for non-local tools
                 // For indexing operations, return immediately after successful completion
                 return {
                   agentName: this.getName(),
@@ -1005,14 +993,39 @@ console.log('MESSAGE ', message)
                 };
               }
             }
-            
-            // Check if this is a data retrieval operation - return raw data without further processing
-            if (toolCall.function.name === 'get_chunks' || toolCall.function.name === 'search_chunks' || toolCall.function.name === 'structured_query') {
+
+            // Check if this is a LOCAL tool (multi-turn conversation tools)
+            const isLocalTool = toolCall.function.name === 'get_csv_data' ||
+                                toolCall.function.name === 'render_d3_visualization';
+
+            if (isLocalTool) {
+              // LOCAL TOOLS: Track execution count and only set hasExecutedTool after all are called
+              localToolsExecuted++;
+              console.log(`📊 Local tool ${toolCall.function.name} executed (${localToolsExecuted}/${LOCAL_TOOLS_REQUIRED})`);
+
+              if (localToolsExecuted >= LOCAL_TOOLS_REQUIRED) {
+                hasExecutedTool = true; // All required local tools have been called
+                console.log('✅ All local tools executed - next call will use tool_choice=auto');
+              }
+
+              // LOCAL TOOLS: Add result to conversation and continue loop
+              const resultContent = JSON.stringify(toolResult);
+              console.log(`✅ Local tool ${toolCall.function.name} completed - adding to conversation`);
+              console.log(`Tool result length: ${resultContent.length} characters`);
+
+              conversationHistory.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: resultContent
+              });
+              // Continue the loop - don't return yet
+            } else if (toolCall.function.name === 'get_chunks' || toolCall.function.name === 'search_chunks' || toolCall.function.name === 'structured_query') {
+              // Data retrieval operations - return raw data without further processing
+              hasExecutedTool = true; // Mark for non-local tools
               const resultContent = JSON.stringify(toolResult);
               console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
               console.log(`Raw result length: ${resultContent.length} characters`);
 
-              // Check for success flag in MCP response
               const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
 
               return {
@@ -1021,17 +1034,16 @@ console.log('MESSAGE ', message)
                 success: mcpSuccess,
                 timestamp: new Date()
               };
-            } else{
-                const resultContent = JSON.stringify(toolResult);
+            } else {
+              // Other tools (execute_python, etc.) - return immediately
+              hasExecutedTool = true; // Mark for non-local tools
+              const resultContent = JSON.stringify(toolResult);
               console.log(`✅ Tool call completed - returning results`);
               console.log(`Raw result length: ${resultContent.length} characters`);
 
-              // Check for success flag in MCP response
-              // The success field should be present in the toolResult from execute_python
               const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
               console.log(`MCP tool success flag: ${mcpSuccess}`);
 
-              // Extract parsedContent if available (for execute_python JSON output)
               const finalResult = toolResult.parsedContent !== undefined ? toolResult.parsedContent : resultContent;
               console.log(`Returning ${toolResult.parsedContent !== undefined ? 'parsedContent' : 'raw result'}`);
 
@@ -1041,17 +1053,7 @@ console.log('MESSAGE ', message)
                 success: mcpSuccess,
                 timestamp: new Date()
               };
-
             }
-            
-           /* const resultContent = JSON.stringify(toolResult);
-            console.log(`Tool result length: ${resultContent.length} characters`);
-            
-            conversationHistory.push({
-              role: "tool",
-              tool_call_id: toolCall.id,
-              content: resultContent
-            });*/
           } catch (error) {
             console.log('GEN ERROR ',error)
             conversationHistory.push({
@@ -1061,12 +1063,12 @@ console.log('MESSAGE ', message)
             });
           }
         }
-      } else { // anthropic
+      } else if (provider === 'anthropic') {
         // Use "any" for forceToolUse=true, or for tool agents that haven't called tools yet
         const shouldForceToolUse = forceToolUse || (this.definition.agentType === 'tool' && !hasExecutedTool);
         const toolChoice = shouldForceToolUse ? { type: "any" } : { type: "auto" };
         console.log(`Making Anthropic call with tool_choice=${JSON.stringify(toolChoice)}, forceToolUse=${forceToolUse}, hasExecutedTool=${hasExecutedTool}, shouldForceToolUse=${shouldForceToolUse}`);
-        
+
         response = await client.messages.create({
           model: config.model,
           max_tokens: config.maxTokens || 1000,
@@ -1075,29 +1077,44 @@ console.log('MESSAGE ', message)
           tools: tools,
           tool_choice: toolChoice
         });
-        // Check for tool use
-        const toolUseContent = response.content.find((content: any) => content.type === 'tool_use');
-        if (!toolUseContent) {
+      } else { // gemini
+        console.log(`Making Gemini call with tool calling, hasExecutedTool=${hasExecutedTool}`);
+
+        // Gemini uses a different format - tools are passed directly
+        response = await client.models.generateContent({
+          model: config.model || "gemini-2.5-pro",
+          contents: conversationHistory,
+          tools: [{ functionDeclarations: tools }],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: forceToolUse ? "ANY" : "AUTO"
+            }
+          }
+        });
+
+        // Gemini response format: response.candidates[0].content.parts
+        const parts = response.candidates?.[0]?.content?.parts || [];
+        const functionCallPart = parts.find((part: any) => part.functionCall);
+
+        if (!functionCallPart) {
           // No tool calls, return text content
-          const textContent = response.content
-            .filter((content: any) => content.type === 'text')
-            .map((content: any) => content.text)
-            .join('');
-          console.log('No tool calls made by Anthropic. Text content:', textContent);
-          
+          const textParts = parts.filter((part: any) => part.text);
+          const textContent = textParts.map((part: any) => part.text).join('');
+          console.log('No tool calls made by Gemini. Text content:', textContent);
+
           // For tool agents, try forcing tool use on subsequent iterations
           if (this.definition.agentType === 'tool' && maxIterations > 1 && !hasExecutedTool) {
-            console.log(`🔄 Tool agent didn't call tools, retrying with tool_choice=any (${maxIterations - 1} attempts remaining)`);
+            console.log(`🔄 Tool agent didn't call tools, retrying (${maxIterations - 1} attempts remaining)`);
             maxIterations--;
             continue;
           }
-          
+
           // For other cases or when out of retries
           if (forceToolUse) {
-            console.log('ERROR: Failed to call required tools - this should not happen with tool_choice=any');
+            console.log('ERROR: Failed to call required tools - this should not happen');
             throw new Error('Required tool call was not made by the LLM');
           }
-          
+
           return {
             agentName: this.getName(),
             result: textContent,
@@ -1105,31 +1122,62 @@ console.log('MESSAGE ', message)
             timestamp: new Date()
           };
         }
-        
-        console.log('Anthropic made tool call:', toolUseContent.name);
-        
-        // Add assistant message to history
+
+        console.log('Gemini made tool call:', functionCallPart.functionCall.name);
+
+        // Add assistant message to history (Gemini format)
         conversationHistory.push({
-          role: "assistant",
-          content: response.content
+          role: "model",
+          parts: response.candidates[0].content.parts
         });
-        
+
         // Execute tool call via MCP
+        const toolName = functionCallPart.functionCall.name;
+        const toolArgs = functionCallPart.functionCall.args || {};
+
         try {
-          console.log(`Executing tool ${toolUseContent.name} with arguments:`, toolUseContent.input);
+
+          console.log(`Executing tool ${toolName} with arguments:`, toolArgs);
           const toolResult = await this.executeMCPToolCall({
-            name: toolUseContent.name,
-            arguments: toolUseContent.input
+            name: toolName,
+            arguments: toolArgs
           });
-          
+
+          // Check if this is a LOCAL tool (multi-turn conversation tools)
+          const isLocalTool = toolName === 'get_csv_data' || toolName === 'render_d3_visualization';
+
+          if (isLocalTool) {
+            // LOCAL TOOLS: Track execution and continue loop
+            localToolsExecuted++;
+            console.log(`📊 Local tool ${toolName} executed (${localToolsExecuted}/${LOCAL_TOOLS_REQUIRED})`);
+
+            if (localToolsExecuted >= LOCAL_TOOLS_REQUIRED) {
+              hasExecutedTool = true;
+              console.log('✅ All local tools executed');
+            }
+
+            // Add tool response to conversation history
+            conversationHistory.push({
+              role: "function",
+              parts: [{
+                functionResponse: {
+                  name: toolName,
+                  response: toolResult
+                }
+              }]
+            });
+            // Continue the loop
+            maxIterations--;
+            continue;
+          }
+
           hasExecutedTool = true; // Mark that we've executed a tool
-          
-          // Check if this was an indexing operation - no additional verification needed
-          if (toolUseContent.name === 'index_file' || toolUseContent.name === 'index-file') {
-            const collection = toolUseContent.input.collection;
+
+          // Check if this was an indexing operation
+          if (toolName === 'index_file' || toolName === 'index-file') {
+            const collection = toolArgs.collection;
             if (collection) {
               console.log(`✅ Indexing operation completed for collection: ${collection}`);
-              // For indexing operations, return immediately after successful completion
               return {
                 agentName: this.getName(),
                 result: `Successfully indexed file to collection: ${collection}`,
@@ -1138,10 +1186,10 @@ console.log('MESSAGE ', message)
               };
             }
           }
-          
-          // Check if this is a data retrieval operation - return raw data without further processing
-          if (toolUseContent.name === 'get_chunks' || toolUseContent.name === 'search_chunks' || toolUseContent.name === 'structured_query') {
-            console.log(`✅ Data retrieval completed - returning raw results without additional processing`);
+
+          // Check if this is a data retrieval operation
+          if (toolName === 'get_chunks' || toolName === 'search_chunks' || toolName === 'structured_query') {
+            console.log(`✅ Data retrieval completed - returning raw results`);
             console.log(`Raw result length: ${JSON.stringify(toolResult).length} characters`);
 
             // Check for success flag in MCP response
@@ -1158,25 +1206,27 @@ console.log('MESSAGE ', message)
           const resultContent = JSON.stringify(toolResult);
           // Truncate large results to prevent context overflow
           const maxResultLength = 100000; // Limit to ~100k chars (increased from 10k to handle large JSON responses)
-          const truncatedContent = resultContent.length > maxResultLength 
+          const truncatedContent = resultContent.length > maxResultLength
             ? resultContent.substring(0, maxResultLength) + `\n\n[TRUNCATED - Original length: ${resultContent.length} chars]`
             : resultContent;
-          
+
           conversationHistory.push({
-            role: "user",
-            content: [{
-              type: "tool_result",
-              tool_use_id: toolUseContent.id,
-              content: truncatedContent
+            role: "function",
+            parts: [{
+              functionResponse: {
+                name: toolName,
+                response: JSON.parse(truncatedContent)
+              }
             }]
           });
         } catch (error) {
           conversationHistory.push({
-            role: "user",
-            content: [{
-              type: "tool_result",
-              tool_use_id: toolUseContent.id,
-              content: `Error: ${error instanceof Error ? error.message : String(error)}`
+            role: "function",
+            parts: [{
+              functionResponse: {
+                name: toolName,
+                response: { error: error instanceof Error ? error.message : String(error) }
+              }
             }]
           });
         }
@@ -1252,8 +1302,12 @@ console.log('MESSAGE ', message)
     }
 
     try {
-      // Get available tools
-      this.availableTools = await mcpClientManager.listTools();
+      // Get MCP tools from servers
+      const mcpTools = await mcpClientManager.listTools();
+
+      // Preserve local tools and combine with MCP tools
+      const localToolsInAvailable = this.availableTools.filter(t => t.serverName === 'local');
+      this.availableTools = [...localToolsInAvailable, ...mcpTools];
    /*   console.log('Available MCP tools during initialization:');
       this.availableTools.forEach(tool => {
         console.log(`- ${tool.name} (server: ${tool.serverName}):`, JSON.stringify(tool.inputSchema, null, 2));
@@ -1286,16 +1340,36 @@ console.log('MESSAGE ', message)
 
 
   private async executeMCPToolCall(toolCall: MCPToolCall): Promise<any> {
+    // ============================================================
+    // NEW: Check for LOCAL tools first (like D3 visualization)
+    // ============================================================
+    const localTool = this.localTools.find(t => t.name === toolCall.name);
+
+    if (localTool) {
+      console.log(`🔧 [GenericAgent] Executing LOCAL tool: ${toolCall.name}`);
+      try {
+        const result = await localTool.handler(toolCall.arguments);
+        console.log(`✅ [GenericAgent] Local tool ${toolCall.name} completed successfully`);
+        return result;
+      } catch (error) {
+        console.error(`❌ [GenericAgent] Local tool ${toolCall.name} failed:`, error);
+        throw new Error(`Local tool '${toolCall.name}' failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // ============================================================
+    // EXISTING: MCP tool execution logic (unchanged)
+    // ============================================================
     // Find which server has this tool
     const connectedServers = mcpClientManager.getConnectedServers();
     console.log('Connected servers:', connectedServers);
-    
+
     for (const serverName of connectedServers) {
       try {
         const tools = await mcpClientManager.listTools(serverName);
         console.log(`Tools on server ${serverName}:`, tools.map(t => t.name));
         const tool = tools.find(t => t.name === toolCall.name);
-        
+
         if (tool) {
           console.log(`Found tool ${toolCall.name} on server ${serverName}`);
           try {
@@ -1324,9 +1398,9 @@ console.log('MESSAGE ', message)
         continue;
       }
     }
-    
-    console.log(`Tool ${toolCall.name} not found on any server. Available servers:`, connectedServers);
-    throw new Error(`MCP tool '${toolCall.name}' not found on any connected server`);
+
+    console.log(`Tool ${toolCall.name} not found on any server (checked ${this.localTools.length} local tools and ${connectedServers.length} MCP servers)`);
+    throw new Error(`Tool '${toolCall.name}' not found on any connected server or in local tools`);
   }
 
   // Public methods for MCP capabilities

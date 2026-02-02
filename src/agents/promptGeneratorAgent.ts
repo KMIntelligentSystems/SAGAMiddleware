@@ -330,7 +330,7 @@ Go through ALL nodes where type is "agent" or "sdk_agent" and call store_agent_p
      * @param filePath - Path to the promptArray.txt file (default: c:/repos/sagaMiddleware/data/promptArray.txt)
      * @returns AgentPromptMapping object
      */
-    public static loadPromptArrayFromFile(filePath: string = 'c:/repos/sagaMiddleware/data/promptArray.txt'): AgentPromptArray {
+    public static loadPromptArrayFromFile(filePath: string = 'c:/repos/sagaMiddleware/data/promptArray_for_validation.txt'): AgentPromptArray {
         try {
             console.log(`📖 Loading prompt array from ${filePath}...`);
 

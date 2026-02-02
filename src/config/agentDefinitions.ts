@@ -82,7 +82,7 @@ export const AGENT_DEFINITIONS: LLMPromptConfig[] = [
     },
     {
         agentName: 'ValidatingAgent',
-        agentType: 'processing',
+        agentType: 'tool',
         transactionId: 'tx-3',
         backstory: `Your role is to ensure rules are enforced in a JSON object. You act as validator and you report what needs
         to be amended in the JSON object that does not follow the rules.`,

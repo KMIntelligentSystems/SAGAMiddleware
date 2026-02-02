@@ -20,6 +20,8 @@ import * as path from 'path';
 export class CSVAnalyzerAgent extends BaseSDKAgent {
     private requirements: WorkflowRequirements;
     private normalizedFilePath: string | null = null;
+    private csvData: string | null = null;  // Store CSV file contents
+    private csvFilename: string | null = null;  // Store CSV filename
 
     constructor( requirements: WorkflowRequirements, contextManager: ContextManager) {
         super('CSVAnalyzerAgent', 10, contextManager);
@@ -28,9 +30,10 @@ export class CSVAnalyzerAgent extends BaseSDKAgent {
         // Setup the CSV normalization tool
         try {
             this.setupNormalizationTool();
+            this.setupCsvStoreTool();  // Add CSV storage tool
         } catch (error) {
-            console.error('⚠️  Warning: Failed to setup CSV normalization tool:', error);
-            console.log('   CSV Analyzer will run without normalization tool');
+            console.error('⚠️  Warning: Failed to setup CSV tools:', error);
+            console.log('   CSV Analyzer will run without custom tools');
         }
     }
 
@@ -43,15 +46,22 @@ export class CSVAnalyzerAgent extends BaseSDKAgent {
 
         //    const result = this.contextManager.getContext('CSVAnalyzerAgent') as WorkingMemory
             const prompt = this.buildPrompt(null);
-            const analysis = csvDataAnalyzerAgentSimpleResult//await this.executeQuery(prompt);// csvAnalyzerAgentResult// 
+            const analysis = await this.executeQuery(prompt);// csvAnalyzerAgentResult//csvDataAnalyzerAgentSimpleResult//
+//console.log('ANALYSIS', analysis)
+            // Build result with both analysis and CSV data
+            const resultData = {
+                analysis: analysis,
+                csvData: this.csvData,
+                csvFilename: this.csvFilename
+            };
 
-            // Store analysis in context
-            this.setContext(analysis);
+            // Store complete result in context
+            this.setContext(resultData);
 
             return {
                 agentName: 'CSVAnalyzerAgent',
                 success: true,
-                result: analysis,
+                result: resultData,
                 timestamp: new Date()
             };
 
@@ -149,6 +159,81 @@ export class CSVAnalyzerAgent extends BaseSDKAgent {
     }
 
     /**
+     * Setup local tool for storing CSV data
+     */
+    private setupCsvStoreTool(): void {
+        // Tool: Store CSV file contents for downstream agents
+        const storeCsvTool = tool(
+            'store_csv_data',
+            'Store the CSV file contents and filename for use by downstream visualization agents. Call this after analyzing the CSV to make the data available to agents that need it.',
+            {
+                file_path: z.string().describe('The path to the CSV file (use normalized path if you normalized it)'),
+                csv_content: z.string().describe('The complete contents of the CSV file')
+            },
+            async (args) => {
+                return this.handleStoreCsvData(args);
+            }
+        );
+
+        // Add to existing MCP server or create new one
+        const mcpServer = createSdkMcpServer({
+            name: 'csv-store',
+            tools: [storeCsvTool]
+        });
+
+        // Add MCP server to options
+        this.options.mcpServers = {
+            ...this.options.mcpServers,
+            'csv-store': mcpServer
+        } as any;
+
+        console.log('✅ CSV storage tool setup complete');
+    }
+
+    /**
+     * Handler for store_csv_data tool
+     * Called when LLM invokes the tool to store CSV data
+     */
+    private async handleStoreCsvData(args: any) {
+        try {
+            const { file_path, csv_content } = args;
+            console.log(`   💾 Storing CSV data from: ${file_path}`);
+
+            // Store the CSV data and filename
+            this.csvData = csv_content;
+            this.csvFilename = path.basename(file_path);
+
+            console.log(`   ✅ Stored CSV data: ${this.csvFilename} (${csv_content.length} chars)`);
+
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Successfully stored CSV data from "${file_path}". Data size: ${csv_content.length} characters, filename: ${this.csvFilename}`
+                }]
+            };
+        } catch (error) {
+            console.error(`   ❌ Error storing CSV data:`, error);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error storing CSV data: ${error instanceof Error ? error.message : String(error)}`
+                }],
+                isError: true
+            };
+        }
+    }
+
+    /**
+     * Get stored CSV data
+     */
+    public getCsvData(): { csvData: string | null; csvFilename: string | null } {
+        return {
+            csvData: this.csvData,
+            csvFilename: this.csvFilename
+        };
+    }
+
+    /**
      * Build prompt for CSV analysis
      */
     protected buildPrompt(_input: any): string {
@@ -204,11 +289,17 @@ Use **Python agents** (complex flow) when ANY condition is met:
 2. If the CSV has extra header rows, call normalize_csv tool to create a clean version
 3. Evaluate task complexity against the criteria above
 4. Make recommendation based on ACTUAL complexity, not perceived sophistication
-5. If you normalized the file, include the normalized file path in your output
+5. **CRITICAL - IF RECOMMENDING SDK AGENT**: Call store_csv_data tool with:
+   - file_path: the path to the CSV file (use normalized path if you normalized it)
+   - csv_content: the complete contents of the CSV file as a string
+   (Do NOT call this tool if recommending Python Agents - they will handle the CSV directly)
+6. If you normalized the file, include the normalized file path in your output
 
 **OUTPUT FORMATS:**
 
 **Simple Flow** (SDK agent can handle):
+First, call store_csv_data tool to store the CSV contents for downstream agents.
+Then output:
 "RECOMMENDATION: SDK Agent
 File has [N] rows, [M] columns. Data characteristics: [brief description].
 Task: [concise description for SDK agent including data structure, ranges, and required transformations].

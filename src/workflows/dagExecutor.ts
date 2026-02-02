@@ -11,7 +11,6 @@ import {
     ValidationStrategy
 } from '../process/flowStrategies.js';
 
-
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 
 /**
@@ -937,6 +936,8 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             // CRITICAL: Instantiate a NEW GenericAgent for each node execution
             // to prevent race conditions when the same agent is used in parallel branches
             agent = this.instantiateGenericAgent(agentName, nodeId);
+
+
         } else {
             // For special cases like context_pass
             agent = {
@@ -988,6 +989,8 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             throw new Error(`GenericAgent not found in registry: ${agentName}`);
         }
         const agentDefinition = templateAgent.getAgentDefinition();
+
+   
         agentDefinition.id = nodeId;
         // Create a NEW instance to prevent race conditions in parallel execution
         return new GenericAgent(templateAgent.getAgentDefinition());
