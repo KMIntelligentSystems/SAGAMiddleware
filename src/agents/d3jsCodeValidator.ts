@@ -176,7 +176,7 @@ export class D3JSCodeValidator extends BaseSDKAgent {
             // Create tool context
             const toolContext: ValidatorToolContext = {
                 coordinator: this.coordinator,
-                validationReport: validationReport,
+                validationReport: validationReport,//Last d3jscodingAgent result <!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\ AS needle-viz-validator
                 originalCode: args.code
             };
 

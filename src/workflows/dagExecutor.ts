@@ -284,9 +284,15 @@ export class DAGExecutor extends EventEmitter {
 
             // Simple evaluation - check for success patterns
             if (expression.includes('success === true') || expression.includes('success==true')) {
-                return context.success === true || context.lastNodeOutput?.success === true;
+                if(!context.data.includes('"success": false')){
+                    return true;
+                } 
+               // return context.success === true || context.lastNodeOutput?.success === true;
             } else if (expression.includes('success === false') || expression.includes('success==false')) {
-                return context.success === false || context.lastNodeOutput?.success === false;
+                   if(context.data.includes('"success": false')){
+                    return false;
+                } 
+               // return context.success === false || context.lastNodeOutput?.success === false;
             }
 
             // For more complex expressions, you can extend this
@@ -311,7 +317,7 @@ export class DAGExecutor extends EventEmitter {
             // For autonomous_decision, evaluate condition
             if (edge.flowType === 'autonomous_decision') {
                 autonomousEdges.push(edge);
-              //  console.log('AUTO CONTEXT ', this.context)
+            //    console.log('AUTO CONTEXT ', this.context)
                 if (this.evaluateCondition(edge, this.context)) {
                     validEdges.push(edge);
                 }
@@ -903,17 +909,16 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
         // Handle entry/exit nodes
         if (agentType === 'entry') {
             
-         //   if (agentName !== 'ConversationAgent') {
                 const conversationCtx = this.coordinator.contextManager.getContext('ConversationAgent');
                 this.coordinator.contextManager.updateContext(agentName, {
                     lastTransactionResult: conversationCtx.lastTransactionResult,
                     userQuery: conversationCtx.userQuery
                 });
-//console.log('USER QUERY  ',conversationCtx.userQuery )
+
                   this.coordinator.contextManager.updateContext('ReportWritingAgent', {
                     userQuery: conversationCtx.userQuery
                 });
-         //   }
+             
             return context;
         }
 

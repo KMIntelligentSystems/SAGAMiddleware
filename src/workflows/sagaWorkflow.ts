@@ -253,7 +253,7 @@ export class SagaWorkflow {
      
       {
         agentName: 'ConversationAgent',
-        agentType: 'processing',
+        agentType: 'tool',
         transactionId: 'tx-1',
         backstory: 'Receives workflow requirements from frontend and passes them to DAG Designer for autonomous workflow creation.',
         taskDescription: `Your role is to receive workflow requirements as formatted JSON and provide a natural language summary of the requirements
@@ -574,7 +574,7 @@ Focus: Only array extraction
       // llmconfig in sagaCoordinator
       const llmConfig: LLMConfig = {
         provider: 'openai', //'anthropic' 'openai' 'gemini'
-        model: 'gpt-5.2',//'gemini-3-pro-preview', 'claude-opus-4-5'
+        model:  'gpt-5.2',//'gemini-3-pro-preview', 'claude-opus-4-5'
         temperature: 1,// promptParams.temperature || (agentType === 'tool' ? 0.2 : 0.3),//temp 1
         maxTokens: 24576, // Increased from 8192 to allow complete HTML generation
        // apiKey: process.env.ANTHROPIC_API_KEY
@@ -1134,7 +1134,7 @@ const requirements_endo: WorkflowRequirements = {
     
     this.coordinator.contextManager.updateContext('ConversationAgent', {
       lastTransactionResult: JSON.stringify(requirements_endo),
-      userQuery: JSON.stringify(sharedStorage, null, 2)
+    //  userQuery: JSON.stringify(sharedStorage, null, 2) use UserQueryAnalyzerAgent
     });
 
     const dagDesignerCtx = this.coordinator.contextManager.getContext('DAGDesigner') as WorkingMemory

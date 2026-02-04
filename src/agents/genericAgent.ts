@@ -131,12 +131,10 @@ export class GenericAgent {
       }
 
       if(this,this.definition.name === 'ConversationAgent'){
-         result.result  = geminiConversationAnalysis//await this.invokeLLM(prompt);
+         //await this.invokeLLM(prompt);
+          result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/conversationAgent_htmlLayout_retry.txt', 'utf-8');
       }
        
-          if(this.definition.name === 'D3JSCodingAgent'){
-         //    result = await this.invokeLLM(prompt);
-          }
    
 
       // TEMPORARY: For testing, return hardcoded data for TransactionGroupingAgent
@@ -149,8 +147,9 @@ export class GenericAgent {
       if(this.definition.name === 'ValidatingAgent'){
         console.log('🔧 ValidatingAgent: Returning test data (sonnetJSONRenderedPythonAnalysis)');
         if(this.definition.id === 'html-validator'){
-             result = await this.invokeLLM(prompt);
-      // result.result = sonnetJSONRenderedPythonAnalysis;
+          //   result = await this.invokeLLM(prompt);
+             result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/openai_htmlLayout_validation.txt', 'utf-8');
+      // result.result = sonnetJSONRenderedPythonAnalysis; 
         }
      
       }
@@ -660,7 +659,7 @@ console.log('MODEL ', config.model)
           }
         };
       });
-
+console.log('CONFIG ', config.model)
       // Set forceToolUse to false to allow more natural tool selection
       return await this.handleLLMWithMCPTools(ai, prompt, config, tools, 'gemini', false);
     }
@@ -865,12 +864,19 @@ console.log('MESSAGE ', message)
 
   private async handleLLMWithMCPTools(client: any, prompt: string, config: LLMConfig, tools: any[], provider: 'openai' | 'anthropic' | 'gemini', forceToolUse: boolean = true): Promise<AgentResult> {
     // Create conversation loop to handle multiple tool calls
-    let conversationHistory: any[] = [{ role: "user", content: prompt }];
+    // Initialize conversation history with provider-specific format
+    let conversationHistory: any[];
+    if (provider === 'gemini') {
+      conversationHistory = [{ role: "user", parts: [{ text: prompt }] }];
+    } else {
+      conversationHistory = [{ role: "user", content: prompt }];
+    }
+
     let maxIterations = 5; // Allow more iterations for finding data
     let hasExecutedTool = false; // Track if any tool has been executed
     let localToolsExecuted = 0; // Track how many local tools have been executed
     const LOCAL_TOOLS_REQUIRED = 2; // get_csv_data and render_d3_visualization
-    console.log('CONTENT  ', prompt)
+  //  console.log('CONTENT  ', prompt)
     while (maxIterations > 0) {
     //  console.log("TOOLS ", tools);
       let response;
@@ -880,7 +886,7 @@ console.log('MESSAGE ', message)
         const shouldForceToolUse = forceToolUse || (this.definition.agentType === 'tool' && !hasExecutedTool);
         const toolChoice = shouldForceToolUse ? "required" : "auto";
         console.log(`Making OpenAI call with tool_choice=${toolChoice}, forceToolUse=${forceToolUse}, hasExecutedTool=${hasExecutedTool}, shouldForceToolUse=${shouldForceToolUse}`);
-        console.log('TOKENS:    ', config.maxTokens)
+      
         response = await client.chat.completions.create({
           model: config.model,
           messages: conversationHistory,
@@ -893,7 +899,7 @@ console.log('MESSAGE ', message)
         const message = response.choices[0].message;
 
       //  console.log('MESSAGES   ', conversationHistory)
-         console.log('MESSAGE CONTENT',response)
+         console.log('MESSAGE CONTENT',JSON.stringify(response))
         
         // Check if we've already made tool calls in previous iterations (before adding current message)
         const hasPreviousToolCalls = conversationHistory.some(msg => msg.role === 'tool');
@@ -995,8 +1001,10 @@ console.log('MESSAGE ', message)
             }
 
             // Check if this is a LOCAL tool (multi-turn conversation tools)
-            const isLocalTool = toolCall.function.name === 'get_csv_data' ||
-                                toolCall.function.name === 'render_d3_visualization';
+            const isLocalTool = toolCall.function.name === 'gc' ||
+                                toolCall.function.name === 'render_d3_visualization' ||
+                                toolCall.function.name === 'conversation_exit' ||
+                                toolCall.function.name === 'html_designer_retry';
 
             if (isLocalTool) {
               // LOCAL TOOLS: Track execution count and only set hasExecutedTool after all are called
@@ -1077,17 +1085,146 @@ console.log('MESSAGE ', message)
           tools: tools,
           tool_choice: toolChoice
         });
+
+        // Anthropic response parsing
+        const content = response.content || [];
+
+        // Find tool use blocks
+        const toolUseBlocks = content.filter((block: any) => block.type === 'tool_use');
+
+        if (toolUseBlocks.length === 0) {
+          // No tool calls, extract text content
+          const textBlocks = content.filter((block: any) => block.type === 'text');
+          const textContent = textBlocks.map((block: any) => block.text).join('');
+          console.log('No tool calls made by Anthropic. Text content:', textContent);
+
+          // For tool agents, try forcing tool use on subsequent iterations
+          if (this.definition.agentType === 'tool' && maxIterations > 1 && !hasExecutedTool) {
+            console.log(`🔄 Tool agent didn't call tools, retrying (${maxIterations - 1} attempts remaining)`);
+            maxIterations--;
+            continue;
+          }
+
+          return {
+            agentName: this.getName(),
+            result: textContent,
+            success: true,
+            timestamp: new Date()
+          };
+        }
+
+        // Add assistant message to conversation history
+        conversationHistory.push({
+          role: "assistant",
+          content: response.content
+        });
+
+        // Process tool calls
+        for (const toolUseContent of toolUseBlocks) {
+          const toolName = toolUseContent.name;
+          const toolArgs = toolUseContent.input || {};
+
+          console.log(`Anthropic made tool call: ${toolName}`);
+
+          try {
+            console.log(`Executing tool ${toolName} with arguments:`, toolArgs);
+            const toolResult = await this.executeMCPToolCall({
+              name: toolName,
+              arguments: toolArgs
+            });
+
+            // Check if this is a LOCAL tool
+            const isLocalTool = toolName === 'get_csv_data' || toolName === 'render_d3_visualization';
+
+            if (isLocalTool) {
+              localToolsExecuted++;
+              console.log(`📊 Local tool ${toolName} executed (${localToolsExecuted}/${LOCAL_TOOLS_REQUIRED})`);
+
+              if (localToolsExecuted >= LOCAL_TOOLS_REQUIRED) {
+                hasExecutedTool = true;
+                console.log('✅ All local tools executed');
+              }
+
+              // Add tool result to conversation
+              const resultContent = JSON.stringify(toolResult);
+              conversationHistory.push({
+                role: "user",
+                content: [{
+                  type: "tool_result",
+                  tool_use_id: toolUseContent.id,
+                  content: resultContent
+                }]
+              });
+              // Continue the loop
+              maxIterations--;
+              continue;
+            }
+
+            hasExecutedTool = true;
+
+            // Check for indexing operations
+            if (toolName === 'index_file' || toolName === 'index-file') {
+              const collection = toolArgs.collection;
+              if (collection) {
+                console.log(`✅ Indexing operation completed for collection: ${collection}`);
+                return {
+                  agentName: this.getName(),
+                  result: `Successfully indexed file to collection: ${collection}`,
+                  success: true,
+                  timestamp: new Date()
+                };
+              }
+            }
+
+            // Check for data retrieval operations
+            if (toolName === 'get_chunks' || toolName === 'search_chunks' || toolName === 'structured_query') {
+              console.log(`✅ Data retrieval completed - returning raw results`);
+              const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
+              return {
+                agentName: this.getName(),
+                result: JSON.stringify(toolResult),
+                success: mcpSuccess,
+                timestamp: new Date()
+              };
+            }
+
+            // Other tools - return immediately
+            const resultContent = JSON.stringify(toolResult);
+            console.log(`✅ Tool call completed - returning results`);
+            const mcpSuccess = toolResult.success !== undefined ? toolResult.success : true;
+            return {
+              agentName: this.getName(),
+              result: resultContent,
+              success: mcpSuccess,
+              timestamp: new Date()
+            };
+          } catch (error) {
+            console.log('ANTHROPIC ERROR ', error);
+            conversationHistory.push({
+              role: "user",
+              content: [{
+                type: "tool_result",
+                tool_use_id: toolUseContent.id,
+                content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                is_error: true
+              }]
+            });
+          }
+        }
       } else { // gemini
-        console.log(`Making Gemini call with tool calling, hasExecutedTool=${hasExecutedTool}`);
+        // Use "ANY" for forceToolUse=true, or for tool agents that haven't called tools yet
+        const shouldForceToolUse = forceToolUse || (this.definition.agentType === 'tool' && !hasExecutedTool);
+        const toolMode = shouldForceToolUse ? "ANY" : "AUTO";
+        console.log(`Making Gemini call with functionCallingConfig.mode=${toolMode}, forceToolUse=${forceToolUse}, hasExecutedTool=${hasExecutedTool}, shouldForceToolUse=${shouldForceToolUse}`);
 
         // Gemini uses a different format - tools are passed directly
         response = await client.models.generateContent({
-          model: config.model || "gemini-2.5-pro",
+          model: config.model || "gemini-3-pro",
           contents: conversationHistory,
           tools: [{ functionDeclarations: tools }],
           toolConfig: {
             functionCallingConfig: {
-              mode: forceToolUse ? "ANY" : "AUTO"
+              mode: toolMode
             }
           }
         });

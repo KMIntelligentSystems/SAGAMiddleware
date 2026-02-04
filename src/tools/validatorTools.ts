@@ -37,13 +37,13 @@ export async function trigger_conversation(
     }
 
     // Update ConversationAgent's context with the validated code
-    context.coordinator.contextManager.updateContext('ConversationAgent', {
+  /*  context.coordinator.contextManager.updateContext('ConversationAgent', {
       validatedCode: params.code,
       validationStatus: 'PASSED',
       validationReport: context.validationReport,
       message: params.message,
       timestamp: new Date()
-    });
+    });*/
 
     console.log('✅ Code passed to ConversationAgent for user output');
 

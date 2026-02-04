@@ -16,7 +16,7 @@ import { opusPythonAnalysisResult_Jan_02,  openaiPythonAnalysisResult_Jan_02, op
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js';
 import { AgentDataArray } from '../agents/userQueryAnalyzerAgent.js';
 
-import { renderD3VisualizationTool, getD3VisualizationToolSchema, getCsvDataTool, getCsvDataToolSchema } from '../tools/d3VisualizationTools.js';
+import { renderD3VisualizationTool, getD3VisualizationToolSchema, getCsvDataTool, getCsvDataToolSchema, getHTMLLayoutDesignRetrySchema, getConversationExitSchema, triggerHTMLLayoutDesignRetry, triggerExit  } from '../tools/d3VisualizationTools.js';
 
 
 /**
@@ -122,6 +122,7 @@ function registerToolsForAgent(agent: GenericAgent): void {
     // Only register if this is a tool agent and no tools are registered yet
     if (agent.getAgentDefinition().agentType === 'tool' && agent.getLocalTools().length === 0) {
 
+        if(agent.getName() === 'ValidatingAgent'){
         // Register D3 visualization tool
         const d3ToolSchema = getD3VisualizationToolSchema();
         agent.registerLocalTool({
@@ -141,6 +142,25 @@ function registerToolsForAgent(agent: GenericAgent): void {
             inputSchema: csvToolSchema.inputSchema,
             handler: getCsvDataTool
         });
+    } else if(agent.getName() === 'ConversationAgent'){
+            const retryHTMLDesignToolSchema = getHTMLLayoutDesignRetrySchema();
+            agent.registerLocalTool({
+                name: retryHTMLDesignToolSchema.name,
+                serverName: 'local',
+                description:  retryHTMLDesignToolSchema.description,
+                inputSchema:retryHTMLDesignToolSchema.inputSchema,
+                handler:triggerHTMLLayoutDesignRetry 
+            });
+
+          const conversationExitToolSchema = getConversationExitSchema();
+            agent.registerLocalTool({
+                name: conversationExitToolSchema.name,
+                serverName: 'local',
+                description:   conversationExitToolSchema.description,
+                inputSchema:  conversationExitToolSchema.inputSchema,
+                handler:triggerExit
+            });
+        }
     }
 }
 
@@ -228,34 +248,20 @@ export const LLMCallStrategy: FlowStrategy = {
         const result = await agent.execute(executionInput);
         console.log(`✅ LLMCallStrategy: Completed execution of ${agent.getName()}, success: ${result.success}`);
 
-        // Store result in ALL target agents' contexts
-        let prevCtx;
-        let preCtxRes;
         for (const targetAgent of targetAgents) {
-          
-            prevCtx = contextManager.getContext(targetAgent) as WorkingMemory;
-            preCtxRes = prevCtx?.lastTransactionResult;
-            if(preCtxRes){
                 contextManager.updateContext(targetAgent, {
                     lastTransactionResult: result.result,
-                    prevResult: prevCtx?.lastTransactionResult,
+                    prevResult: ctx.lastTransactionResult,
                     transactionId: agent.getId(),
                     timestamp: new Date()
             });
-            } else{
-                contextManager.updateContext(targetAgent, {
-                    lastTransactionResult: result.result,
-                    transactionId: agent.getId(),
-                    timestamp: new Date()
-            });
-            }
-         
+  
             console.log(`✅ LLMCallStrategy: Stored result in ${targetAgent} context`);
-            if(targetAgent === 'D3JSCodeValidator'){
-            //    console.log('HTML LAYOUT ', result.result)//html->this is a test-> needle-viz
+            if(targetAgent === 'ValidatingAgent'){
+                 console.log('LAST ',ctx.lastTransactionResult)
             }
         }
-        /*
+        /*,
 1. ReportWritingAgent adds report to layout
         */
 

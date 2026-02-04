@@ -14,7 +14,7 @@ import { LLMPromptConfig } from '../services/contextRegistry.js';
 export const AGENT_DEFINITIONS: LLMPromptConfig[] = [
     {
         agentName: 'ConversationAgent',
-        agentType: 'processing',
+        agentType: 'tool',
         transactionId: 'tx-1',
         backstory: 'Receives workflow requirements from frontend and passes them to DAG Designer for autonomous workflow creation.',
         taskDescription: `Your role is to receive workflow requirements as formatted JSON and provide a natural language summary of the requirements

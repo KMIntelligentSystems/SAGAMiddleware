@@ -136,6 +136,26 @@ export async function renderD3VisualizationTool(
   }
 }
 
+export async function triggerHTMLLayoutDesignRetry(  //context: ValidatorToolContext,
+ // params: { code: string; message?: string }
+): Promise<{ success: boolean; result: string }> {
+   return {
+      success: false,
+      result: 'Code forwarded to HTML Design Agent for retry'
+    };
+
+}
+
+export async function triggerExit(  //context: ValidatorToolContext,
+  params: { code: string; message?: string }
+): Promise<{ success: boolean; result: string }> {
+   return {
+      success: true,
+      result: 'Code forwarded to EXIT'
+    };
+
+}
+
 /**
  * Tool handler to read CSV data from file system
  * Used by GenericAgent to fetch CSV data on-demand
@@ -174,6 +194,24 @@ export async function getCsvDataTool(args: { filePath: string }): Promise<{
     };
   }
 }
+
+export function getHTMLLayoutDesignRetrySchema() {
+  return {
+    name: 'html_designer_retry',
+    description: 'Triggers retry for HTML Layout Designer.',
+    inputSchema:{}
+    }
+  };
+
+  export function getConversationExitSchema() {
+  return {
+    name: 'conversation_exit',
+    description: 'End conversation.',
+    inputSchema:{}
+    }
+  };
+
+
 
 /**
  * Get CSV data tool schema for LLM function calling
