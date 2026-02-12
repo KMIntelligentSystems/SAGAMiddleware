@@ -280,24 +280,28 @@ export class DAGExecutor extends EventEmitter {
         try {
             const conditionObj: EdgeCondition = JSON.parse(edge.condition);
             const expression = conditionObj.expression;
-            console.log('CONDITION ', conditionObj)
+            console.log('CONDITION ', edge)
 
             // Simple evaluation - check for success patterns
             if (expression.includes('success === true') || expression.includes('success==true')) {
                 if(!context.data.includes('"success": false')){
                     return true;
-                } 
+                } else{
+                    return false
+                }
                // return context.success === true || context.lastNodeOutput?.success === true;
             } else if (expression.includes('success === false') || expression.includes('success==false')) {
                    if(context.data.includes('"success": false')){
+                    return true;
+                } else {
                     return false;
-                } 
+                }
                // return context.success === false || context.lastNodeOutput?.success === false;
             }
 
             // For more complex expressions, you can extend this
             console.warn(`Complex condition detected: ${expression}, defaulting to true`);
-            return true;
+           // return true;
         } catch (error) {
             console.warn(`Failed to evaluate condition for edge ${edge.id}:`, error);
             return true;
@@ -443,8 +447,8 @@ console.log('AUTO VALID ', validEdges)
             // Check if this node has autonomous decision edges
             const hasDecisionEdges = this.hasAutonomousDecisionEdges(nodeId);
 
-            // For decision nodes, we'll determine targets AFTER execution
-            // For normal nodes, get all target agents now
+            // For decision nodes, we'll determine targets 
+            // For normal nodes, get all target agents now. Target 
             const targetAgents = hasDecisionEdges ? [] : this.getTargetAgentsForNode(nodeId);
 
             console.log(`🔍 Node ${nodeId} has decision edges: ${hasDecisionEdges}, initial targets: ${targetAgents.join(', ')}`);
@@ -1018,13 +1022,13 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
             let prevCtx;
             let preCtxRes;
             for (const targetAgent of targetAgents) {
-                prevCtx = this.coordinator.contextManager.getContext(targetAgent);
-                preCtxRes = prevCtx?.lastTransactionResult;
+                prevCtx = this.coordinator.contextManager.getContext(sourceAgentName);
+                preCtxRes = prevCtx?.prevResult;
 
                 if (preCtxRes) {
                     this.coordinator.contextManager.updateContext(targetAgent, {
                         lastTransactionResult: result.data,
-                        prevResult: prevCtx?.lastTransactionResult,
+                        prevResult: preCtxRes,
                         transactionId: nodeId,
                         timestamp: new Date()
                     });

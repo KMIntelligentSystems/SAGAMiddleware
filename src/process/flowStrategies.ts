@@ -247,7 +247,7 @@ export const LLMCallStrategy: FlowStrategy = {
 
         const result = await agent.execute(executionInput);
         console.log(`✅ LLMCallStrategy: Completed execution of ${agent.getName()}, success: ${result.success}`);
-
+console.log('')
         for (const targetAgent of targetAgents) {
                 contextManager.updateContext(targetAgent, {
                     lastTransactionResult: result.result,

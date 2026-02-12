@@ -188,14 +188,19 @@ export class GenericAgent {
       
       if(this.definition.name === 'HTMLLayoutDesignAgent'){
         console.log('🔧 Using HTMLLayoutDesignAgent - BEFORE invokeLLM');
-      //   result = await this.invokeLLM(prompt);
          console.log('🔧 Using HTMLLayoutDesignAgent - AFTER invokeLLM, result length:', result.result?.length);
-       result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_htmlLayout_needs_validation.txt', 'utf-8');
+        if(this.definition.id === 'html-builder'){
+          result.result = fs.readFileSync('C:/repos/sagaMiddleware/data/opus_htmlLayout_needs_validation.txt', 'utf-8');
+        } else   if(this.definition.id === 'html-builder-retry'){
+             result = await this.invokeLLM(prompt);
+        }
+
+       
       }
 
 
     console.log('GENERIC AGENT ',this.definition.name)
-    if(this.definition.name === 'ValidatingAgent'){
+    if(this.definition.id === 'html-builder-retry'){
       console.log('GENERIC RESULT ',result.result) 
     }
       return {
@@ -805,7 +810,7 @@ try{
     // No tools available, use regular completion
     console.log('🔄 Starting Anthropic API call...');
     const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('API call timeout after 120 seconds')), 240000)
+      setTimeout(() => reject(new Error('API call timeout after 120 seconds')), 600000)
     );
     
     const apiPromise = client.messages.create({
