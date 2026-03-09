@@ -12,7 +12,8 @@ import {
 } from '../process/flowStrategies.js';
 
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
-
+import { Agent, AgentTool } from "@mariozechner/pi-agent-core";
+import { getModel } from "@mariozechner/pi-ai";
 /**
  * Clean context data by removing redundant metadata and normalizing strings
  * Preserves all actual data content needed for agent reasoning
@@ -89,6 +90,8 @@ function cleanContextData(data: any): any {
 
     return cleaned;
 }
+
+
 
 // Types matching your DAG structure
 interface DAGNode {
@@ -1003,6 +1006,22 @@ export class StrategyBasedNodeExecutor implements NodeExecutor {
         agentDefinition.id = nodeId;
         // Create a NEW instance to prevent race conditions in parallel execution
         return new GenericAgent(templateAgent.getAgentDefinition());
+    }
+
+    private crreateAgent(): void {
+        const agent = new Agent({
+      initialState: {
+        systemPrompt: "You are a helpful assistant.",
+        model: getModel("anthropic", "claude-sonnet-4-20250514"),
+      },
+    });
+    
+    agent.subscribe((event) => {
+      if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
+        // Stream just the new text chunk
+        process.stdout.write(event.assistantMessageEvent.delta);
+      }
+    });
     }
 
     async distributeResultsToTargets(

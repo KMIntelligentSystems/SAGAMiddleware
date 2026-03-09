@@ -3,6 +3,7 @@
 import { MCPServerConfig, MCPToolCall, MCPResource } from '../types/index.js';
 import { globalDataProcessor, ProcessedDataWithKey } from '../processing/dataResultProcessor.js';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
