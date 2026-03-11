@@ -1,6 +1,6 @@
 import { AgentPromptArray } from '../agents/promptGeneratorAgent.js'
 import { Agent, AgentTool } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
+import { getModel, type Model } from "@mariozechner/pi-ai";
 import * as fs from 'fs';
 import * as path from 'path';
 import { D3VisualizationOptions } from '../mcp/d3VisualizationClient.js';
@@ -8,8 +8,10 @@ import {
   createAgentSession,
   DefaultResourceLoader,
   SessionManager,
+  type ToolDefinition 
 } from  "@mariozechner/pi-coding-agent";
-
+ import { Type, type TObject } from "@sinclair/typebox";
+ 
 import { callOnce } from "mcporter";
 
 import { createRuntime, createServerProxy, ServerDefinition, CallOptions  } from "mcporter";
@@ -25,6 +27,7 @@ const options_: D3VisualizationOptions = {
                 d3Code: d3Code,
                 csvData: csvData,
                 csvFilename: csvFilename,
+				 svgName: `validation-${Date.now()}.svg`,
 				  screenshotName: `validation-${Date.now()}.png`,
 				 outputPath: 'C:/repos/SAGAMiddleware/output/d3-visualizations'
             }
@@ -32,7 +35,21 @@ const options_: D3VisualizationOptions = {
 
 
 const PLAYWRIGHT_TOOL = "http://127.0.0.1:3000/mcp";
-;
+
+
+const outputDir = options_.outputPath || path.join(process.cwd(), 'output', 'd3-visualizations');
+if (!fs.existsSync(outputDir)) {
+	 fs.mkdirSync(outputDir, { recursive: true });
+}
+
+const screenshotName = options_.screenshotName || `d3-visualization-${Date.now()}.png`;
+const screenshotPath = path.join(outputDir, screenshotName);
+
+ const svgName = options_.svgName || `d3-visualization-${Date.now()}.svg`;
+	  const svgPath = path.join(outputDir, svgName);
+	  console.log(`💾 Saving SVG to ${svgPath}...`);
+
+	  const writeSVG: CallOptions = {args: {path:  svgPath}}
 
 const importServer: ServerDefinition = {
   name: 'playwright_set_content',
@@ -43,10 +60,68 @@ const runtime = await createRuntime();
 await runtime.registerDefinition(importServer)
 
 const servers = await runtime.listServers()
-console.log(servers)
+//console.log(servers)
+const allTools: ToolDefinition[] = [];
+  const tools = await runtime.listTools('playwright_set_content', { includeSchema: true });
+  console.log('TOOL NAME ',tools )
+const server = 'playwright_set_content'
+       for (const tool of tools) {
+       allTools.push({
+         name: tool.name,   // namespace to avoid collisions
+         label: `${server}/${tool.name}`,
+         description: tool.description ?? "",
+         parameters: jsonSchemaToTypebox(tool.inputSchema),
 
+         async execute(toolCallId, params: any, signal) {
+           const result = await runtime.callTool(server, tool.name, { args: params });//params
+
+
+
+//const loadDocOptions: CallOptions = {args: {html:  options_.d3Code, waitUntil: 'networkidle', dataDir: 'C:/repos/sagamiddleware/'}}
+//await runtime.callTool('playwright_set_content','playwright_set_content',   loadDocOptions);
+
+           // mcporter returns raw MCP envelope — extract text content
+           const content = extractContent(result);
+
+           return { content, details: { server, tool: tool.name } };
+         },
+       });
+     }
+
+// Pass custom tools directly
+const { session } = await createAgentSession({
+  customTools: allTools,
+});
+
+  session.subscribe((event) => {
+     if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
+       process.stdout.write(event.assistantMessageEvent.delta);
+     }
+   });
+
+
+   const m: Model<any> = getModel('openai', 'gpt-5.3-codex')
+  await session.agent.setModel(m)
+
+   const params = {html:  options_.d3Code, waitUntil: 'networkidle', dataDir: 'C:/repos/sagamiddleware/'}
+   const writeDocOptions: CallOptions = {args: {path: screenshotPath,  fullPage: true}}
+
+   const prompt = `Your task is to make a tool calls to Playwright in three steps:
+1.Call 'playwright_set_content'  tool with the args: "  ${JSON.stringify(params)}. Wait for the reply.
+2.Call 'playwright_screenshot' tool with args:  "  ${JSON.stringify(writeDocOptions)}. Wait for the reply.
+3.Call 'playwright_save_svg' tool with args:  "  ${JSON.stringify(writeSVG)}.`
+
+   await session.prompt(prompt);//"Call the 'playwrigt_set_content' tool with the args: " + JSON.stringify(params)
+
+ console.log(JSON.stringify(params))
+   // 4. Cleanup
+   session.dispose();
+   await runtime.close();
+
+   
+//----------------------------------
 //await runtime.connect(PLAYWRIGHT_TOOL)
-const  mcport44erCallOptions = exportPlaywrightTool(options_)
+/*const  mcport44erCallOptions = exportPlaywrightTool(options_)
  console.log(`✅ Route interception set up for: ${JSON.stringify(mcport44erCallOptions)}`);
  //await runtime.callTool('playwright_set_content','playwright_route_file',  mcport44erCallOptions);
 
@@ -58,19 +133,22 @@ await runtime.callTool('playwright_set_content','playwright_set_content',   load
 
 console.log('✅ D3 HTML document loaded successfully');
 
-const outputDir = options_.outputPath || path.join(process.cwd(), 'output', 'd3-visualizations');
-if (!fs.existsSync(outputDir)) {
-	 fs.mkdirSync(outputDir, { recursive: true });
-}
 	 // Save PNG screenshot
-const screenshotName = options_.screenshotName || `d3-visualization-${Date.now()}.png`;
-const screenshotPath = path.join(outputDir, screenshotName);
+
 console.log(`📸 Taking screenshot to ${screenshotPath}...`);
 
- const writeDocOptions: CallOptions = {args: {path: screenshotPath,  fullPage: true}}
+
 await runtime.callTool('playwright_set_content','playwright_screenshot',    writeDocOptions);
 		
 
+ 
+	  await runtime.callTool('playwright_set_content','playwright_save_svg',    writeSVG);
+
+	  console.log('✅ Visualization complete!');
+	  console.log(`  📸 PNG: ${screenshotPath}`);
+	  console.log(`  💾 SVG: ${svgPath}`);
+
+	  await runtime.close();
 
 
 function exportPlaywrightTool(options: D3VisualizationOptions): CallOptions{
@@ -100,7 +178,7 @@ function exportPlaywrightTool(options: D3VisualizationOptions): CallOptions{
 	
 			// Use wildcard pattern to match the CSV file regardless of path
 			const filename = path.basename(options.csvFilename);
-			const urlPattern = `**/${filename}`;
+			const urlPattern = `** /${filename}`;
 
 			const mcport44erCallOptions: CallOptions = {args: { 
 			urlPattern: urlPattern,
@@ -111,225 +189,46 @@ function exportPlaywrightTool(options: D3VisualizationOptions): CallOptions{
 			
 	return  mcport44erCallOptions
 		}
-}
+}*/
+
+function jsonSchemaToTypebox(schema: unknown): TObject {
+     const s = schema as any;
+     if (!s?.properties) return Type.Object({});
+
+     const props: Record<string, any> = {};
+     const required = new Set(s.required ?? []);
+
+     for (const [key, value] of Object.entries(s.properties)) {
+       const v = value as any;
+       let field: any;
+
+       switch (v.type) {
+         case "string":  field = Type.String({ description: v.description }); break;
+         case "number":
+         case "integer": field = Type.Number({ description: v.description }); break;
+         case "boolean": field = Type.Boolean({ description: v.description }); break;
+         case "array":   field = Type.Array(Type.Unknown(), { description: v.description }); break;
+         case "object":  field = Type.Unknown({ description: v.description }); break;
+         default:        field = Type.Unknown({ description: v.description }); break;
+       }
+
+       props[key] = required.has(key) ? field : Type.Optional(field);
+     }
+
+     return Type.Object(props);
+   }
+
+   function extractContent(result: unknown): Array<{ type: "text"; text: string }> {
+     // MCP results have { content: [{ type: "text", text: "..." }, ...] }
+     const r = result as any;
+     if (r?.content && Array.isArray(r.content)) {
+       return r.content
+         .filter((c: any) => c.type === "text")
+         .map((c: any) => ({ type: "text" as const, text: c.text }));
+     }
+     // Fallback: stringify the whole thing
+     return [{ type: "text", text: JSON.stringify(result, null, 2) }];
+   }
 
 
- let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | undefined;
-//CREATE SESSION AGENT
-/*const session = new AgentSession({
-		agent,
-		sessionManager,
-		settingsManager,
-		cwd,
-		scopedModels: options.scopedModels,
-		resourceLoader,
-		customTools: options.customTools,
-		modelRegistry,
-		initialActiveToolNames,
-		extensionRunnerRef,
-	});*/
-/*
-OPEN CLAW:
-openclaw/src/agents/pi-embedded-runner/run/attempt.ts
-  ({ session } = await createAgentSession({
-        cwd: resolvedWorkspace,
-        agentDir,
-        authStorage: params.authStorage,
-        modelRegistry: params.modelRegistry,
-        model: params.model,
-        thinkingLevel: mapThinkingLevel(params.thinkLevel),
-        tools: builtInTools,
-        customTools: allCustomTools,
-        sessionManager,
-        settingsManager,
-        resourceLoader,
-      }));
-      applySystemPromptOverrideToSession(session, systemPromptText);
-      if (!session) {
-        throw new Error("Embedded agent session missing");
-      }
-      const activeSession = session;
-*/
-//TOOL
-//pi-mono/packages/coding-agent/src/core/tools/read.ts
-/*
-const readSchema = Type.Object({
-	path: Type.String({ description: "Path to the file to read (relative or absolute)" }),
-	offset: Type.Optional(Type.Number({ description: "Line number to start reading from (1-indexed)" })),
-	limit: Type.Optional(Type.Number({ description: "Maximum number of lines to read" })),
-});
-
-*/
-
-/*export function createReadTool(cwd: string, options?: ReadToolOptions): AgentTool<typeof readSchema> {
-	const autoResizeImages = options?.autoResizeImages ?? true;
-	const ops = options?.operations ?? defaultReadOperations;
-
-	return {
-		name: "read",
-		label: "read",
-		description: `Read the contents of a file. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
-		parameters: readSchema,
-		execute: async (
-			_toolCallId: string,
-			{ path, offset, limit }: { path: string; offset?: number; limit?: number },
-			signal?: AbortSignal,
-		) => {
-			const absolutePath = resolveReadPath(path, cwd);
-
-			return new Promise<{ content: (TextContent | ImageContent)[]; details: ReadToolDetails | undefined }>(
-				(resolve, reject) => {
-					// Check if already aborted
-					if (signal?.aborted) {
-						reject(new Error("Operation aborted"));
-						return;
-					}
-
-					let aborted = false;
-
-					// Set up abort handler
-					const onAbort = () => {
-						aborted = true;
-						reject(new Error("Operation aborted"));
-					};
-
-					if (signal) {
-						signal.addEventListener("abort", onAbort, { once: true });
-					}
-
-					// Perform the read operation
-					(async () => {
-						try {
-							// Check if file exists
-							await ops.access(absolutePath);
-
-							// Check if aborted before reading
-							if (aborted) {
-								return;
-							}
-
-							const mimeType = ops.detectImageMimeType ? await ops.detectImageMimeType(absolutePath) : undefined;
-
-							// Read the file based on type
-							let content: (TextContent | ImageContent)[];
-							let details: ReadToolDetails | undefined;
-
-							if (mimeType) {
-								// Read as image (binary)
-								const buffer = await ops.readFile(absolutePath);
-								const base64 = buffer.toString("base64");
-
-								if (autoResizeImages) {
-									// Resize image if needed
-									const resized = await resizeImage({ type: "image", data: base64, mimeType });
-									const dimensionNote = formatDimensionNote(resized);
-
-									let textNote = `Read image file [${resized.mimeType}]`;
-									if (dimensionNote) {
-										textNote += `\n${dimensionNote}`;
-									}
-
-									content = [
-										{ type: "text", text: textNote },
-										{ type: "image", data: resized.data, mimeType: resized.mimeType },
-									];
-								} else {
-									const textNote = `Read image file [${mimeType}]`;
-									content = [
-										{ type: "text", text: textNote },
-										{ type: "image", data: base64, mimeType },
-									];
-								}
-							} else {
-								// Read as text
-								const buffer = await ops.readFile(absolutePath);
-								const textContent = buffer.toString("utf-8");
-								const allLines = textContent.split("\n");
-								const totalFileLines = allLines.length;
-
-								// Apply offset if specified (1-indexed to 0-indexed)
-								const startLine = offset ? Math.max(0, offset - 1) : 0;
-								const startLineDisplay = startLine + 1; // For display (1-indexed)
-
-								// Check if offset is out of bounds
-								if (startLine >= allLines.length) {
-									throw new Error(`Offset ${offset} is beyond end of file (${allLines.length} lines total)`);
-								}
-
-								// If limit is specified by user, use it; otherwise we'll let truncateHead decide
-								let selectedContent: string;
-								let userLimitedLines: number | undefined;
-								if (limit !== undefined) {
-									const endLine = Math.min(startLine + limit, allLines.length);
-									selectedContent = allLines.slice(startLine, endLine).join("\n");
-									userLimitedLines = endLine - startLine;
-								} else {
-									selectedContent = allLines.slice(startLine).join("\n");
-								}
-
-								// Apply truncation (respects both line and byte limits)
-								const truncation = truncateHead(selectedContent);
-
-								let outputText: string;
-
-								if (truncation.firstLineExceedsLimit) {
-									// First line at offset exceeds 30KB - tell model to use bash
-									const firstLineSize = formatSize(Buffer.byteLength(allLines[startLine], "utf-8"));
-									outputText = `[Line ${startLineDisplay} is ${firstLineSize}, exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use bash: sed -n '${startLineDisplay}p' ${path} | head -c ${DEFAULT_MAX_BYTES}]`;
-									details = { truncation };
-								} else if (truncation.truncated) {
-									// Truncation occurred - build actionable notice
-									const endLineDisplay = startLineDisplay + truncation.outputLines - 1;
-									const nextOffset = endLineDisplay + 1;
-
-									outputText = truncation.content;
-
-									if (truncation.truncatedBy === "lines") {
-										outputText += `\n\n[Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines}. Use offset=${nextOffset} to continue.]`;
-									} else {
-										outputText += `\n\n[Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Use offset=${nextOffset} to continue.]`;
-									}
-									details = { truncation };
-								} else if (userLimitedLines !== undefined && startLine + userLimitedLines < allLines.length) {
-									// User specified limit, there's more content, but no truncation
-									const remaining = allLines.length - (startLine + userLimitedLines);
-									const nextOffset = startLine + userLimitedLines + 1;
-
-									outputText = truncation.content;
-									outputText += `\n\n[${remaining} more lines in file. Use offset=${nextOffset} to continue.]`;
-								} else {
-									// No truncation, no user limit exceeded
-									outputText = truncation.content;
-								}
-
-								content = [{ type: "text", text: outputText }];
-							}
-
-							// Check if aborted after reading
-							if (aborted) {
-								return;
-							}
-
-							// Clean up abort handler
-							if (signal) {
-								signal.removeEventListener("abort", onAbort);
-							}
-
-							resolve({ content, details });
-						} catch (error: any) {
-							// Clean up abort handler
-							if (signal) {
-								signal.removeEventListener("abort", onAbort);
-							}
-
-							if (!aborted) {
-								reject(error);
-							}
-						}
-					})();
-				},
-			);
-		},
-	};
-}
-*/
+ 
